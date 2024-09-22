@@ -1,5 +1,6 @@
 (ns hyperfiddle.input-zoo0
-  (:require [hyperfiddle.electric3 :as e]
+  (:require clojure.string
+            [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
 (e/defn PendingMonitor [edits] ; todo DirtyMonitor
@@ -44,40 +45,56 @@
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 ;; Transactional inputs
+; Errors are forwarded in via token callback
+; Errors are never sent out via signal, because consumers already saw it when they forwarded it in
 
 (e/defn Input! [v & {:keys [maxlength type] :as props
                      :or {maxlength 100 type "text"}}]
   (e/client
     (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-      (PendingMonitor
-        (let [e (dom/On "input" identity nil) t (e/Token e)] ; reuse token until commit
-          (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
-          (if t [t ((fn [] (-> e .-target .-value (subs 0 maxlength))))] (e/amb)))))))
+      (let [e (dom/On "input" identity nil) [t err] (e/RetryToken e) ; reuse token until commit
+            editing? (dom/Focused?)
+            waiting? (some? t)
+            error? (some? err)
+            dirty? (or editing? waiting? error?)]
+        (when-not dirty? (set! (.-value dom/node) v))
+        (when error? (dom/props {:aria-invalid true}))
+        (when waiting? (dom/props {:aria-busy true}))
+        (if waiting? [t ((fn [] (-> e .-target .-value (subs 0 maxlength))))] (e/amb))))))
+
+; include the error for the pending monitor - unclear if right
+; encapsulate errors, the form already saw it when forwarding here
 
 (e/defn Checkbox! [checked & {:keys [id label] :as props
                               :or {id (random-uuid)}}]
   ; todo esc?
   (e/client
     (e/amb
-      (dom/div ; for yellow background
+      (dom/div ; checkboxes don't have background so style wrapper div
         (dom/props {:style {:display "inline-block" :width "fit-content"}})
-        (PendingMonitor ; checkboxes don't have background so style wrapper div
-          (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
-            (let [e (dom/On "change" identity) t (e/Token e)] ; single txn, no concurrency
-              (when-not (or (dom/Focused?) (some? t)) (set! (.-checked dom/node) checked))
-              (if t [t ((fn [] (-> e .-target .-checked)))] (e/amb))))))
+        (let [[e t err input-node]
+              (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
+                (let [e (dom/On "change" identity) [t err] (e/RetryToken e)] ; single txn, no concurrency
+                  [e t err dom/node]))
+              editing? (dom/Focused? input-node)
+              waiting? (some? t)
+              error? (some? err)
+              dirty? (or editing? waiting? error?)]
+          (when-not dirty? (set! (.-checked input-node) checked))
+          (when error? (dom/props {:aria-invalid true}))
+          (when waiting? (dom/props {:aria-busy true}))
+          (if waiting? [t ((fn [] (-> e .-target .-checked)))] (e/amb))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
-(e/defn Button! [directive & {:keys [label disabled id error token] :as props
+(e/defn Button! [directive & {:keys [label disabled id token] :as props
                               :or {id (random-uuid)}}]
-  (dom/button (dom/text label)
+  (dom/button (dom/text label) ; (if err "retry" label)
     (dom/props (-> props (dissoc :label :disabled) (assoc :id id)))
-    (let [t (e/Token (dom/On "click"))]
-      (dom/props {:disabled (or disabled (some? t))
-                  :aria-invalid (some? error)}) ; todo compile kw args
-      (when (some? error)
-        (dom/span (dom/text error) (dom/props {:class "hyperfiddle-error"})))
-      (e/When (some? t) [t directive])))) ; injected tokens do not resubmit until user interacts again
+    (let [[t err] (e/RetryToken (dom/On "click" identity nil))]
+      (prn 'Button! t (some? err))
+      (dom/props {:disabled (or disabled (some? t))}) ; todo compile kw args
+      (when (some? err) (dom/props {:aria-invalid true})) ; bug - error not removed (glitch)
+      (if t [t directive] (e/amb))))) ; injected tokens do not resubmit until user interacts again
 
 ;; Transactional inputs that auto-submit (i.e., builtin submit and cancel)
 ; for forms that don't have an explicit submit button - like TodoMVC and iphone settings.
@@ -96,9 +113,9 @@
   (e/client
     (let [!commit-err (atom nil) commit-err (e/watch !commit-err)
           [t v] (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-                  (PendingMonitor ; injected token activates this state
+                  (PendingMonitor ; injected RetryToken activates this state
                     ; todo also listen for meta keys
-                    (let [e (dom/On "input" identity nil) t (e/Token e)]
+                    (let [e (dom/On "input" identity nil) [t err] (e/RetryToken e)]
                       (when-not (or (dom/Focused?) (some? t)) (set! (.-value dom/node) v))
                       #_(if t [t ((fn [] (some-> e .-target .-value (subs 0 maxlength))))] (e/amb))
                       (if-let [t' (or t token)] ; the pending value may have come from create-new !
