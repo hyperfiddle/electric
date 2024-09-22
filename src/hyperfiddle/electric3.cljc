@@ -361,11 +361,32 @@ inhibiting all further reactive updates."
 
 (hyperfiddle.electric3/defn Snapshot [v] (join (-snapshot (pure v))))
 
-(let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
-      step        (cc/fn [!spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
+(let [->token (cc/fn [!t]
+                (cc/fn token
+                  ([] (token nil))
+                  ([ret] (reset! !t nil) ret)))
+      step (cc/fn [!t v on?] (when (on? v) (compare-and-set! !t nil (->token !t))))]
   (hyperfiddle.electric3/defn Token
-    ([v]     ($ Token v some?))
-    ([v on?] (let [!spend! (atom nil)] (step !spend! v on?) (watch !spend!)))))
+    ([v] (Token v some?))
+    ([v on?] (let [!t (atom nil)]
+               (step !t v on?)
+               (watch !t)))))
+
+(let [->token (cc/fn [!t]
+                (cc/fn token
+                  ([] (reset! !t [nil nil]) nil) ; success, burn token
+                  ([err] (reset! !t [nil err]) nil))) ; failed attempt burns token, user must interact again
+      step (cc/fn [!x v on?]
+             (when (on? v)
+               (let [[t err] @!x]
+                 (cond ; reuse outstanding token but clear error for new attempt
+                   (some? err) (compare-and-set! !x [nil err] [(->token !x) nil])
+                   () (compare-and-set! !x [nil nil] [(->token !x) nil])))))]
+  (hyperfiddle.electric3/defn RetryToken
+    ([v] (RetryToken v some?))
+    ([v on?] (let [!x (atom [nil nil])] ; single watch for consistency
+               (step !x v on?)
+               (watch !x))))) ; route error to call site
 
 (let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
       step        (cc/fn [!spend! _spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
