@@ -91,7 +91,7 @@
   (dom/button (dom/text label) ; (if err "retry" label)
     (dom/props (-> props (dissoc :label :disabled) (assoc :id id)))
     (let [[t err] (e/RetryToken (dom/On "click" identity nil))]
-      (prn 'Button! t (some? err))
+      (prn 'Button! directive t err)
       (dom/props {:disabled (or disabled (some? t))}) ; todo compile kw args
       (when (some? err) (dom/props {:aria-invalid true})) ; bug - error not removed (glitch)
       (if t [t directive] (e/amb))))) ; injected tokens do not resubmit until user interacts again
@@ -119,9 +119,10 @@
                         waiting? (or (some? t) (some? token))
                         error? (some? err) ; todo route error from original token
                         dirty? (or editing? waiting-mine? error?)]
+                    (prn 'InputSubmit! editing? waiting-mine? waiting? error? dirty?) ; prove glitch
                     (when-not dirty? (set! (.-value dom/node) v))
                     (when error? (dom/props {:aria-invalid true}))
-                    (when waiting? (dom/props {:aria-busy true}))
+                    (when waiting? (dom/props {:aria-busy true})) ; glitch
                     (if waiting?
                       [(or t token) ; absorb foreign token
                        ((fn [] (cond
@@ -132,6 +133,7 @@
           ; [t v e] - t can be burned but e & v remains = retry ?
 
           external-submit? (some? token) ; inlining this under when causes a glitch NPE in commit
+          ; q (and external-submit? (not= t token))
           dirty? (e/Some? t)
           locally-dirty? (and (e/Some? t) (not= t token)) ; cancel inflight txn in this case - todo
           can-commit? locally-dirty?
@@ -141,7 +143,6 @@
             (Button! ::commit :label "commit" :disabled (not can-commit?)) ; todo progress
             (Button! ::discard :label "discard" :disabled (not dirty?)))]
 
-      #_(prn 'InputSubmit! 'external-submit? external-submit?)
       external-submit? ; workaround crash on discard in todos
 
       ;(prn 'edit (e/Some? t) (e/as-vec v)) (prn 'btns (e/as-vec btns))
