@@ -235,7 +235,7 @@ submits concurrent isolated edits which race. Pending until all edits commit
                                  (= "Enter" k) (let [v (read! (.-target e))] ; no clear
                                                  (if commit (commit v) v))
                                  ; if discard directive provided, emit, otherwise swallow
-                                 (= "Escape" k) (do (set! (.-value dom/node) "") discard)
+                                 (= "Escape" k) (do (set! (.-value dom/node) v) discard)
                                  () nil)))]
           (let [edits (dom/On-all "keydown" submit!)] ; eagerly submit individual edits
             (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-value dom/node) v))
