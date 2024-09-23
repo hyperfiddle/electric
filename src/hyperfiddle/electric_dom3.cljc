@@ -282,10 +282,10 @@
   an existing DOM Element, typically libraries integration."
   [element Body] (e/client (binding [node element] ($ Body))))
 
-(e/defn WithElement
+(e/defn With-element
   "Mount a new DOM Element of type `tag` in the current `node` and run `Body` in
   the context of the new Element."
-  ([tag Body] ($ WithElement nil tag Body))
+  ([tag Body] ($ With-element nil tag Body))
   ([ns tag Body]
    (let [mp   (e/client (e/mount-point))
          elem (e/client (create-element ns tag mp))]
@@ -313,7 +313,7 @@
 ;; Note `(do a b c)` expands to (e/amb (e/drain a) (e/drain b) c), e/drain returns ∅.
 (defn element*
   ([tag forms] (element* nil tag forms))
-  ([ns tag forms] `($ WithElement ~ns ~tag (e/fn [] (do ~@forms)))))
+  ([ns tag forms] `($ With-element ~ns ~tag (e/fn [] (do ~@forms)))))
 
 (defmacro element
   "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
@@ -463,11 +463,11 @@ input's value, use `EventListener`."
                                  running))
            (m/amb)))))))
 
-(e/defn OnAll
-  ([event-type]                           ($ OnAll      event-type identity))
-  ([event-type f]                         ($ OnAll      event-type f        {}))
-  ([event-type f opts]                    ($ OnAll      event-type f        opts ##Inf))
-  ([event-type f opts concurrency-factor] ($ OnAll node event-type f        opts concurrency-factor))
+(e/defn On-all
+  ([event-type]                           ($ On-all      event-type identity))
+  ([event-type f]                         ($ On-all      event-type f        {}))
+  ([event-type f opts]                    ($ On-all      event-type f        opts ##Inf))
+  ([event-type f opts concurrency-factor] ($ On-all node event-type f        opts concurrency-factor))
   ([node event-type f opts concurrency-factor]
    (e/client (e/join (e/input (fork concurrency-factor (listen-some node event-type ((e/capture-fn) f) opts)))))))
 
@@ -475,7 +475,7 @@ input's value, use `EventListener`."
 ;; Extras ;;
 ;;;;;;;;;;;;
 
-#?(:cljs (defn updown [node enter-event leave-event init]
+#?(:cljs (defn squarewave [node enter-event leave-event init]
            (->> (mx/mix
                   (m/observe (fn [!] (with-listener node enter-event (fn [_] (! true)))))
                   (m/observe (fn [!] (with-listener node leave-event (fn [_] (! false))))))
@@ -483,15 +483,15 @@ input's value, use `EventListener`."
 
 (e/defn Mouse-over?
   ([] (Mouse-over? node))
-  ([node] (e/client (e/input (updown node "mouseenter" "mouseleave" false)))))
+  ([node] (e/client (e/input (squarewave node "mouseenter" "mouseleave" false)))))
 
 (e/defn Focused?
   ([] (Focused? node))
-  ([node] (e/client (e/input (updown node "focus" "blur" (= node (.-activeElement js/document)))))))
+  ([node] (e/client (e/input (squarewave node "focus" "blur" (= node (.-activeElement js/document)))))))
 
 (e/defn Mouse-down?
   ([] (Mouse-down? node))
-  ([node] (e/client (e/input (updown node "mouseup" "mousedown" false)))))
+  ([node] (e/client (e/input (squarewave node "mouseup" "mousedown" false)))))
 
 ;;;;;;;;;;;
 ;; Sugar ;;

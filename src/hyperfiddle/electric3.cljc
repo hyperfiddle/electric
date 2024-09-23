@@ -324,12 +324,13 @@ A mount point can be :
 
 (cc/defn on-unmount* [f] (m/observe (cc/fn [!] (! nil) f)))
 
-(defmacro on-unmount "Run clojure(script) thunk `f` during unmount.
+(defmacro on-unmount [f] `(input (on-unmount* ~f))) ; experimental
 
-  Standard electric code runs on mount, therefore there is no `on-mount`."
-  [f] `(input (on-unmount* ~f))) ; experimental
-
-(hyperfiddle.electric3/defn OnUnmount [f] (input (on-unmount* f)))
+(hyperfiddle.electric3/defn On-unmount ; legacy
+  "Run clojure/script thunk `f` during unmount. Standard electric code runs on
+mount, therefore there is no `on-mount`. (Todo: we intend to rework this API in
+v3 to expose the full differential diff lifecycle)"
+  [f] (input (on-unmount* f)))
 
 (defmacro boot-server [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
@@ -464,8 +465,8 @@ inhibiting all further reactive updates."
 
 (def system-time-ms (m/signal (m/sample -get-system-time-ms <clock)))
 
-(hyperfiddle.electric3/defn SystemTimeMs [] (input system-time-ms))
-(hyperfiddle.electric3/defn SystemTimeSecs [] (math/floor-div (input system-time-ms) 1000))
+(hyperfiddle.electric3/defn System-time-ms [] (input system-time-ms))
+(hyperfiddle.electric3/defn System-time-secs [] (math/floor-div (input system-time-ms) 1000))
 
 (cc/defn uf->is [uf]
   (m/ap (m/amb (i/empty-diff 0)

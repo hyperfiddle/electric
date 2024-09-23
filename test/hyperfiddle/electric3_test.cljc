@@ -2253,7 +2253,7 @@
     (with ((l/single {}
              (when-let [x (e/watch !x)]
                (tap x)
-               (e/OnUnmount #(tap :bye)))) {} {})
+               (e/On-unmount #(tap :bye)))) {} {})
       (reset! !x 1)      % := 1
       (swap! !x inc)     % := 2
       (swap! !x inc)     % := 3
