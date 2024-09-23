@@ -219,18 +219,26 @@ buffers (dirty), commit, discard bundled as enter/esc"
 Controlled, buffers dirty edits, discard on Esc, submit on Enter. Eagerly
 submits concurrent isolated edits which race. Pending until all edits commit
 (but without failure recovery?!)"
-  [v & {:keys [maxlength type] :as props
+  [v & {:keys [maxlength type autofocus ::discard ::commit] :as props
         :or {maxlength 100 type "text"}}]
   (e/client
-    (dom/input (dom/props (assoc props :maxLength maxlength :type type))
+    (dom/input (dom/props (-> props (dissoc ::discard ::commit)
+                            (assoc :maxLength maxlength :type type)))
+      (when-not (dom/Focused?) (set! (.-value dom/node) v))
+      #_(when autofocus (case v (.focus dom/node))) ; focus after v loads
       (PendingMonitor
         (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
                 (submit! [e] (let [k (.-key e)]
                                (cond
-                                 (= "Enter" k) (read! (.-target e)) ; no clear
-                                 (= "Escape" k) (do (set! (.-value dom/node) "") nil)
+                                 ; if commit directive provided, use it, otherwise emit v
+                                 (= "Enter" k) (let [v (read! (.-target e))] ; no clear
+                                                 (if commit (commit v) v))
+                                 ; if discard directive provided, emit, otherwise swallow
+                                 (= "Escape" k) (do (set! (.-value dom/node) "") discard)
                                  () nil)))]
-          (dom/On-all "keydown" submit!)))))) ; eagerly submit individual edits
+          (let [edits (dom/On-all "keydown" submit!)] ; eagerly submit individual edits
+            (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-value dom/node) v))
+            edits))))))
 
 (e/defn CheckboxSubmit?!
   "Dubious: nocancel, noretry."
