@@ -238,12 +238,13 @@ submits concurrent isolated edits which race. Pending until all edits commit
               :or {id (random-uuid)}}]
   (e/client
     (e/amb
-      (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
+      (dom/div ; for pending monitor
+        (dom/props {:style {:display "inline-block" :width "fit-content"}})
         (PendingMonitor
-          (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
-            (when-not (or (dom/Focused?) (pos? (e/Count edits)))
-              (set! (.-checked dom/node) checked))
-            edits)))
+          (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
+            (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
+              (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-checked dom/node) checked))
+              edits))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 (e/defn InputSubmitCreate?!
