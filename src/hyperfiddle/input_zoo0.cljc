@@ -250,4 +250,15 @@ submits concurrent isolated edits which race. Pending until all edits commit
 (e/defn InputSubmitCreate?!
   "Dubious: nocancel, noretry."
   [& {:keys [maxlength type] :as props
-      :or {maxlength 100 type "text"}}])
+      :or {maxlength 100 type "text"}}]
+  (e/client
+    (dom/input (dom/props (assoc props :maxLength maxlength :type type))
+      (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
+              (read-clear! [node] (when-some [v (read! node)] (set! (.-value node) "") v))
+              (submit! [e] (let [k (.-key e)]
+                             (cond
+                               (= "Enter" k) (read-clear! (.-target e))
+                               (= "Escape" k) (do (set! (.-value dom/node) "") nil)
+                               () nil)))]
+        (PendingMonitor
+          (dom/On-all "keydown" submit!))))))
