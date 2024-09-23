@@ -585,7 +585,8 @@
                   (recur `[~@arg*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
                            [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
-                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign lfn* env))]
+                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign lfn* env))
+                           ts (?add-source-map ts e form env)]
                        (if (or (nil? current) (= (->env-type env) current))
                          (if f
                            (add-ap-literal f arg* pe e env form ts)
