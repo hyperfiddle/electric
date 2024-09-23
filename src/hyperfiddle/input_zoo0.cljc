@@ -211,13 +211,14 @@ buffers (dirty), commit, discard bundled as enter/esc"
         #_(PendingMonitor) ; the optimistic list item is responsible for pending/retry affordances
         (dom/On-all "keydown" submit!)))))
 
-;; Graveyard
+;; Dubious controls due to absence of failure handling, nonetheless they are
+;; simple and useful in the meantime while the rigorous controls are still WIP.
 
-; these are inline submit inputs but uncancellable and cannot retry on failure
-; because each sequential submit is independent, due to On-all allocating new
-; tokens for each submission
-
-(e/defn InputSubmit!-nocancel-noretry
+(e/defn InputSubmit?!
+  "Dubious: nocancel, noretry (assumes happy path with no failure recovery).
+Controlled, buffers dirty edits, discard on Esc, submit on Enter. Eagerly
+submits concurrent isolated edits which race. Pending until all edits commit
+(but without failure recovery?!)"
   [v & {:keys [maxlength type] :as props
         :or {maxlength 100 type "text"}}]
   (e/client
@@ -231,14 +232,21 @@ buffers (dirty), commit, discard bundled as enter/esc"
                                  () nil)))]
           (dom/On-all "keydown" submit!)))))) ; eagerly submit individual edits
 
-(e/defn CheckboxSubmit!-nocancel-noretry
+(e/defn CheckboxSubmit?!
+  "Dubious: nocancel, noretry."
   [checked & {:keys [id label] :as props
               :or {id (random-uuid)}}]
   (e/client
     (e/amb
       (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
-        (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
-          (when-not (or (dom/Focused?) (pos? (e/Count edits)))
-            (set! (.-checked dom/node) checked))
-          edits))
+        (PendingMonitor
+          (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
+            (when-not (or (dom/Focused?) (pos? (e/Count edits)))
+              (set! (.-checked dom/node) checked))
+            edits)))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
+
+(e/defn InputSubmitCreate?!
+  "Dubious: nocancel, noretry."
+  [& {:keys [maxlength type] :as props
+      :or {maxlength 100 type "text"}}])
