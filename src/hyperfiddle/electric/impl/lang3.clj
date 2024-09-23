@@ -747,86 +747,81 @@
 
 (defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
 
-(defn addf [{{::keys [->id]} :o :as ts} u p ->i more]
-  (ts/add ts (assoc more :db/id (->id), ::u u, ::p p, ::i (->i))))
+(defn addf [{{::keys [->id p ->pi]} :o :as ts} u more]
+  (ts/add ts (assoc more :db/id (->id), ::u u, ::p p, ::i (->pi))))
 
-(defn- add-invoke [{{::keys [->u]} :o :as ts} form env p ->i]
-  (let [ap-u (->u), ->ap-i (->->id)]
-    (reduce (fn [ts nx] (analyze-foreign ts nx env ap-u ->ap-i))
-      (addf ts ap-u p ->i {::t ::invoke}) form)))
+(defn under-root [ts u ->i] (update ts :o assoc ::p u, ::->pi ->i))
 
-(defn ->foreign-class-method-call [{{::keys [->u]} :o :as ts} clazz method x* env p ->i]
-  (let [class-u (->u), ->class-i (->->id)]
-    (reduce (fn [ts nx] (analyze-foreign ts nx env class-u ->class-i))
-      (addf ts class-u p ->i {::t ::class-method-call, ::class clazz , ::method method})
-      x*)))
+(defn under [{{::keys [->u p ->pi]} :o :as ts} base f]
+  (let [u (->u), ->i (->->id), ts (addf ts u base)]
+    (-> ts (under-root u ->i) f (under-root p ->pi))))
 
-(defn ->foreign-method-call [{{::keys [->u]} :o :as ts} o method x* env p ->i]
-  (let [method-u (->u), ->method-i (->->id)]
-    (reduce (fn [ts nx] (analyze-foreign ts nx env method-u ->method-i))
-      (addf ts method-u p ->i {::t ::method-call, ::method method})
-      (cons o x*))))
+(defn- add-invoke [ts form env]
+  (under ts {::t ::invoke}
+    (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts form))))
 
-(defn ->foreign-field-access [{{::keys [->u]} :o :as ts} o field env p ->i]
-  (let [field-u (->u)]
-    (analyze-foreign (addf ts field-u p ->i {::t ::field-access, ::field field})
-      o env field-u (->->id))))
+(defn ->foreign-class-method-call [ts clazz method x* env]
+  (under ts {::t ::class-method-call, ::class clazz, ::method method}
+    (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts x*))))
+
+(defn ->foreign-method-call [ts o method x* env]
+  (under ts {::t ::method-call, ::method method}
+    (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (cons o x*)))))
+
+(defn ->foreign-field-access [ts o field env]
+  (under ts {::t ::field-access, ::field field}
+    (fn [ts] (analyze-foreign ts o env))))
 
 (defn analyze-foreign
-  ([form env] (analyze-foreign (ts/->ts {::->id (->->id), ::->u (->->id)}) form env -1 (->->id)))
-  ([{{::keys [->u]} :o :as ts} form env p ->i]
+  ([form env] (analyze-foreign (ts/->ts {::->id (->->id), ::->u (->->id), ::p -1, ::->pi (->->id)}) form env))
+  ([{{::keys [->u p]} :o :as ts} form env]
    (cond (and (seq? form) (seq form))
          (case (first form)
            (let* loop*)
-           (let [[l bs & body] form, let*-u (->u)
-                 ts (addf ts let*-u p ->i {::t (case l (let*) ::let* (loop*) ::loop*)})
-                 ->sym-i (->->id)
-                 <env> (->box env)
-                 f (fn [ts2 [sym v]]
-                     (let [sym-u (->u), env (<env>)]
-                       (<env> (add-foreign-local env sym))
-                       (-> ts2 (addf sym-u let*-u ->sym-i {::t ::let*-sym, ::sym sym})
-                         (analyze-foreign v env sym-u (->->id)))))
-                 ts2 (transduce (partition-all 2) (completing f) ts bs)
-                 body-u (->u), ->body-i (->->id)]
-             (reduce (fn [ts nx] (analyze-foreign ts nx (<env>) body-u ->body-i))
-               (addf ts2 body-u let*-u (->->id) {::t ::body}) body))
+           (let [[l bs & body] form]
+             (under ts {::t (case l (let*) ::let* (loop*) ::loop*)}
+               (fn [ts]
+                 (let [<env> (->box env)
+                       f (fn [ts [sym v]]
+                           (let [env (<env>)]
+                             (<env> (add-foreign-local env sym))
+                             (under ts {::t ::let*-sym, ::sym sym}
+                               (fn [ts] (analyze-foreign ts v env)))))
+                       ts (transduce (partition-all 2) (completing f) ts bs)]
+                   (under ts {::t ::body}
+                     (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx (<env>))) ts body)))))))
 
            (binding clojure.core/binding)
-           (let [[_ bs & body] form, bind-u (->u)
-                 ts (addf ts bind-u p ->i {::t ::binding})
-                 ->sym-i (->->id)
-                 ts (reduce (fn [ts [sym v]]
-                              (let [sym-u (->u)]
-                                (-> ts (addf sym-u bind-u ->sym-i {::t ::binding-sym, ::sym sym})
-                                  (analyze-foreign v env sym-u (->->id)))))
-                      ts (eduction (partition-all 2) bs))
-                 body-u (->u), ->body-i (->->id)]
-             (reduce (fn [ts nx] (analyze-foreign ts nx env body-u ->body-i))
-               (addf ts body-u bind-u (->->id) {::t ::body}) body))
+           (let [[_ bs & body] form]
+             (under ts {::t ::binding}
+               (fn [ts]
+                 (-> (reduce (fn [ts [sym v]]
+                               (under ts {::t ::binding-sym, ::sym sym}
+                                 (fn [ts] (analyze-foreign ts v env))))
+                       ts (eduction (partition-all 2) bs))
+                   (under {::t ::body}
+                     (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts body)))))))
 
-           (quote) (addf ts (->u) p ->i {::t ::quote, ::v form})
+           (quote) (addf ts (->u) {::t ::quote, ::v form})
 
            (fn*) (let [[?name arity+] (if (symbol? (second form)) [(second form) (nnext form)] [nil (next form)])
-                       env2 (cond-> env ?name (add-foreign-local ?name))
-                       fn*-u (->u), ->arity-i (->->id)
-                       ts (addf ts fn*-u p ->i (cond-> {::t ::fn*} ?name (assoc ::name ?name)))]
-                   (reduce (fn [ts [args & body]]
-                             (let [arity-u (->u), ->body-i (->->id)
-                                   ts (addf ts arity-u fn*-u ->arity-i {::t ::fn*-arity, ::args args})
-                                   env3 (reduce add-foreign-local env2 args)]
-                               (reduce (fn [ts nx] (analyze-foreign ts nx env3 arity-u ->body-i)) ts body)))
-                     ts arity+))
+                       env2 (cond-> env ?name (add-foreign-local ?name))]
+                   (under ts (cond-> {::t ::fn*} ?name (assoc ::name ?name))
+                     (fn [ts]
+                       (reduce (fn [ts [args & body]]
+                                 (let [env3 (reduce add-foreign-local env2 args)]
+                                   (under ts {::t ::fn*-arity, ::args args}
+                                     (fn [ts]
+                                       (reduce (fn [ts nx] (analyze-foreign ts nx env3)) ts body)))))
+                         ts arity+))))
 
            (letfn*) (let [[_ bs & body] form
-                          env (reduce add-foreign-local env (eduction (take-nth 2) bs))
-                          letfn*-u (->u), ->fn-i (->->id)
-                          ts (addf ts letfn*-u p ->i {::t ::letfn*})
-                          ts (reduce (fn [ts f] (analyze-foreign ts f env letfn*-u ->fn-i))
-                               ts (eduction (take-nth 2) (next bs)))
-                          body-u (->u), ->body-i (->->id)]
-                      (reduce (fn [ts nx] (analyze-foreign ts nx env body-u ->body-i))
-                        (addf ts body-u letfn*-u ->i {::t ::body}) body))
+                          env (reduce add-foreign-local env (eduction (take-nth 2) bs))]
+                      (under ts {::t ::letfn*}
+                        (fn [ts]
+                          (let [ts (reduce (fn [ts f] (analyze-foreign ts f env)) ts (eduction (take-nth 2) (next bs)))]
+                            (under ts {::t ::body}
+                              (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts body)))))))
 
            (.) (let [o (second form), x* (drop 2 form)
                      ;; (. java.time.Instant (ofEpochMilli 1)) vs. (. java.time.Instant ofEpochMilli 1)
@@ -834,67 +829,61 @@
                  (if (symbol? o)
                    (if (find-local-entry env o)
                      (if (field-access? x)
-                       (->foreign-field-access ts o x env p ->i)
-                       (->foreign-method-call ts o x x* env p ->i))
+                       (->foreign-field-access ts o x env)
+                       (->foreign-method-call ts o x x* env))
                      (case (->peer-type env)
                        (:clj) (if-some [r (resolve env o)]
-                                (cond (class? r) (->foreign-class-method-call ts o x x* env p ->i)
-                                      (field-access? x) (->foreign-field-access ts o x env p ->i)
-                                      :else (->foreign-method-call ts o x x* env p ->i))
+                                (cond (class? r) (->foreign-class-method-call ts o x x* env)
+                                      (field-access? x) (->foreign-field-access ts o x env)
+                                      :else (->foreign-method-call ts o x x* env))
                                 (fail! env (str o " is a JS class, cannot use in JVM")))
                        (:cljs) (if (analyze-cljs-symbol o env)
-                                 (cond (implicit-cljs-nses o) (->foreign-class-method-call ts o x x* env p ->i) ; clj macroexpands to (. Math abs), which cljs fails to call
-                                       (field-access? x) (->foreign-field-access ts o x env p ->i)
-                                       :else (->foreign-method-call ts o x x* env p ->i))
+                                 (cond (implicit-cljs-nses o) (->foreign-class-method-call ts o x x* env) ; clj macroexpands to (. Math abs), which cljs fails to call
+                                       (field-access? x) (->foreign-field-access ts o x env)
+                                       :else (->foreign-method-call ts o x x* env))
                                  (fail! env (str o " is a JVM class, cannot use in JS")))
                        #_else (case (->env-type env)
                                 (:clj) (if-some [r (resolve env o)]
-                                         (cond (class? r) (->foreign-class-method-call ts o x x* env p ->i)
-                                               (field-access? x) (->foreign-field-access ts o x env p ->i)
-                                               :else (->foreign-method-call ts o x x* env p ->i))
+                                         (cond (class? r) (->foreign-class-method-call ts o x x* env)
+                                               (field-access? x) (->foreign-field-access ts o x env)
+                                               :else (->foreign-method-call ts o x x* env))
                                          (if (field-access? x)
-                                           (->foreign-field-access ts o x env p ->i)
-                                           (->foreign-method-call ts o x x* env p ->i)))
+                                           (->foreign-field-access ts o x env)
+                                           (->foreign-method-call ts o x x* env)))
                                 (:cljs) (if (analyze-cljs-symbol o env)
-                                          (cond (implicit-cljs-nses o) (->foreign-class-method-call ts o x x* env p ->i)
-                                                (field-access? x) (->foreign-field-access ts o x env p ->i)
-                                                :else (->foreign-method-call ts o x x* env p ->i))
-                                         (if (field-access? x)
-                                           (->foreign-field-access ts (with-meta o {:tag 'js}) x env p ->i)
-                                           (->foreign-method-call ts (with-meta o {:tag 'js}) x x* env p ->i))))))
-                   (->foreign-method-call ts o x x* env p ->i)))
+                                          (cond (implicit-cljs-nses o) (->foreign-class-method-call ts o x x* env)
+                                                (field-access? x) (->foreign-field-access ts o x env)
+                                                :else (->foreign-method-call ts o x x* env))
+                                          (if (field-access? x)
+                                            (->foreign-field-access ts (with-meta o {:tag 'js}) x env)
+                                            (->foreign-method-call ts (with-meta o {:tag 'js}) x x* env))))))
+                   (->foreign-method-call ts o x x* env)))
 
-           (def) (let [u (->u)]
-                   (recur (addf ts u p ->i {::t ::def, ::sym (second form)}) (nth form 2) env u (->->id)))
+           (def) (under ts {::t ::def, ::sym (second form)}
+                   (fn [ts] (analyze-foreign ts (nth form 2) env)))
 
-           (set!) (let [set-u (->u), ->set-i (->->id)]
-                    (reduce (fn [ts nx] (analyze-foreign ts nx env set-u ->set-i))
-                      (addf ts set-u p ->i {::t ::set!}) (next form)))
+           (set!) (under ts {::t ::set!}
+                    (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (new) (let [new-u (->u), ->new-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign ts nx env new-u ->new-i))
-                     (addf ts new-u p ->i {::t ::new}) (next form)))
+           (new) (under ts {::t ::new}
+                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (do) (let [do-u (->u), ->do-i (->->id)]
-                  (reduce (fn [ts nx] (analyze-foreign ts nx env do-u ->do-i))
-                    (addf ts do-u p ->i {::t ::do}) (next form)))
+           (do) (under ts {::t ::do}
+                  (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (js*) (let [js*-u (->u), ->js*-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign ts nx env js*-u ->js*-i))
-                     (addf ts js*-u p ->i {::t ::js*}) (next form)))
+           (js*) (under ts {::t ::js*}
+                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (try) (let [try-u (->u), ->try-i (->->id)]
-                   (reduce (fn [ts nx] (analyze-foreign ts nx env try-u ->try-i))
-                     (addf ts try-u p ->i {::t ::try}) (next form)))
+           (try) (under ts {::t ::try}
+                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
            (catch) (if (= ::try (::t (ts/->node ts p)))
                      (let [[_ typ sym & body] form
-                           cu (->u), ->c-i (->->id),
                            k (fn [typ]
                                (if (ts/find ts ::p p, ::t ::catch, ::ex-type typ)
-                                 ts     ; duplicate handler, can happen in lenient mode, e.g. (catch Exception) (catch Throwable) would both map to :default on cljs
-                                 (reduce (fn [ts nx] (analyze-foreign ts nx (add-foreign-local env sym) cu ->c-i))
-                                   (addf ts cu p ->i {::t ::catch, ::ex-type typ, ::sym sym}) body)))]
+                                 ts ; duplicate handler, can happen in lenient mode, e.g. (catch Exception) (catch Throwable) would both map to :default on cljs
+                                 (under ts {::t ::catch, ::ex-type typ, ::sym sym}
+                                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx (add-foreign-local env sym))) ts body)))))]
                        (case (->peer-type env)
                          (:clj) (if (class? (resolve env typ))
                                   (k typ)
@@ -905,66 +894,58 @@
                          #_else (case (->env-type env)
                                   (:clj) (k (if (class? (resolve env typ)) typ 'Throwable))
                                   (:cljs) (k (if (or (= :default typ) (analyze-cljs-symbol typ env)) typ :default)))))
-                     (add-invoke ts form env p ->i))
+                     (add-invoke ts form env))
 
            (finally) (if (= ::try (::t (ts/->node ts (ts/find1 ts ::p p))))
-                       (let [fu (->u), ->f-i (->->id)]
-                         (reduce (fn [ts nx] (analyze-foreign ts nx env fu ->f-i))
-                           (addf ts fu p ->i {::t ::finally})))
-                       (add-invoke ts form env p ->i))
+                       (under ts {::t ::finally}
+                         (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
+                       (add-invoke ts form env))
 
-           (if) (let [if-u (->u), ->if-i (->->id)]
-                  (reduce (fn [ts nx] (analyze-foreign ts nx env if-u ->if-i))
-                    (addf ts if-u p ->i {::t ::if}) (next form)))
+           (if) (under ts {::t ::if}
+                  (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (var) (let [u (->u)] (recur (addf ts u p ->i {::t ::builtin-var}) (second form) env u (->->id)))
+           (var) (under ts {::t ::builtin-var} (fn [ts] (analyze-foreign ts (second form) env)))
 
-           (throw) (let [u (->u)] (recur (addf ts u p ->i {::t ::throw}) (second form) env u (->->id)))
+           (throw) (under ts {::t ::throw} (fn [ts] (analyze-foreign ts (second form) env)))
 
-           (recur) (let [u (->u), ->id (->->id)]
-                     (reduce (fn [ts nx] (analyze-foreign ts nx env u ->id))
-                       (addf ts u p ->i {::t ::recur}) (next form)))
+           (recur) (under ts {::t ::recur}
+                     (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           #_else (add-invoke ts form env p ->i))
+           #_else (add-invoke ts form env))
 
          (instance? cljs.tagged_literals.JSValue form)
          (let [o (.-val ^cljs.tagged_literals.JSValue form)]
            (if (map? o)
-             (let [map-u (->u), ->map-i (->->id)]
-               (reduce (fn [ts nx] (analyze-foreign ts nx env map-u ->map-i))
-                 (addf ts map-u p ->i {::t ::js-map}) (eduction cat o)))
-             (let [vec-u (->u), ->vec-i (->->id)]
-               (reduce (fn [ts nx] (analyze-foreign ts nx env vec-u ->vec-i))
-                 (addf ts vec-u p ->i {::t ::js-array}) o))))
+             (under ts {::t ::js-map}
+               (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (eduction cat o))))
+             (under ts {::t ::js-array}
+               (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts o)))))
 
-         (map? form) (let [map-u (->u), ->map-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign ts nx env map-u ->map-i))
-                         (addf ts map-u p ->i {::t ::map}) (eduction cat form)))
+         (map? form) (under ts {::t ::map}
+                       (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (eduction cat form))))
 
-         (set? form) (let [set-u (->u), ->set-i (->->id)]
-                       (reduce (fn [ts nx] (analyze-foreign ts nx env set-u ->set-i))
-                         (addf ts set-u p ->i {::t ::set}) form))
+         (set? form) (under ts {::t ::set}
+                       (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts form)))
 
-         (vector? form) (let [vector-u (->u), ->vector-i (->->id)]
-                          (reduce (fn [ts nx] (analyze-foreign ts nx env vector-u ->vector-i))
-                            (addf ts vector-u p ->i {::t ::vector}) form))
+         (vector? form) (under ts {::t ::vector}
+                          (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts form)))
 
          (symbol? form) (let [ret (resolve-symbol form env)]
                           (case (::type ret)
-                            (::localref) (addf ts (->u) p ->i
+                            (::localref) (addf ts (->u)
                                            {::t ::electric-local, ::sym form
                                             ::resolved (::sym ret), ::ref (::ref ret)})
-                            (::local) (addf ts (->u) p ->i
+                            (::local) (addf ts (->u)
                                         {::t ::local, ::sym form, ::resolved (::sym ret)})
-                            (::static) (addf ts (->u) p ->i
+                            (::static) (addf ts (->u)
                                          {::t ::static, ::sym form, ::resolved (::sym ret)})
                             (::self ::node) (throw (ex-info "Cannot pass electric defns to clojure(script) interop"
                                                      {:var form}))
-                            (::var) (addf ts (->u) p ->i
+                            (::var) (addf ts (->u)
                                       {::t ::var, ::sym form ::resolved (::sym ret), ::meta (::meta ret)})
                             #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
 
-         :else (addf ts (->u) p ->i {::t ::literal, ::v form}))))
+         :else (addf ts (->u) {::t ::literal, ::v form}))))
 
 (defn emit-foreign
   ([ts] (emit-foreign ts (::u (ts/->node ts (ts/find1 ts ::p -1)))))
