@@ -194,8 +194,11 @@
 
 ;; Submit and clear inputs - chat, create-new, etc
 
-(e/defn InputSubmitClear! [& {:keys [maxlength type] :as props
-                              :or {maxlength 100 type "text"}}]
+(e/defn InputSubmitCreate!
+  "optimistic, cancel & retry are forwarded to optimistic list item's InputSubmit!
+buffers (dirty), commit, discard bundled as enter/esc"
+  [& {:keys [maxlength type] :as props
+      :or {maxlength 100 type "text"}}]
   (e/client
     (dom/input (dom/props (assoc props :maxLength maxlength :type type))
       (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
@@ -205,9 +208,8 @@
                                (= "Enter" k) (read-clear! (.-target e))
                                (= "Escape" k) (do (set! (.-value dom/node) "") nil)
                                () nil)))]
-        (PendingMonitor
-          (dom/OnAll "keydown" submit!))))))
-
+        #_(PendingMonitor) ; the optimistic list item is responsible for pending/retry affordances
+        (dom/OnAll "keydown" submit!)))))
 
 ;; Graveyard
 
