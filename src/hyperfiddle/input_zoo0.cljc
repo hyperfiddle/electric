@@ -209,7 +209,7 @@ buffers (dirty), commit, discard bundled as enter/esc"
                                (= "Escape" k) (do (set! (.-value dom/node) "") nil)
                                () nil)))]
         #_(PendingMonitor) ; the optimistic list item is responsible for pending/retry affordances
-        (dom/OnAll "keydown" submit!)))))
+        (dom/On-all "keydown" submit!)))))
 
 ;; Graveyard
 
@@ -229,7 +229,7 @@ buffers (dirty), commit, discard bundled as enter/esc"
                                  (= "Enter" k) (read! (.-target e)) ; no clear
                                  (= "Escape" k) (do (set! (.-value dom/node) "") nil)
                                  () nil)))]
-          (dom/OnAll "keydown" submit!)))))) ; eagerly submit individual edits
+          (dom/On-all "keydown" submit!)))))) ; eagerly submit individual edits
 
 (e/defn CheckboxSubmit!-nocancel-noretry
   [checked & {:keys [id label] :as props
@@ -237,7 +237,7 @@ buffers (dirty), commit, discard bundled as enter/esc"
   (e/client
     (e/amb
       (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
-        (let [edits (dom/OnAll "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
+        (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
           (when-not (or (dom/Focused?) (pos? (e/Count edits)))
             (set! (.-checked dom/node) checked))
           edits))
