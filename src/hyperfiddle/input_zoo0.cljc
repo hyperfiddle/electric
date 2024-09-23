@@ -93,6 +93,7 @@
     (let [[t err] (e/RetryToken (dom/On "click" identity nil))]
       (prn 'Button! directive t err)
       (dom/props {:disabled (or disabled (some? t))}) ; todo compile kw args
+      #_(when waiting? (dom/props {:aria-busy true}))
       (when (some? err) (dom/props {:aria-invalid true})) ; bug - error not removed (glitch)
       (if t [t directive] (e/amb))))) ; injected tokens do not resubmit until user interacts again
 
