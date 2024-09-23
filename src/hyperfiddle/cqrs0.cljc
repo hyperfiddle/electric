@@ -69,7 +69,7 @@
       (assert (= 1 (count predictions)))
       (let [[id record] (first predictions)]
         (prn 'pending-cmd xcmd)
-        (swap! !pending assoc id (assoc record ::pending true))
+        (swap! !pending assoc id (assoc record ::pending t))
         (e/on-unmount #(swap! !pending dissoc id))
         (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
