@@ -216,10 +216,10 @@ buffers (dirty), commit, discard bundled as enter/esc"
 ;; simple and useful in the meantime while the rigorous controls are still WIP.
 
 (e/defn InputSubmit?!
-  "Dubious: nocancel, noretry (assumes happy path with no failure recovery).
-Controlled, buffers dirty edits, discard on Esc, submit on Enter. Eagerly
-submits concurrent isolated edits which race. Pending until all edits commit
-(but without failure recovery?!)"
+  "Dubious: nocancel, noretry (Assumes happy path with no failure recovery?!),
+noforeign (cannot attach to foreign in-flight edits). Controlled, buffers dirty
+edits, discard on Esc, submit on Enter. Eagerly submits concurrent isolated
+edits which race. Sets [aria-busy=true] until all edits are accepted."
   [v & {:keys [maxlength type autofocus ::discard ::commit] :as props
         :or {maxlength 100 type "text"}}]
   (e/client
@@ -237,6 +237,9 @@ submits concurrent isolated edits which race. Pending until all edits commit
                                  ; if discard directive provided, emit, otherwise swallow
                                  (= "Escape" k) (do (set! (.-value dom/node) v) discard)
                                  () nil)))]
+          ; nocancel, noretry, nocreate. To attach to foreign in-flight edits
+          ; (i.e. from InputSubmitCreate?!), we'd need to hook an On-all token
+          ; accordingly, which defeats the purpose of this "dubious" implementation.
           (let [edits (dom/On-all "keydown" submit!)] ; eagerly submit individual edits
             (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-value dom/node) v))
             edits))))))
