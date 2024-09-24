@@ -2311,3 +2311,9 @@
    (tests (let [ex (try (lang/->source (merge (lang/normalize-env {}) e/web-config) `root '(e/fn [] (e/server #(cljs-only))))
                         (catch ExceptionInfo e e))]
             (str/includes? (ex-message ex) "I cannot resolve [cljs-only], maybe it's only defined on the client?") := true)))
+
+(tests
+  (with ((l/local {}
+           (e/server (tap (e/client (identity (e/server :foo))))))
+         tap tap)
+    % := :foo))
