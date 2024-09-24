@@ -26,31 +26,32 @@
        :or {merge-cmds merge-cmds
             debug false}}]
    (e/client
-     (let [batch (apply merge-cmds (e/as-vec txs))
-           reset (let [ts (e/as-vec ts)]
-                   (fn token
-                     ([] (doseq [t ts] (t)))
-                     #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
+     (let [form (apply merge-cmds (e/as-vec txs)) ; retain until commit/discard
+           form-t (let [ts (e/as-vec ts)]
+                    (fn token
+                      ([] (doseq [t ts] (t)))
+                      #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
            dirty-count (e/Count edits)
-           [us _ :as btns] (e/with-cycle* first [btns (e/amb)]
-                             (let [busy? (e/Some? btns)]
-                               (e/amb ; todo progress
-                                 (Button! ::commit :disabled (zero? dirty-count) :label (if busy? "commit" "commit"))
-                                 (Button! ::discard :disabled (zero? dirty-count) :label (if busy? "cancel" "discard"))
-                                 (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))]
+           [btn-ts _ :as btns]
+           (e/with-cycle* first [btns (e/amb)]
+             (let [busy? (e/Some? btns)]
+               (e/amb ; todo progress
+                 (Button! ::commit :disabled (zero? dirty-count) :label (if busy? "commit" "commit"))
+                 (Button! ::discard :disabled (zero? dirty-count) :label (if busy? "cancel" "discard"))
+                 (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))]
        (e/amb
-         (e/for [[u cmd] btns]
+         (e/for [[btn-t cmd] btns]
            (case cmd ; does order of burning matter?
-             ::discard (case ((fn [] (us) (reset))) ; clear any in-flight commit yet outstanding
-                         (e/amb)) ; clear edits, controlled form will reset
+             ::discard (case ((fn [] (btn-ts) (form-t))) ; clear any in-flight commit yet outstanding
+                         (e/amb)) ; never seen, btn token already spent
              ::commit [(fn token
-                         ([] (reset) (u))
-                         ([err] (u err) #_(reset err))) ; leave dirty fields dirty, activates retry button
-                       batch])) ; commit as atomic batch
+                         ([] (btn-t) (form-t)) ; reset controlled form
+                         ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
+                       form])) ; commit as atomic batch
 
          (e/When debug
            (dom/pre (dom/props {:style {:min-height "4em"}})
-             (dom/text (pprint-str batch :margin 80)))))))))
+             (dom/text (pprint-str form :margin 80)))))))))
 
 (e/defn Reconcile-records [stable-kf sort-key as bs]
   (e/client
