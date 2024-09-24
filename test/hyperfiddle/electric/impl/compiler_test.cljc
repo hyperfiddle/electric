@@ -646,7 +646,8 @@
   (foreign '(new X 1 2 3)) := '(new X 1 2 3)
   (foreign '(println 1 (inc 2))) := '(println 1 (inc 2))
   (foreign '(case (-> 1 inc) (2) (-> 2 dec) 3 (-> 3 dec))) := '(case (inc 1) (2) (dec 2) 3 (dec 3))
-  (foreign '(case (-> 1 inc) (-> 1 dec))) := '(case (inc 1) (dec 1))
+  (foreign '(case (-> 1 inc) (-> 1 dec)))
+  (foreign '(throw (ex-info "hi" {}))) := '(throw (ex-info "hi" {}))
   ;; (foreign '#js{:x 1})
   "js"
   (swap! lang/!a cljs-ana/purge-ns (ns-name *ns*))
@@ -672,6 +673,9 @@
   (foreign-js '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
   (foreign-js '(new X 1 2 3)) := '(new X 1 2 3)
   (foreign-js '(println 1 (inc 2))) := '(println 1 (inc 2))
+  (foreign-js '(case (-> 1 inc) (2) (-> 2 dec) 3 (-> 3 dec))) := '(case (inc 1) (2) (dec 2) 3 (dec 3))
+  (foreign-js '(case (-> 1 inc) (-> 1 dec)))
+  (foreign-js '(throw (ex-info "hi" {}))) := '(throw (ex-info "hi" {}))
   )
 
 (defn consuming [v*] (let [v* (atom v*)] (fn [_] (ffirst (swap-vals! v* next)))))
