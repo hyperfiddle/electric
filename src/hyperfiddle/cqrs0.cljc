@@ -31,11 +31,13 @@
                    (fn token
                      ([] (doseq [t ts] (t)))
                      #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
-           n (e/Count edits)
-           [us _ :as btns] (e/amb ; todo progress
-                               (Button! ::commit :disabled (zero? n) :label "commit")
-                               (Button! ::discard :disabled (zero? n) :label "discard")
-                               (e/When debug (dom/span (dom/text " " n " dirty"))))]
+           dirty-count (e/Count edits)
+           [us _ :as btns] (e/with-cycle* first [btns (e/amb)]
+                             (let [busy? (e/Some? btns)]
+                               (e/amb ; todo progress
+                                 (Button! ::commit :disabled (zero? dirty-count) :label (if busy? "commit" "commit"))
+                                 (Button! ::discard :disabled (zero? dirty-count) :label (if busy? "cancel" "discard"))
+                                 (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))]
        (e/amb
          (e/for [[u cmd] btns]
            (case cmd ; does order of burning matter?
