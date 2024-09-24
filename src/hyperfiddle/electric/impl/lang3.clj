@@ -181,6 +181,16 @@
         (let* loop*) (let [[call bs & body] o, [bs2 env2] (-expand-let-bindings bs env)]
                        (?meta o (list call bs2 (-expand-all-foreign (?meta body (cons 'do body)) env2))))
 
+        (case clojure.core/case)
+        (let [[_ v & clauses] o
+              has-default-clause? (odd? (count clauses))
+              clauses2 (cond-> clauses has-default-clause? butlast)
+              xpand (fn-> -expand-all-foreign env)]
+          (?meta o (list* 'case (xpand v)
+                     (cond-> (into [] (comp (partition-all 2) (mapcat (fn [[match expr]] [match (xpand expr)])))
+                               clauses2)
+                       has-default-clause? (conj (xpand (last clauses)))))))
+
         (quote) o
 
         (fn*) (let [[?name more] (if (symbol? (second o)) [(second o) (nnext o)] [nil (next o)])
@@ -904,6 +914,19 @@
            (if) (under ts {::t ::if}
                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
+           (case) (let [[_ test & branch*] form]
+                    (under ts {::t ::case}
+                      (fn [ts]
+                        (let [ts (under ts {::t ::case-test} (fn [ts] (analyze-foreign ts test env)))]
+                          (reduce (fn [ts nx]
+                                    (if (next nx) ; normal branch with test
+                                      (let [[test form] nx]
+                                        (under ts {::t ::case-branch, ::test test}
+                                          (fn [ts] (analyze-foreign ts form env))))
+                                      (under ts {::t ::case-default}
+                                        (fn [ts] (analyze-foreign ts (first nx) env)))))
+                            ts (eduction (partition-all 2) branch*))))))
+
            (var) (under ts {::t ::builtin-var} (fn [ts] (analyze-foreign ts (second form) env)))
 
            (throw) (under ts {::t ::throw} (fn [ts] (analyze-foreign ts (second form) env)))
@@ -972,6 +995,11 @@
                  (::binding) (let [{sym* ::binding-sym, body ::body} (group-by #(? % ::t) (find ::p u))]
                                (list* 'binding (into [] (mapcat (fn [u] [(? u ::sym) (emit (find1 ::p u))])) sym*)
                                  (eduction (map emit) (find ::p (first body)))))
+                 (::case) (let [{test ::case-test, branch* ::case-branch, default ::case-default}
+                                (group-by #(? % ::t) (find ::p u))]
+                            (cond-> (list* 'case (emit (find1 ::p (first test)))
+                                      (into [] (mapcat (fn [u] [(? u ::test) (emit (find1 ::p u))])) branch*))
+                              (seq default) (concat [(emit (find1 ::p (first default)))])))
                  (::quote) (::v nd)
                  (::literal) (::v nd)
                  (::fn*) (list* (into (cond-> ['fn*] (::name nd) (conj (::name nd)))
