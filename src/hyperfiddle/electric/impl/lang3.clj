@@ -165,6 +165,21 @@
   (let [bs (mapv #(?untag % env) bs)]
     (?meta o (list bs (-expand-all-foreign (?meta body (cons 'do body)) (reduce add-local env bs))))))
 
+(defn xplatform-condp [pred expr & clause*]
+  (let [f (gensym "pred"), v (gensym "expr")]
+    `(let* [~f ~pred, ~v ~expr]
+       ~(let [[default & stack*] (loop [c* clause*, stack* ()]
+                                   (if (seq c*)
+                                     (cond (= :>> (second c*)) (recur (drop 3 c*) (cons (take 3 c*) stack*))
+                                           (next c*) (recur (drop 2 c*) (cons (take 2 c*) stack*))
+                                           :else (cons (first c*) stack*))
+                                     (cons ::no stack*)))]
+          (reduce (fn [ac nx] (case (count nx)
+                                2 `(if (~f ~(nth nx 0) ~v) ~(nth nx 1) ~ac)
+                                3 `(if-let [x# (~f ~(nth nx 0) ~v)] (~(nth nx 2) x#) ~ac)))
+            (case default ::no `(throw (ex-info (str "No matching clause: " ~v) {})) #_else default)
+            stack*)))))
+
 (defn -expand-all-foreign [o env]
   (cond
     (and (seq? o) (seq o))
@@ -190,6 +205,8 @@
                      (cond-> (into [] (comp (partition-all 2) (mapcat (fn [[match expr]] [match (xpand expr)])))
                                clauses2)
                        has-default-clause? (conj (xpand (last clauses)))))))
+
+        (condp clojure.core/condp cljs.core/condp) (recur (?meta o (apply xplatform-condp (next o))) env)
 
         (quote) o
 
@@ -287,6 +304,8 @@
 
         (if) (let [[_ test then else] o, xpand (fn-> -expand-all env)]
                (?meta o (list 'case (xpand test) '(nil false) (xpand else) (xpand then))))
+
+        (condp clojure.core/condp cljs.core/condp) (recur (?meta o (apply xplatform-condp (next o))) env)
 
         (quote) o
 

@@ -119,6 +119,15 @@
      (all '(java.awt.Point. (-> 0 inc) 1)) := '(new java.awt.Point (inc 0) 1)
      (all '(new (missionary.core/seed [(-> 0 inc)]))) := '(new (missionary.core/seed [(inc 0)]))
 
+     (match (all '(condp = 1 (-> 1 inc) (-> 1 dec)))
+       `(let* tm/_
+          (~'case tm/_
+            (nil false) (~'throw
+                          (clojure.core/ex-info
+                            (clojure.core/str "No matching clause: " tm/_)
+                            {}))
+            (~'dec 1))))
+
      ;; TODO next iteration
      ;; (all '(try (-> 1 inc)
      ;;            (catch Throwable with-open (with-open 1))
