@@ -461,7 +461,7 @@
       {::lang nil, ::type ::self, ::sym sym}
       (if-some [nd (resolve-node sym env)]
         {::lang nil, ::type ::node, ::node nd}
-        (case (get (::peers env) (::current env))
+        (case (->peer-type env)
           :clj (let [v (analyze-clj-symbol sym (get-ns env))]
                  (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
           :cljs (let [v (analyze-cljs-symbol sym env)]
@@ -1000,7 +1000,7 @@
            (? [u k] (get (->node u) k))
            (emit-foreign-arity [u] (cons (? u ::args) (eduction (map emit) (find ::p u))))
            (unname [v] (cond-> v (instance? clojure.lang.Named v) name))
-           (emit-1 [sym u] (list sym (find1 ::p u)))
+           (emit-1 [sym u] (list sym (emit (find1 ::p u))))
            (emit-n [sym u] (list* sym (eduction (map emit) (find ::p u))))
            (emit [u]
              (let [nd (->node u)]
