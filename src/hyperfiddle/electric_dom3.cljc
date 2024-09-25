@@ -456,13 +456,17 @@ input's value, use `EventListener`."
      (let [S (i/spine) !running (atom (sorted-set))] ; both refs are ordered, entires must be comparable
        (m/amb S
          (let [[i v] (m/?> (m/eduction (map-indexed vector) flow)) ; spine is ordered by event sequence
-               t (fn t [] (swap! !running disj i) (S i {} nil))
+               t (fn token [] (swap! !running disj i) (S i {} nil))
                running (swap! !running conj i)]
            (S i {} [t v])
            ; enforce concurrency limit
            (run! #(S % {} nil) (take (- (count running) n) ; NOTE Leo: always return 0 or 1 because we add one event at a time
                                  running))
            (m/amb)))))))
+
+; FAQ: can fork's token support the error arity? NO, the lifetime of the error and
+; the token are different! The token must be consumed on error so that the user
+; can interact again, but the error must be retained for display. How can we model this?
 
 (e/defn On-all
   ([event-type]                           ($ On-all      event-type identity))
