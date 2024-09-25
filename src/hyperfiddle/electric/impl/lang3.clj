@@ -365,7 +365,7 @@
 (defn fail!
   ([env msg] (fail! env msg {}))
   ([env msg data] (throw (ex-info (str "\n" (get-ns env) (when-some [d (::def env)] (str "/" d)) ":" (-> env ::meta :line) ":" (-> env ::meta :column) "\n" msg)
-                           (cond-> data (::def env) (assoc :in (::def env), (::current env) (assoc :for (::current env))))))))
+                           (cond-> data (::def env) (assoc :in (::def env)), (::current env) (assoc :for (::current env)))))))
 
 (defn get-them [env] (-> env ::peers keys set (disj (::current env)) first))
 
