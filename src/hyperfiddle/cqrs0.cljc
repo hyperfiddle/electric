@@ -70,9 +70,9 @@
         ps (val (e/diff-by key (e/watch !pending)))]
     (e/for [[t xcmd predictions] edits]
       (assert (= 1 (count predictions)))
-      (let [[id record] (first predictions)]
+      (let [[e record] (first predictions)]
         (prn 'pending-cmd xcmd)
-        (swap! !pending assoc id (assoc record ::pending t))
-        (e/on-unmount #(swap! !pending dissoc id))
+        (swap! !pending assoc e (assoc record ::pending t))
+        (e/on-unmount #(swap! !pending dissoc e))
         (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
