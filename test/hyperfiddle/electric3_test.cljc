@@ -7,6 +7,7 @@
             [hyperfiddle.incseq :as i]
             [hyperfiddle.kvs :as kvs]
             [contrib.cljs-target :refer [do-browser]]
+            [contrib.debug :as dbg]
             #?(:cljs [hyperfiddle.goog-calls-test3])
             #?(:cljs [hyperfiddle.js-calls-test3])
             [clojure.string :as str]
@@ -2317,3 +2318,44 @@
            (e/server (tap (e/client (identity (e/server :foo))))))
          tap tap)
     % := :foo))
+
+(e/defn DBG [nm id dbgf v] (->> v e/pure (dbg/instrument* nm id dbgf) e/join))
+(tests
+  (let [s (i/spine)]
+    (with ((l/single {}
+             (let [msgs [(e/join s)]]
+               (e/for [[msg :as m] msgs]
+                 (DBG 'join 0 tap (e/join (i/items (e/pure msg))))
+                 [msg m]))) tap tap)
+
+      (s 1 {} "hi")
+      % := '[join 0 spawned]
+      % := '[join 0 notified]
+      (update % 3 dissoc :change) := '[join 0 transferred {:degree 1, :permutation {}, :grow 1, :shrink 0, :freeze #{}}]
+      (s 1 {} nil)
+      % := '[join 0 notified]
+      % := '[join 0 cancelled]
+      (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
+      % := '[join 0 cancelled]
+      ;; % := '[join 0 terminated]           ; MISSING
+      (tap ::done), % := ::done)))
+
+(tests
+  (let [s (i/spine)]
+    (with ((l/single {}
+             (let [msgs [(e/join s)]]
+               (e/for [[msg :as m] msgs]
+                 (DBG 'join 0 tap (e/join (i/items (e/pure msg))))
+                 [m msg]))) tap tap)
+
+      (s 1 {} "hi")
+      % := '[join 0 spawned]
+      % := '[join 0 notified]
+      (update % 3 dissoc :change) := '[join 0 transferred {:degree 1, :permutation {}, :grow 1, :shrink 0, :freeze #{}}]
+      (s 1 {} nil)
+      % := '[join 0 notified]
+      % := '[join 0 cancelled]
+      (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
+      % := '[join 0 cancelled]
+      % := '[join 0 terminated]
+      (tap ::done), % := ::done)))

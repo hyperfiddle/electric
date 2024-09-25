@@ -43,23 +43,26 @@
 
 (def !id (atom 0))
 
-(defn instrument* [nm flow]
-  (fn [n t]
-    (let [id (swap! !id inc)
-          it (flow #(do (prn nm id :notified) (n)) #(do (prn nm id :terminated) (t)))]
-      (reify
-        IFn (#?(:clj invoke :cljs -invoke) [_] (prn nm id :cancelled) (it))
-        IDeref (#?(:clj deref :cljs -deref) [_]
-                 (let [v (try @it (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
-                   (prn nm id :transferred
-                     (if false #_(instance? Failure v) ; FIXME Update to electric v3
-                       (let [e (.-error v)]
-                         [(type e) (ex-message e)])
-                       v))
-                   (if (and (vector? v) (= ::ex (first v)))
-                     (throw (second v))
-                     v)))))))
-(defmacro instrument [nm & body] `(new (instrument* ~nm (hyperfiddle.electric/fn [] ~@body))))
+(defn instrument*
+  ([nm flow] (instrument* nm prn flow))
+  ([nm dbgf flow] (instrument* nm (swap! !id inc) dbgf flow))
+  ([nm id dbgf flow]
+   (fn [n t]
+     (let [_ (dbgf [nm id 'spawned])
+           it (flow #(do (dbgf [nm id 'notified]) (n)) #(do (dbgf [nm id 'terminated]) (t)))]
+       (reify
+         IFn (#?(:clj invoke :cljs -invoke) [_] (dbgf [nm id 'cancelled]) (it))
+         IDeref (#?(:clj deref :cljs -deref) [_]
+                  (let [v (try @it (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
+                    (dbgf [nm id 'transferred
+                           (if false #_(instance? Failure v) ; FIXME Update to electric v3
+                               (let [e (.-error v)]
+                                 [(type e) (ex-message e)])
+                               v)])
+                    (if (and (vector? v) (= ::ex (first v)))
+                      (throw (second v))
+                      v))))))))
+(defmacro instrument [nm v] `(hyperfiddle.electric3/input (instrument* ~nm (hyperfiddle.electric3/pure ~v))))
 
 (defmacro js-measure [nm & body]
   (if (:js-globals &env)
