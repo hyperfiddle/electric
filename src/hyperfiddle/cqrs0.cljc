@@ -11,11 +11,9 @@
 ; stage - monitor edits and accumulate them
 ; button - batch all edits into single token, chained with upstream tokens
 
-(e/defn Field* [e a Control]
-  (e/for [[t v] (Control)]
-    [t [[::update e a v]]]))
-
-(defmacro Field [e a body] `(Field* ~e ~a (e/fn [] ~body)))
+(defmacro Field [e a control]
+  `(e/for [[t# v#] ~control]
+     [t# [[::update ~e ~a v#]]]))
 
 (defn merge-cmds [& txs] (vec (apply concat txs))) ; datomic style
 
