@@ -13,7 +13,8 @@
             #?(:cljs [goog.math :as gm])
             [fipp.edn]
             [missionary.core :as m]
-            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana])
+            [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
+            [clojure.string :as str])
   #?(:clj (:import [clojure.lang ExceptionInfo])))
 
 ;; tests that turn electric code into clojure code
@@ -731,8 +732,10 @@
   (foreign-electrified (consuming '[a]) '(foo bar baz))
   := '((fn* [a] (a a a)) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'foo))
 
-  ;; gensym of name of clojure.core// creates an invalid symbol
+  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
   (-> (foreign-electrified '(fn [x] (/ x 2))) first second first name first) := \_
+  (-> (foreign-electrified '(fn [x] (js/console.log x))) first second first name
+    (str/starts-with? "console_log")) := true
 
   (foreign-electrified nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
@@ -790,8 +793,10 @@
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)
 
-  ;; gensym of name of clojure.core// creates an invalid symbol
+  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
   (-> (foreign-electrified-js '(fn [x] (/ x 2))) first second first name first) := \_
+  (-> (foreign-electrified '(fn [x] (js/console.log x))) first second first name
+    (str/starts-with? "console_log")) := true
 
   (foreign-electrified-js nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
