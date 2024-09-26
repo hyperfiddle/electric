@@ -12,15 +12,45 @@
 ; button - batch all edits into single token, chained with upstream tokens
 
 (defmacro Field [e a control]
-  `(e/for [[t# v#] ~control]
-     [t# [[::update ~e ~a v#]]]))
+  `(e/for [[t# v#] ~control] ; zero or one edits
+     [t# [[::update ~e ~a v#]]])) ; ::inline-edit, ::naked-edit ?
+
+#?(:cljs (defn- blur-active-form-input! [form]
+           (when-let [focused-input (.-activeElement js/document)]
+             (when (.contains form focused-input)
+               (.blur focused-input)))))
+
+(e/defn FormDiscard! ; dom/node must be a form
+  [directive & {:keys [disabled token show-button label] :as props}]
+  (e/client
+    (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %)
+                       (.reset dom/node) nil) nil) ; proxy Esc to form's "reset" event
+    (e/amb
+      #_(e/When show-button) (Button! directive :disabled disabled :label label) ; todo fix
+      (let [e (dom/On "reset" #(do (.log js/console %) (.preventDefault %)
+                                 (blur-active-form-input! (.-target %)) %) nil)
+            [t err] (e/RetryToken e)]
+        #_(prn 'FormDiscard! t err)
+        (if t [t directive] (e/amb))))))
+
+(e/defn FormSubmit!
+  [directive & {:keys [disabled token show-button label] :as props}]
+  (e/client
+    (e/amb
+      #_(e/When show-button) (Button! directive :disabled disabled :label label) ; todo fix
+      (let [[t err] (e/RetryToken (dom/On "submit" #(do (.preventDefault %) (.stopPropagation %)
+                                                      (when-not disabled %)) nil))]
+        #_(prn 'FormSubmit! t err)
+        (when (some? err) (dom/props {:aria-invalid true})) ; glitch
+        (if t [t directive] (e/amb))))))
 
 (defn merge-cmds [& txs] (vec (apply concat txs))) ; datomic style
 
-(e/defn Stage "implies an explicit txn monoid" ; doesn't work on raw values
-  ([edits] (Stage edits :merge-cmds merge-cmds))
+;; Same as cqrs0/Stage, but also handles form submit and reset events
+(e/defn Form* "implies an explicit txn monoid" ; doesn't work on raw values
+  ([edits] (Form* edits :merge-cmds merge-cmds))
   ([[ts txs :as edits] ; amb destructure
-    & {:keys [debug merge-cmds]
+    & {:keys [debug merge-cmds commit discard]
        :or {merge-cmds merge-cmds
             debug false}}]
    (e/client
@@ -30,26 +60,32 @@
                       ([] (doseq [t ts] (t)))
                       #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
            dirty-count (e/Count edits)
+           clean? (zero? dirty-count)
            [btn-ts _ :as btns]
            (e/with-cycle* first [btns (e/amb)]
              (let [busy? (e/Some? btns)]
                (e/amb ; todo progress
-                 (Button! ::commit :disabled (zero? dirty-count) :label (if busy? "commit" "commit"))
-                 (Button! ::discard :disabled (zero? dirty-count) :label (if busy? "cancel" "discard"))
+                 (FormSubmit! ::commit :disabled (or busy? clean?) :label (if busy? "commit" "commit") :show-button true)
+                 (FormDiscard! ::discard :disabled clean? :label (if busy? "cancel" "discard") :show-button true)
                  (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))]
+
        (e/amb
          (e/for [[btn-t cmd] btns]
            (case cmd ; does order of burning matter?
              ::discard (case ((fn [] (btn-ts) (form-t))) ; clear any in-flight commit yet outstanding
-                         (e/amb)) ; never seen, btn token already spent
+                         (if discard discard (e/amb))) ; only seen when asked, btn token already spent
              ::commit [(fn token
                          ([] (btn-t) (form-t)) ; reset controlled form
                          ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
-                       form])) ; commit as atomic batch
+                       (if commit (commit form) form)])) ; commit as atomic batch
 
          (e/When debug
            (dom/pre (dom/props {:style {:min-height "4em"}})
              (dom/text (pprint-str form :margin 80)))))))))
+
+(defmacro Form [& control-and-kwargs]
+  `(dom/form ; for "reset" event. todo form props (how?)
+     (Form* ~@control-and-kwargs))) ; place controls inside form
 
 (e/defn Reconcile-records [stable-kf sort-key as bs]
   (e/client
