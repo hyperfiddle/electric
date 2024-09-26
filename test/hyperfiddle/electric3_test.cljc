@@ -2359,3 +2359,11 @@
       % := '[join 0 cancelled]
       % := '[join 0 terminated]
       (tap ::done), % := ::done)))
+
+;; if we don't type hint the call to `fooBar` in the compiler the tests blow up on the inference warning.
+;; So the purpose of this test is to check there's no type inferece warning
+#?(:cljs
+   (do-browser
+     (tests
+       (with ((l/single {} (tap (.fooBar (js/Object.)))) tap (fn [_] (tap :error)))
+         % := :error))))
