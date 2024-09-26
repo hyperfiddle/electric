@@ -14,7 +14,7 @@
                    :or {maxlength 100 type "text"}}]
   (e/client ; explicit site on all controls for compat with neutral callers
     (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-      (dom/On "input" #(-> % .-target .-value) "")))) ; no token
+      (dom/On "input" #(-> % .-target .-value (subs 0 maxlength)) "")))) ; no token
 
 (e/defn Checkbox* [& {:keys [id label] :as props
                       :or {id (random-uuid)}}]
@@ -32,7 +32,7 @@
     (e/with-cycle [v (str v)] ; emits signal of current state
       (dom/input (dom/props (assoc props :maxLength maxlength :type type))
         (when-not (dom/Focused?) (set! (.-value dom/node) v))
-        (dom/On "input" #(-> % .-target .-value) v))))) ; emit on boot, rebuild on reset
+        (dom/On "input" #(-> % .-target .-value (subs 0 maxlength)) v))))) ; emit on boot, rebuild on reset
 
 (e/defn Checkbox [checked & {:keys [id label] :as props
                              :or {id (random-uuid)}}]
