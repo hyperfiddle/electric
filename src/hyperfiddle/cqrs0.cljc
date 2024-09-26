@@ -123,10 +123,12 @@
             (doto [::ok] (prn 'tx-ok))
             (catch Throwable e [::fail ::rejected]))))
 
-(e/defn Service [expand-tx-effects txs] (prn (e/Count txs) 'txs)
-  (e/for [[t cmds] (e/Filter some? txs)] ; remove any accidental nils from dom
-    (let [[status err] (e/server ; secure effect interpretation
-                         (e/Offload #(run-batch! (expand-tx-effects cmds))))]
-      (cond
-        (= status ::ok) (t)
-        (= status ::fail) (t err))))) ; feed error back into control for retry affordance
+(e/defn Service [expand-tx-effects txs]
+  (e/client
+    (prn (e/Count txs) 'txs)
+    (e/for [[t cmds] (e/Filter some? txs)] ; remove any accidental nils from dom
+      (let [[status err] (e/server ; secure effect interpretation
+                           (e/Offload #(run-batch! (expand-tx-effects cmds))))]
+        (cond
+          (= status ::ok) (t)
+          (= status ::fail) (t err)))))) ; feed error back into control for retry affordance
