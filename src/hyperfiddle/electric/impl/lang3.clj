@@ -151,8 +151,7 @@
 (defn js-type-hint? [sym] (or (= 'js sym) (= "js" (namespace sym))))
 (defn js-type? [sym env] (or (contains? base-js-types sym) (js-type-hint? sym) (analyze-cljs-symbol sym env)))
 
-(defn- replace-incompatible-type-hint [sym]
-  (vary-meta sym update :tag #(keyword "electric.unresolved" (name %))))
+(defn- replace-incompatible-type-hint [sym] (vary-meta sym update :tag #(keyword "electric.unresolved" (name %))))
 
 (defn ?untag [sym env]
   (if-some [tag (keep-if (-> sym meta :tag) symbol?)]
@@ -551,9 +550,16 @@
 (defn gensym-with-local-meta [env k]
   (let [g (gensym (if (instance? clojure.lang.Named k) (name k) "o")), mt (meta-of-key (:locals env) k)]
     (?untag (with-meta g (merge mt (meta k))) env)))
+(defn type-hint-as-js [sym] (vary-meta sym assoc :tag 'js))
+(defn ?tag-as-js [env sym]
+  (case (->env-type env)
+    (:clj) sym
+    (:cljs) (let [tag (-> sym meta :tag)]
+              (cond-> sym (or (nil? tag) (not (js-type? tag env))) type-hint-as-js))))
 
 (defn ->obj-method-call [o method method-args pe env form {{::keys [->id]} :o :as ts}]
-  (let [f (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))]
+  (let [f (let [[oo & margs] (mapv #(gensym-with-local-meta env %) (cons o method-args))
+                oo (?tag-as-js env oo)]
             `(fn [~oo ~@margs] (. ~oo ~method ~@margs)))]
     (add-ap-literal f (cons o method-args) pe (->id) env form ts)))
 
