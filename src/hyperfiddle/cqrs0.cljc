@@ -87,9 +87,10 @@
            (dom/pre (dom/props {:style {:min-height "4em"}})
              (dom/text (pprint-str form :margin 80)))))))))
 
-(defmacro Form [& control-and-kwargs]
-  `(dom/form ; for "reset" event. todo form props (how?)
-     (Form* ~@control-and-kwargs))) ; place controls inside form
+(defmacro Form [fields1 & kwargs]
+  `(dom/form ; for form "reset" event
+     #_(dom/props kwargs) ; todo select dom props vs stage props
+     (Form* ~fields1 ~@kwargs))) ; place fields inside dom/form
 
 (e/defn Reconcile-records [stable-kf sort-key as bs]
   (e/client
