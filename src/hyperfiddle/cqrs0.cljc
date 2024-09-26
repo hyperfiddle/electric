@@ -48,7 +48,6 @@
 
 ;; Same as cqrs0/Stage, but also handles form submit and reset events
 (e/defn Form* "implies an explicit txn monoid" ; doesn't work on raw values
-  ([edits] (Form* edits :merge-cmds merge-cmds))
   ([[ts txs :as edits] ; amb destructure
     & {:keys [debug merge-cmds commit discard]
        :or {merge-cmds merge-cmds
