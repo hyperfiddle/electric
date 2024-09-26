@@ -67,15 +67,20 @@
                (e/amb ; todo progress
                  (FormSubmit! ::commit :disabled (or busy? clean?) :label (if busy? "commit" "commit") :show-button true)
                  (FormDiscard! ::discard :disabled clean? :label (if busy? "cancel" "discard") :show-button true)
-                 (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))]
+                 (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))
+           discard! (fn [] (btn-ts) (form-t))] ; reset controlled form and both buttons, cancelling any in-flight commit
 
        (e/amb
          (e/for [[btn-t cmd] btns]
            (case cmd ; does order of burning matter?
-             ::discard (case ((fn [] (btn-ts) (form-t))) ; clear any in-flight commit yet outstanding
-                         (if discard discard (e/amb))) ; only seen when asked, btn token already spent
+             ::discard (if discard ; user wants to run an effect on discard
+                         [(fn token ; emit discard and stay busy (lag!)
+                            ([] (discard!)) ; user says discard ok
+                            ([err] (btn-t err))) ; user rejected discard
+                          discard]
+                         (case (discard!) (e/amb))) ; otherwise discard now and swallow cmd, we're done
              ::commit [(fn token
-                         ([] (btn-t) (form-t)) ; reset controlled form
+                         ([] (btn-t) (form-t)) ; commit ok, reset controlled form
                          ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
                        (if commit (commit form) form)])) ; commit as atomic batch
 
