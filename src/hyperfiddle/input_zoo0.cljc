@@ -3,11 +3,6 @@
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
-(e/defn PendingMonitor [edits] ; todo DirtyMonitor
-  ; todo red error state
-  (when (pos? (e/Count edits)) (dom/props {:aria-busy true}))
-  edits)
-
 ;; Crude uncontrolled inputs, rarely useful
 
 (e/defn Input* [& {:keys [maxlength type] :as props
@@ -211,66 +206,3 @@ buffers (dirty), commit, discard bundled as enter/esc"
                                () nil)))]
         #_(PendingMonitor) ; the optimistic list item is responsible for pending/retry affordances
         (dom/On-all "keydown" submit!)))))
-
-;; Dubious controls due to absence of failure handling, nonetheless they are
-;; simple and useful in the meantime while the rigorous controls are still WIP.
-
-(e/defn InputSubmit?!
-  "Dubious: nocancel, noretry (Assumes happy path with no failure recovery?!),
-noforeign (cannot attach to foreign in-flight edits). Controlled, buffers dirty
-edits, discard on Esc, submit on Enter. Eagerly submits concurrent isolated
-edits which race. Sets [aria-busy=true] until all edits are accepted."
-  [v & {:keys [maxlength type autofocus ::discard ::commit] :as props
-        :or {maxlength 100 type "text"}}]
-  (e/client
-    (dom/input (dom/props (-> props (dissoc ::discard ::commit)
-                            (assoc :maxLength maxlength :type type)))
-      (when-not (dom/Focused?) (set! (.-value dom/node) v))
-      #_(when autofocus (case v (.focus dom/node))) ; focus after v loads
-      (PendingMonitor
-        (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
-                (submit! [e] (let [k (.-key e)]
-                               (cond
-                                 ; if commit directive provided, use it, otherwise emit v
-                                 (= "Enter" k) (let [v (read! (.-target e))] ; no clear
-                                                 (if commit (commit v) v))
-                                 ; if discard directive provided, emit, otherwise swallow
-                                 (= "Escape" k) (do (set! (.-value dom/node) v) discard)
-                                 () nil)))]
-          ; nocancel, noretry, nocreate. To attach to foreign in-flight edits
-          ; (i.e. from InputSubmitCreate?!), we'd need to hook an On-all token
-          ; accordingly, which defeats the purpose of this "dubious" implementation.
-          (let [edits (dom/On-all "keydown" submit!)] ; eagerly submit individual edits
-            (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-value dom/node) v))
-            edits))))))
-
-(e/defn CheckboxSubmit?!
-  "Dubious: nocancel, noretry."
-  [checked & {:keys [id label] :as props
-              :or {id (random-uuid)}}]
-  (e/client
-    (e/amb
-      (dom/div ; for pending monitor
-        (dom/props {:style {:display "inline-block" :width "fit-content"}})
-        (PendingMonitor
-          (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label))
-            (let [edits (dom/On-all "change" #(-> % .-target .-checked))] ; eagerly submit individual edits
-              (when-not (or (dom/Focused?) (pos? (e/Count edits))) (set! (.-checked dom/node) checked))
-              edits))))
-      (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
-
-(e/defn InputSubmitCreate?!
-  "Dubious: nocancel, noretry."
-  [& {:keys [maxlength type] :as props
-      :or {maxlength 100 type "text"}}]
-  (e/client
-    (dom/input (dom/props (assoc props :maxLength maxlength :type type))
-      (letfn [(read! [node] (not-empty (subs (.-value node) 0 maxlength)))
-              (read-clear! [node] (when-some [v (read! node)] (set! (.-value node) "") v))
-              (submit! [e] (let [k (.-key e)]
-                             (cond
-                               (= "Enter" k) (read-clear! (.-target e))
-                               (= "Escape" k) (do (set! (.-value dom/node) "") nil)
-                               () nil)))]
-        (PendingMonitor
-          (dom/On-all "keydown" submit!))))))
