@@ -30,17 +30,16 @@
       (let [e (dom/On "reset" #(do (.log js/console %) (.preventDefault %)
                                  (blur-active-form-input! (.-target %)) %) nil)
             [t err] (e/RetryToken e)]
-        #_(prn 'FormDiscard! t err)
         (if t [t directive] (e/amb))))))
 
 (e/defn FormSubmit!
-  [directive & {:keys [disabled token show-button label] :as props}]
+  [directive & {:keys [disabled token show-button label auto-submit] :as props}]
   (e/client
     (e/amb
       #_(e/When show-button) (Button! directive :disabled disabled :label label) ; todo fix
-      (let [[t err] (e/RetryToken (dom/On "submit" #(do (.preventDefault %) (.stopPropagation %)
-                                                      (when-not disabled %)) nil))]
-        #_(prn 'FormSubmit! t err)
+      (let [e (dom/On "submit" #(do (.preventDefault %) (.stopPropagation %)
+                                  (when-not disabled %)) nil)
+            [t err] (e/RetryToken (or e auto-submit))]
         (when (some? err) (dom/props {:aria-invalid true})) ; glitch
         (if t [t directive] (e/amb))))))
 
@@ -49,11 +48,12 @@
 ;; Same as cqrs0/Stage, but also handles form submit and reset events
 (e/defn Form* "implies an explicit txn monoid" ; doesn't work on raw values
   ([[ts txs :as edits] ; amb destructure
-    & {:keys [debug merge-cmds commit discard]
+    & {:keys [debug merge-cmds commit discard show-buttons auto-submit]
        :or {merge-cmds merge-cmds
-            debug false}}]
+            debug false
+            show-buttons true}}]
    (e/client
-     (let [form (apply merge-cmds (e/as-vec txs)) ; retain until commit/discard
+     (let [form (not-empty (apply merge-cmds (e/as-vec txs))) ; retain until commit/discard
            form-t (let [ts (e/as-vec ts)]
                     (fn token
                       ([] (doseq [t ts] (t)))
@@ -64,8 +64,10 @@
            (e/with-cycle* first [btns (e/amb)]
              (let [busy? (e/Some? btns)]
                (e/amb ; todo progress
-                 (FormSubmit! ::commit :disabled (or busy? clean?) :label (if busy? "commit" "commit") :show-button true)
-                 (FormDiscard! ::discard :disabled clean? :label (if busy? "cancel" "discard") :show-button true)
+                 (FormSubmit! ::commit :disabled (e/Reconcile (or busy? clean?))
+                   :label (e/Reconcile (if busy? "commit" "commit"))
+                   :show-button show-buttons :auto-submit (when auto-submit form))
+                 (FormDiscard! ::discard :disabled clean? :label (if busy? "cancel" "discard") :show-button show-buttons)
                  (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))
            discard! (fn [] (btn-ts) (form-t))] ; reset controlled form and both buttons, cancelling any in-flight commit
 
