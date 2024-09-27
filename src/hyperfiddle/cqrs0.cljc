@@ -47,13 +47,14 @@
 
 ;; Same as cqrs0/Stage, but also handles form submit and reset events
 (e/defn Form* "implies an explicit txn monoid" ; doesn't work on raw values
-  ([[ts txs :as edits] ; amb destructure
+  ([[ts txs guess :as edits]
     & {:keys [debug merge-cmds commit discard show-buttons auto-submit]
        :or {merge-cmds merge-cmds
             debug false
             show-buttons true}}]
    (e/client
-     (let [form (not-empty (apply merge-cmds (e/as-vec txs))) ; retain until commit/discard
+     (let [form (not-empty (apply merge-cmds (e/as-vec txs))) ; collect fields into form, retain until commit/discard
+           form-guess (apply merge (e/as-vec guess)) ; todo collisions - merge-with merge?
            form-t (let [ts (e/as-vec ts)]
                     (fn token
                       ([] (doseq [t ts] (t)))
@@ -78,12 +79,14 @@
                          [(fn token ; emit discard and stay busy (lag!)
                             ([] (discard!)) ; user says discard ok
                             ([err] (btn-t err))) ; user rejected discard
-                          discard]
+                          (nth discard 0) ; command
+                          (nth discard 1)] ; prediction
                          (case (discard!) (e/amb))) ; otherwise discard now and swallow cmd, we're done
-             ::commit [(fn token
-                         ([] (btn-t) (form-t)) ; commit ok, reset controlled form
-                         ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
-                       (if commit (commit form) form)])) ; commit as atomic batch
+             ::commit (let [[form form-prediction] (if commit (commit form form-guess) [form form-guess])]
+                        [(fn token
+                           ([] (btn-t) (form-t)) ; commit ok, reset controlled form
+                           ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
+                         form form-prediction])))
 
          (e/When debug
            (dom/pre (dom/props {:style {:min-height "4em"}})
@@ -109,13 +112,14 @@
 (e/defn PendingController [kf sort-key edits xs]
   (let [!pending (atom {}) ; [id -> prediction]
         ps (val (e/diff-by key (e/watch !pending)))]
-    (e/for [[t xcmd predictions] edits]
+    (e/for [[t cmds predictions] edits]
+      #_(prn 'PendingController t cmds predictions)
       (assert (= 1 (count predictions)))
       (let [[e record] (first predictions)]
-        (prn 'pending-cmd xcmd)
-        (swap! !pending assoc e (assoc record ::pending t))
-        (e/on-unmount #(swap! !pending dissoc e))
-        (e/amb)))
+          #_(prn 'pending-cmds cmds)
+          (swap! !pending assoc e (assoc record ::pending t))
+          (e/on-unmount #(swap! !pending dissoc e))
+          (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
 
 #?(:clj (defn run-batch! [cmds & {:keys [delay die]}] (prn 'cmds cmds)
