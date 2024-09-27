@@ -122,15 +122,16 @@
           (try
             (doseq [[effect! & args] cmds]
               (apply effect! args)) ; transparent effect type - facilitates testing
-            (doto [::ok] (prn 'tx-ok))
-            (catch Throwable e [::fail ::rejected]))))
+            (doto ::ok (prn 'tx-ok)) ; sentinel, encodes "either" into single object (see todomvc command chaining)
+            (catch Throwable e ::fail)))) ; anything but ::ok is an error
 
 (e/defn Service [expand-tx-effects txs]
-  (e/client
+  (e/client ; client bias, t doesn't transfer
     (prn (e/Count txs) 'txs)
     (e/for [[t cmds] (e/Filter some? txs)] ; remove any accidental nils from dom
-      (let [[status err] (e/server ; secure effect interpretation
-                           (e/Offload #(run-batch! (expand-tx-effects cmds))))]
-        (cond
-          (= status ::ok) (t)
-          (= status ::fail) (t err)))))) ; feed error back into control for retry affordance
+      (let [res (e/server ; secure effect interpretation
+                  (e/Offload #(run-batch! (expand-tx-effects cmds))))]
+        res
+        (case res
+          ::ok (t) ; sentinel, unrecognized value is error
+          (t res)))))) ; feed error back into control for retry affordance
