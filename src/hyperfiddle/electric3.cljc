@@ -224,7 +224,7 @@ this tuple. Returns the concatenation of all body results as a single vector.
 (hyperfiddle.electric3/defn Some? [xs] (pos? (Count xs)))
 
 (hyperfiddle.electric3/defn Tap-diffs
-  ([f! x] (doto (input (pure x)) f!))
+  ([f! x] (f! (input (pure x))) x)
   ([x] (Tap-diffs prn x)))
 
 ;; mklocal = declare lexical slot
