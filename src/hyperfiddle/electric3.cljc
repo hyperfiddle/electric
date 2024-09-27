@@ -362,6 +362,15 @@ inhibiting all further reactive updates."
 
 (hyperfiddle.electric3/defn Snapshot [v] (join (-snapshot (pure v))))
 
+(hyperfiddle.electric3/defn Reconcile
+  "collapse :grow/:shrink diffs into :change diffs based on position. For example,
+(if x a b) on transition will grow one branch and shrink the other in one atomic
+diff, but (e/Reconcile (if x a b)) will emit a single :change diff. Use case:
+inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
+  [xs]
+  #_(second (e/diff-by first (map-indexed vector (e/as-vec xs)))) ; same ?
+  (diff-by {} (as-vec xs))) ; force all items to collide such that the diff algorithm fallbacks on position
+
 (let [->token (cc/fn [!t]
                 (cc/fn token
                   ([] (token nil))
