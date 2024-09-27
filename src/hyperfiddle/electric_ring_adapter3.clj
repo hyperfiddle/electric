@@ -185,7 +185,7 @@
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
                         (write-msgs socket ((boot-fn ring-req) (r/subject-at state on-message-slot)))
-                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(ping socket "HEARTBEAT")))
+                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send socket "HEARTBEAT")))
                       {} (partial failure socket)))) ; Start Electric process
      :on-close   (fn on-close [_socket _status-code & [_reason]]
                    ((aget state on-close-slot)))
