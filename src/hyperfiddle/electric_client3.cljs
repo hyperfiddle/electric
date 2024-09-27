@@ -150,7 +150,7 @@
                                    (do (js/console.log (str "Electric Websocket disconnected for an unexpected reason - " (pr-str info)))
                                        true))
                              (m/? (wait-for-window-to-be-visible))
-                             (seq retry-delays)))
+                             delays))
                          (do (.log js/console "Electric client failed to connect to Electric server.") delays))]
              (.log js/console (str "Next attempt in " (/ delay 1000) " seconds."))
              (recur (m/? (m/sleep delay delays)))))))]))
