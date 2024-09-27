@@ -4,16 +4,13 @@
             [contrib.str :refer [pprint-str]]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
-            [hyperfiddle.input-zoo0 :refer [Button!]]))
+            [hyperfiddle.input-zoo0 :refer [Button!]]
+            [missionary.core :as m]))
 
 ; commit/discard with staging area
 ; inputs - emit as you type - with a token
 ; stage - monitor edits and accumulate them
 ; button - batch all edits into single token, chained with upstream tokens
-
-(defmacro Field [e a control]
-  `(e/for [[t# v#] ~control] ; zero or one edits
-     [t# [[::update ~e ~a v#]]])) ; ::inline-edit, ::naked-edit ?
 
 #?(:cljs (defn- blur-active-form-input! [form]
            (when-let [focused-input (.-activeElement js/document)]
@@ -43,19 +40,16 @@
         (when (some? err) (dom/props {:aria-invalid true})) ; glitch
         (if t [t directive] (e/amb))))))
 
-(defn merge-cmds [& txs] (vec (apply concat txs))) ; datomic style
-
-;; Same as cqrs0/Stage, but also handles form submit and reset events
-(e/defn Form* "implies an explicit txn monoid" ; doesn't work on raw values
-  ([[ts txs guess :as edits]
-    & {:keys [debug merge-cmds commit discard show-buttons auto-submit]
-       :or {merge-cmds merge-cmds
-            debug false
+(e/defn Form*
+  ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
+    [ts txs guess :as edits] ; concurrent edits are what give us dirty tracking
+    & {:keys [debug commit discard show-buttons auto-submit]
+       :or {debug false
             show-buttons true}}]
    (e/client
-     (let [form (not-empty (apply merge-cmds (e/as-vec txs))) ; collect fields into form, retain until commit/discard
+     (let [form (not-empty (e/as-vec txs) #_(map second field-edits)) ; collect fields into form, retain until commit/discard
            form-guess (apply merge (e/as-vec guess)) ; todo collisions - merge-with merge?
-           form-t (let [ts (e/as-vec ts)]
+           form-t (let [ts (e/as-vec ts) #_(map first field-edits)]
                     (fn token
                       ([] (doseq [t ts] (t)))
                       #_([err] (doseq [t ts] (t err ::keep))))) ; we could route errors to dirty fields, but it clears dirty state
@@ -122,25 +116,21 @@
           (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
 
-#?(:clj (defn run-batch! [effects & {:keys [delay die]}] (prn 'effects effects)
-          (try (Thread/sleep delay) (when die (assert false "die"))
-            (doseq [[effect! & args] effects]
-              (prn 'effect! effect! args)
-              (apply effect! args)) ; transparent effect type - facilitates testing
-            (doto ::ok (prn 'tx-ok)) ; sentinel, encodes "either" into single object (see todomvc command chaining)
-            (catch InterruptedException _) ; never seen
-            (catch Throwable e (doto ::fail (prn e)))))) ; anything but ::ok is an error
-
 (e/defn Service
-  [expand-tx-effects txs
-   & {:keys [delay die]
-      :or {delay 500 die false}}]
+  [effects forms
+   & {:keys [delay die] ; don't delay or die todomvc, client-only commands are impacted
+      :or {delay 0, die false}}]
   (e/client ; client bias, t doesn't transfer
-    (prn (e/Count txs) 'txs #_(e/as-vec (second txs)))
-    (e/for [[t cmds] (e/Filter some? txs)] ; remove any accidental nils from dom
-      (let [res (e/server ; secure effect interpretation
-                  (e/Offload #(do (run-batch! (expand-tx-effects cmds)
-                                    :delay delay :die die))))]
+    (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
+    (e/for [[t form guess] forms #_(e/Filter some? forms)] ; remove any accidental nils from dom
+      #_(case (e/Task (m/sleep delay form)) (if die [::die]))
+      ;(prn 'Service form 'now!) (e/server (prn 'Service form 'now!))
+      (let [[effect & args] form
+            Effect (effects effect (e/fn default [& args] (doto ::effect-not-found (prn effect))))
+            res (e/Apply Effect args)] ; effect handlers span client and server
+        ;(prn 'Service form 'result res) (e/server (prn 'Service form 'result res))
+        (prn 'final-res res)
         (case res
-          ::ok (t) ; sentinel, unrecognized value is error
-          (t res)))))) ; feed error back into control for retry affordance
+          nil (prn 'res-was-nil-stop!)
+          ::ok (t) ; sentinel, any unrecognized value is an error
+          (t ::rejected)))))) ; feed error back into control for retry affordance
