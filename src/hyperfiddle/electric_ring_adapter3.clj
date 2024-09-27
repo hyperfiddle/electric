@@ -9,7 +9,8 @@
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.electric.debug3 :as dbg]
             [missionary.core :as m]
-            [ring.websocket :as ws])
+            [ring.websocket :as ws]
+            [contrib.assert :as ca])
   (:import missionary.Cancelled
            (java.util.concurrent.atomic AtomicInteger)))
 
@@ -198,14 +199,15 @@
                    (keepalive-mailbox nil))
      :on-message (fn on-message [_socket text-or-buff]
                    (keepalive-mailbox nil)
-                   (if (instance? CharSequence text-or-buff)
-                     (let [text text-or-buff]
-                       (log/trace "text received" text)
-                       (when-not (= "HEARTBEAT" text)
-                         ((aget state on-message-slot) text)))
-                     (let [^java.nio.ByteBuffer buff text-or-buff]
-                       (log/trace "bytes received" (- (.limit buff) (.position buff)))
-                       ((aget state on-message-slot) text-or-buff))))}))
+                   (let [h (ca/is (aget state on-message-slot) some? "no on-message handler, is the connection closed?")]
+                     (if (instance? CharSequence text-or-buff)
+                       (let [text text-or-buff]
+                         (log/trace "text received" text)
+                         (when-not (= "HEARTBEAT" text)
+                           (h text)))
+                       (let [^java.nio.ByteBuffer buff text-or-buff]
+                         (log/trace "bytes received" (- (.limit buff) (.position buff)))
+                         (h buff)))))}))
 
 (defn ring-ws-handler
   "Return a Ring 1.11+ websocket listener starting and managing an Electric Server process."
