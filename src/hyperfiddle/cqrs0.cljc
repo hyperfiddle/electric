@@ -42,13 +42,13 @@
 
 (e/defn Form*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
-    [ts vs guess :as edits] ; concurrent edits are what give us dirty tracking
+    [ts kvs guess :as edits] ; concurrent edits are what give us dirty tracking
     & {:keys [debug commit discard show-buttons auto-submit]
        :or {debug false
             show-buttons true}}]
    (e/client
-     (let [dirty-field-values (not-empty (e/as-vec vs) #_(map second field-edits)) ; collect fields into form, retain until commit/discard
-           dirty-field-guesses (apply merge (e/as-vec guess)) ; todo collisions - merge-with merge?
+     (let [dirty-form (not-empty (apply merge (e/as-vec kvs))) ; collect fields into form, retain until commit/discard
+           ;dirty-form-guess (apply merge (e/as-vec guess)) ; todo collisions
            form-t (let [ts (e/as-vec ts) #_(map first field-edits)]
                     (fn token
                       ([] (doseq [t ts] (t)))
@@ -61,7 +61,7 @@
                (e/amb ; todo progress
                  (FormSubmit! ::commit :disabled (e/Reconcile (or busy? clean?))
                    :label (e/Reconcile (if busy? "commit" "commit"))
-                   :show-button show-buttons :auto-submit (when auto-submit dirty-field-values))
+                   :show-button show-buttons :auto-submit (when auto-submit dirty-form))
                  (FormDiscard! ::discard :disabled clean? :label (if busy? "cancel" "discard") :show-button show-buttons)
                  (e/When debug (dom/span (dom/text " " dirty-count " dirty"))))))
            discard! (fn [] (btn-ts) (form-t))] ; reset controlled form and both buttons, cancelling any in-flight commit
@@ -76,17 +76,16 @@
                           (nth discard 0) ; command
                           (nth discard 1)] ; prediction
                          (case (discard!) (e/amb))) ; otherwise discard now and swallow cmd, we're done
-             ::commit (let [[form-value form-guess] (if commit
-                                                      (commit dirty-field-values dirty-field-guesses)
-                                                      [dirty-field-values dirty-field-guesses])]
+             ::commit (let [[dirty-form dirty-form-guess] (if commit (commit dirty-form #_dirty-form-guess) ; guess and form would be =
+                                                            [dirty-form #_{e dirty-form}])] ; no entity id, only user can guess
                         [(fn token
                            ([] (btn-t) (form-t)) ; commit ok, reset controlled form
                            ([err] (btn-t err) #_(form-t err))) ; leave dirty fields dirty, activates retry button
-                         form-value form-guess])))
+                         dirty-form dirty-form-guess])))
 
          (e/When debug
            (dom/pre (dom/props {:style {:min-height "4em"}})
-             (dom/text (pprint-str dirty-field-values :margin 80)))))))))
+             (dom/text (pprint-str dirty-form :margin 80)))))))))
 
 (defmacro Form [fields1 & kwargs]
   `(dom/form ; for form "reset" event
@@ -97,7 +96,7 @@
   (e/client
     (let [as! (e/as-vec as) ; todo differential reconciliation
           bs! (e/as-vec bs)]
-      (->> (merge
+      (->> (merge ; todo deep merge partial predictions
              (index-by stable-kf as!)
              (index-by stable-kf bs!))
         vals

@@ -46,8 +46,8 @@
 ; Errors are forwarded in via token callback
 ; Errors are never sent out via signal, because consumers already saw it when they forwarded it in
 
-(e/defn Input! [v & {:keys [maxlength type parse] :as props
-                     :or {maxlength 100 type "text" parse identity}}]
+(e/defn Input! [k v & {:keys [maxlength type parse] :as props
+                       :or {maxlength 100 type "text" parse identity}}]
   (e/client
     (dom/input (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
       (let [e (dom/On "input" identity nil) [t err] (e/RetryToken e) ; reuse token until commit
@@ -58,13 +58,13 @@
         (when-not dirty? (set! (.-value dom/node) v))
         (when error? (dom/props {:aria-invalid true}))
         (when waiting? (dom/props {:aria-busy true}))
-        (if waiting? [t ((fn [] (-> e .-target .-value (subs 0 maxlength) parse)))] (e/amb))))))
+        (if waiting? [t {k ((fn [] (-> e .-target .-value (subs 0 maxlength) parse)))}] (e/amb))))))
 
 ; include the error for the pending monitor - unclear if right
 ; encapsulate errors, the form already saw it when forwarding here
 
-(e/defn Checkbox! [checked & {:keys [id label parse] :as props
-                              :or {id (random-uuid) parse identity}}]
+(e/defn Checkbox! [k checked & {:keys [id label parse] :as props
+                                :or {id (random-uuid) parse identity}}]
   ; todo esc?
   (e/client
     (e/amb
@@ -81,7 +81,7 @@
           (when-not dirty? (set! (.-checked input-node) checked))
           (when error? (dom/props {:aria-invalid true}))
           (when waiting? (dom/props {:aria-busy true}))
-          (if waiting? [t ((fn [] (-> e .-target .-checked parse)))] (e/amb))))
+          (if waiting? [t {k ((fn [] (-> e .-target .-checked parse)))}] (e/amb))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 (e/defn Button! [directive & {:keys [label disabled id token] :as props
