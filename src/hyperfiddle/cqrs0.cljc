@@ -122,25 +122,25 @@
           (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
 
-#?(:clj (defn run-batch! [cmds & {:keys [delay die]}] (prn 'cmds cmds)
+#?(:clj (defn run-batch! [effects & {:keys [delay die]}] (prn 'effects effects)
           (try (Thread/sleep delay) (when die (assert false "die"))
-            (doseq [[effect! & args] cmds]
+            (doseq [[effect! & args] effects]
+              (prn 'effect! effect! args)
               (apply effect! args)) ; transparent effect type - facilitates testing
             (doto ::ok (prn 'tx-ok)) ; sentinel, encodes "either" into single object (see todomvc command chaining)
             (catch InterruptedException _) ; never seen
-            (catch Throwable e ::fail)))) ; anything but ::ok is an error
+            (catch Throwable e (doto ::fail (prn e)))))) ; anything but ::ok is an error
 
 (e/defn Service
   [expand-tx-effects txs
    & {:keys [delay die]
-      :or {delay 500 die true}}]
+      :or {delay 500 die false}}]
   (e/client ; client bias, t doesn't transfer
     (prn (e/Count txs) 'txs #_(e/as-vec (second txs)))
     (e/for [[t cmds] (e/Filter some? txs)] ; remove any accidental nils from dom
       (let [res (e/server ; secure effect interpretation
                   (e/Offload #(do (run-batch! (expand-tx-effects cmds)
                                     :delay delay :die die))))]
-        res
         (case res
           ::ok (t) ; sentinel, unrecognized value is error
           (t res)))))) ; feed error back into control for retry affordance
