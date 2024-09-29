@@ -118,8 +118,10 @@
           (e/amb)))
     (Reconcile-records kf sort-key xs ps)))
 
+(def *effects* {})
+
 (e/defn Service
-  [effects forms
+  [forms
    & {:keys [delay die] ; don't delay or die todomvc, client-only commands are impacted
       :or {delay 0, die false}}]
   (e/client ; client bias, t doesn't transfer
@@ -128,7 +130,7 @@
       #_(case (e/Task (m/sleep delay form)) (if die [::die]))
       ;(prn 'Service form 'now!) (e/server (prn 'Service form 'now!))
       (let [[effect & args] form
-            Effect (effects effect (e/fn default [& args] (doto ::effect-not-found (prn effect))))
+            Effect (*effects* effect (e/fn default [& args] (doto ::effect-not-found (prn effect))))
             res (e/Apply Effect args)] ; effect handlers span client and server
         ;(prn 'Service form 'result res) (e/server (prn 'Service form 'result res))
         (prn 'final-res res)
