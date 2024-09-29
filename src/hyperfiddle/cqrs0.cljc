@@ -40,7 +40,7 @@
         (when (some? err) (dom/props {:aria-invalid true})) ; glitch
         (if t [t directive] (e/amb))))))
 
-(e/defn Form*
+(e/defn Form!*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
     [ts kvs guess :as edits] ; concurrent edits are what give us dirty tracking
     & {:keys [debug commit discard show-buttons auto-submit]
@@ -87,10 +87,10 @@
            (dom/pre (dom/props {:style {:min-height "4em"}})
              (dom/text (pprint-str dirty-form :margin 80)))))))))
 
-(defmacro Form [fields1 & kwargs]
+(defmacro Form! [fields1 & kwargs]
   `(dom/form ; for form "reset" event
      #_(dom/props kwargs) ; todo select dom props vs stage props
-     (Form* ~fields1 ~@kwargs))) ; place fields inside dom/form
+     (Form!* ~fields1 ~@kwargs))) ; place fields inside dom/form
 
 (e/defn Reconcile-records [stable-kf sort-key as bs]
   (e/client
