@@ -83,7 +83,7 @@
 
 (comment (take 5 fib2) := [1 1 2 3 5])
 
-(def retry-delays (map (partial * 100) (next fib)))
+(def retry-delays (map (partial * 1000) (next fib)))
 ;; Browsers throttle websocket connects after too many attempts in a short time.
 ;; To prevent using browsers as port scanners.
 ;; Symptom: WS takes a long time to establish a connection for no apparent reason.
