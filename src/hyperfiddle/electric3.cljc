@@ -398,6 +398,23 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
                (step !x v on?)
                (watch !x))))) ; route error to call site
 
+(let [->token (cc/fn [!t]
+                (cc/fn token
+                  ([] (reset! !t [nil nil]) nil) ; success, burn token
+                  ([err] (reset! !t [nil err]) nil))) ; failed attempt burns token, user must interact again
+      step (cc/fn [!x v on?]
+             (when (on? v)
+               (let [[t err] @!x]
+                 (cond ; reuse outstanding token but clear error for new attempt
+                   (some? err) (compare-and-set! !x [nil err] [(->token !x) nil])
+                   () (compare-and-set! !x [nil nil] [(->token !x) nil])))))]
+  (hyperfiddle.electric3/defn RetryToken2
+    ([v] (RetryToken2 v some?))
+    ([v on?]
+     (let [!x (atom [nil nil])] ; single watch for consistency
+       (step !x v on?)
+       !x)))) ; route error to call site
+
 (let [->spend-fn  (cc/fn [!spend!] (cc/fn f ([] (f nil)) ([ret] (reset! !spend! nil) ret)))
       step        (cc/fn [!spend! _spend! v on?] (when (on? v) (compare-and-set! !spend! nil (->spend-fn !spend!))))]
   (hyperfiddle.electric3/defn CyclicToken
