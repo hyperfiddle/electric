@@ -42,27 +42,37 @@
   (ca/is conf map? "provide config map as first argument")
   `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}))
 
-(defn half-conn [out-cb latency events]
-  (m/reduce (constantly nil)
-    (m/ap (let [v (m/?> (m/zip {} latency events))]
-            ((m/? out-cb) v)))))
+(def run-local
+  (letfn [(subject [^objects state slot]
+            (fn [cb] (aset state slot cb) #(aset state slot nil)))
+          (reader [^objects state slot]
+            (m/ap (m/? (m/?> (m/seed (repeat (aget state slot)))))))
+          (writer [^objects state slot latency events]
+            (m/reduce (fn ([] (aget state slot))
+                        ([cb x] (cb x) cb))
+              (m/zip {} latency events)))]
+    (fn [[client-read-clock client-write-clock] [server-read-clock server-write-clock] defs main]
+      (let [state (doto (object-array 4)
+                    (aset 0 (m/mbx))                        ;; client->server
+                    (aset 1 (m/mbx)))]                      ;; server->client
+        (m/join (constantly nil)
+          (r/peer-boot (r/make-peer :client {} (subject state 2) defs main nil)
+            (partial writer state 0 client-write-clock))
+          (writer state 1 server-write-clock
+            (r/peer-events (r/make-peer :server {} (subject state 3) defs main nil)))
+          (writer state 3 server-read-clock (reader state 0))
+          (writer state 2 client-read-clock (reader state 1)))))))
 
-(defn run-local [[inbound-latency outbound-latency] defs main]
-  (let [s->c (m/dfv)
-        c->s (m/dfv)
-        client (r/make-peer :client {} (fn [!] (s->c !) #()) defs main nil)
-        server (r/make-peer :server {} (fn [!] (c->s !) #()) defs main nil)]
-    (m/join {}
-      (half-conn s->c inbound-latency (r/peer-events server))
-      (r/peer-boot client (partial half-conn c->s outbound-latency)))))
+(def immediate [(m/seed (repeat nil)) (m/seed (repeat nil))])
+
+(defmacro local {:style/indent 1} [conf & body]
+  `(run-local
+     ~(::lang/client-clock conf `immediate)
+     ~(::lang/server-clock conf `immediate)
+     (main ~conf ~@body) ::Main))
 
 (defn run-single [defs main]
   (r/peer-sink (r/make-peer :client {} nil defs main nil)))
-
-(def no-latency [(m/seed (repeat nil)) (m/seed (repeat nil))])
-
-(defmacro local {:style/indent 1} [conf & body]
-  `(run-local ~(::lang/remote-latency conf `no-latency) (main ~conf ~@body) ::Main))
 
 (defmacro single {:style/indent 1} [conf & body]
   `(run-single (main ~conf ~@body) ::Main))
