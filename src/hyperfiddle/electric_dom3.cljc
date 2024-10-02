@@ -456,9 +456,9 @@ input's value, use `EventListener`."
      (let [S (i/spine) !running (atom (sorted-set))] ; both refs are ordered, entires must be comparable
        (m/amb S
          (let [[i v] (m/?> (m/eduction (map-indexed vector) flow)) ; spine is ordered by event sequence
-               t (atom (fn token
-                         ([] (swap! !running disj i) (S i {} nil))
-                         ([err] '...)))
+               t (fn token
+                   ([] (swap! !running disj i) (S i {} nil))
+                   ([err] '...))
                running (swap! !running conj i)]
            (S i {} [t v])
            ; enforce concurrency limit
