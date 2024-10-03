@@ -45,7 +45,6 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 - Live Tutorial: https://electric.hyperfiddle.net/
 - [electric starter app](https://github.com/hyperfiddle/electric-starter-app) – minimalist entrypoint
-- Demos repo: [electric-fiddle](https://github.com/hyperfiddle/electric-fiddle)
 
 # Documentation
 - [Talk: Electric Clojure — London Clojurians (2023)](https://www.youtube.com/watch?v=v-GE_P1JSOQ)
