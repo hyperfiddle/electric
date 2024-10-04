@@ -703,8 +703,8 @@
       [% %] := [:up :up]
       % := [1 1]
       (swap! !input pop)
-      % := [1]
-      % := :down))
+      % := :down
+      % := [1]))
   % := :down)
 
 (tests "reactive metadata"
@@ -1250,9 +1250,9 @@
       % := :up
       % := 0
       (swap! !state inc)
+      % := :down
       % := :up
-      % := 1
-      % := :down)
+      % := 1)
     % := :down
     (instance? Cancelled %) := true))
 
@@ -2335,9 +2335,9 @@
       (s 1 {} nil)
       % := '[join 0 notified]
       % := '[join 0 cancelled]
+      % := '[join 0 terminated]
       (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
       % := '[join 0 cancelled]
-      ;; % := '[join 0 terminated]           ; MISSING
       (tap ::done), % := ::done)))
 
 (tests
@@ -2355,9 +2355,9 @@
       (s 1 {} nil)
       % := '[join 0 notified]
       % := '[join 0 cancelled]
+      % := '[join 0 terminated]
       (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
       % := '[join 0 cancelled]
-      % := '[join 0 terminated]
       (tap ::done), % := ::done)))
 
 ;; if we don't type hint the call to `fooBar` in the compiler the tests blow up on the inference warning.
