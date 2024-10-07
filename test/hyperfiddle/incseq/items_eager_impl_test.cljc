@@ -30,12 +30,13 @@
   ([q] (spawn-ps q (->box (fn [_step _done] (q)))))
   ([q <transfer-fn>] (spawn-ps q <transfer-fn> (->box (fn [_step _done] (q :input-cancel)))))
   ([q <transfer-fn> <cancel-fn>]
-   ((fpe/flow "i/items" (items/flow (fn [step done]
-                            (q [step done])
-                            (step)
-                            (reify
-                              IFn (#?(:clj invoke :cljs -invoke) [_] ((<cancel-fn>) step done))
-                              IDeref (#?(:clj deref :cljs -deref) [_] ((<transfer-fn>) step done))))))
+   ((fpe/incseq "i/items"
+      (items/flow (fn [step done]
+                    (q [step done])
+                    (step)
+                    (reify
+                      IFn (#?(:clj invoke :cljs -invoke) [_] ((<cancel-fn>) step done))
+                      IDeref (#?(:clj deref :cljs -deref) [_] ((<transfer-fn>) step done))))))
     #(q :items-step) #(q :items-done))))
 
 (t/deftest spawn
