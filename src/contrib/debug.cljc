@@ -52,16 +52,11 @@
            it (flow #(do (dbgf [nm id 'notified]) (n)) #(do (dbgf [nm id 'terminated]) (t)))]
        (reify
          IFn (#?(:clj invoke :cljs -invoke) [_] (dbgf [nm id 'cancelled]) (it))
+         (#?(:clj invoke :cljs -invoke) [_ _] it)
          IDeref (#?(:clj deref :cljs -deref) [_]
-                  (let [v (try @it (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
-                    (dbgf [nm id 'transferred
-                           (if false #_(instance? Failure v) ; FIXME Update to electric v3
-                               (let [e (.-error v)]
-                                 [(type e) (ex-message e)])
-                               v)])
-                    (if (and (vector? v) (= ::ex (first v)))
-                      (throw (second v))
-                      v))))))))
+                  (let [[t v] (try [::ok @it] (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
+                    (dbgf [nm id 'transferred (if (= ::ex t) [(type v) (ex-message v)] v)])
+                    (if (= ::ex t) (throw v) v))))))))
 (defmacro instrument [nm v] `(hyperfiddle.electric3/input (instrument* ~nm (hyperfiddle.electric3/pure ~v))))
 
 (defmacro js-measure [nm & body]

@@ -137,6 +137,8 @@
                    (run! (fn [item-ps] (item-ps v)) @(a/fget item -ps*))))
       nil (:change diff))))
 
+(defn ?add-freeze [diff] (if (:freeze diff) diff (assoc diff :freeze #{})))
+
 (defn needed-diff? [d]
   (or (seq (:permutation d)) (pos? (:grow d)) (pos? (:shrink d)) (seq (:freeze d))))
 
@@ -147,8 +149,9 @@
             (let [?in-diff (try @(a/fget ps -input-ps) (catch #?(:clj Throwable :cljs :default) e e))]
               (if (map? ?in-diff)
                 (do (grow! ps ?in-diff) (permute! ps ?in-diff) (shrink! ps ?in-diff) (change! ps ?in-diff)
-                    (let [newdiff (a/fset ps -diff (cond->> (assoc ?in-diff :change (:change (a/fget ps -diff)))
-                                                     diff (d/combine diff)))]
+                    (let [newdiff (a/fset ps -diff (?add-freeze
+                                                     (cond->> (assoc ?in-diff :change (:change (a/fget ps -diff)))
+                                                       diff (d/combine diff))))]
                       (if (= 1 (going ps))
                         (case (a/fget ps -stepped)
                           false (when (needed-diff? newdiff) (a/fset ps -stepped true))
