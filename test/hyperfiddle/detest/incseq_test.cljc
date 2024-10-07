@@ -83,3 +83,11 @@
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn {} (i/latest-concat (rand-lc-incseq ngn))))))))
+
+(t/deftest detest-fixed
+  (dotimes [_ 1000]
+    (let [ngn (dt/->engine)]
+      (t/is (nil?
+              (dt/exercise ngn {} (i/fixed (rand-incseq ngn) (rand-incseq ngn) (rand-incseq ngn)
+                                    (rand-incseq ngn) (rand-incseq ngn) (rand-incseq ngn)
+                                    (rand-incseq ngn) (rand-incseq ngn) (rand-incseq ngn))))))))
