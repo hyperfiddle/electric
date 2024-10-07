@@ -10,8 +10,9 @@
 ; unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
 ; sub-delims    = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
 
-(def -sub-delims #{\! \$ \& \' \( \) \* \+ \, \; \=})
+(def -sub-delims #{\! \$ \& \' \( \) \* \+ \, \; \= \’}) ; extended with `’` \u2019 – typographic apostrophe (vs typewriter). URL safe and eye friendly. Prevents clashes with `"`.
 (def -unreserved (clojure.set/union (set (map char "abcdefghijklmnopqrstuvwxyz"))
+                                    (set (map char "ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
                                     (set (map char "0123456789"))
                                     #{\- \. \_ \~}))
 (def -pchar (clojure.set/union -unreserved -sub-delims #{\: \@}))
@@ -58,4 +59,7 @@
   ;(encode-rfc3986-pchar "위키백과:대문") := "%4%4%1%C:%0%8"
   ;(decode-rfc3986-pchar "%4%4%1%C:%0%8") := "위키백과:대문"
   ;((comp decode-rfc3986-pchar encode-rfc3986-pchar) "위키백과:대문")
+
+  (encode-pchar "Toggle") := "Toggle" ; ASCII uppercase preserved
+
   )
