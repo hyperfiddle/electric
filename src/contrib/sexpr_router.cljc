@@ -4,13 +4,17 @@
             [hyperfiddle.rcf :refer [tests]]))
 
 (defn encode [route & [home-route]]
-  (let [[f & args] route]
-    (condp = route
-      home-route "/"
-      (str "/" (contrib.ednish/encode-uri f)
-           "/" (some->> args
-                        (map contrib.ednish/encode-uri)
-                        (string/join "/"))))))
+  (cond
+    (empty? route) "/"
+    ((some-fn seq? vector?) route) ; not all sequential colls have [f & args] semantics (e.g. ordered maps)
+    (let [[f & args] route]
+      (condp = route
+        home-route "/"
+        (str "/" (contrib.ednish/encode-uri f)
+          "/" (some->> args
+                (map contrib.ednish/encode-uri)
+                (string/join "/")))))
+    () (encode [route])))
 
 (def url-regex #"^/([^/?#]+/?)*(\?[^#]*)?(#.*)?$")
 
@@ -57,7 +61,7 @@
   #?(:clj (some? (java.net.URI. (encode `(user/hello)))) := true)
 
   "non-ascii characters (note: ednish is not a bijection)"
-  (encode '(foo "!$&'[]()*+,;=|")) := "/foo/'!$&'()()*+,;=%7C'"
+  (encode '(foo "!$&'[]()*+,;=|")) := "/foo/'!$&’()()*+,;=%7C'"
   ;(decode "/foo/'!$&'()()*+,;=%7C'") := '(foo "!$&'[]()*+,;=|") -- todo why broken?
 
   "composite parameters"
@@ -68,7 +72,21 @@
   := `(hyperfiddle.blog/post [:user/sub "google-oauth2|1234"] #{"events" "news"})
 
   (decode "/bar/'qwerzxcv'") := '(bar "qwerzxcv")
-  (decode "/bar/((%3Fe,:foo,%3Fa))/'qwerzxcv'#blah") := '(bar [[?e :foo ?a]] "qwerzxcv"))
+  (decode "/bar/((%3Fe,:foo,%3Fa))/'qwerzxcv'#blah") := '(bar [[?e :foo ?a]] "qwerzxcv")
+
+
+  ;; User friendliness
+  (encode `(Toggle 1 2)) := "/contrib.sexpr-router!Toggle/1/2"
+  (encode "pour l'amour") := "/'pour,l’amour'/"  ; no quotation marks collision
+  (decode "/'pour,l’amour'/") := '("pour l'amour")
+
+  ;; nested structure is readable
+  (encode [:app.datomic-browser/attribute :abstractRelease/name {:contrib.gridsheet/search "pour l'amour"}])
+  := "/:app.datomic-browser!attribute/:abstractRelease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D"
+
+  (decode "/:app.datomic-browser!attribute/:abstractRelease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D")
+  := '(:app.datomic-browser/attribute :abstractRelease/name #:contrib.gridsheet{:search "pour l'amour"})
+  )
 
 (tests
   "sexpr bijection check (egality only, can lose collection type)"

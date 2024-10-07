@@ -10,13 +10,15 @@
 ; unwise = "{" | "}" | "|" | "\" | "^" | "[" | "]" | "`"
 
 (def -edn-dialect-mappings
-  {\space \,
-   \" \'
-   \# \~
-   \/ \!
-   ;\{ \( \} \)
-   \[ \( \] \)
-   })
+  [[\space \,]
+   [\# \~]
+   [\' \’] ; \u2019 – typographic apostrophe (vs typewriter). URL safe and eye friendly. Prevents clashes with `"`.
+   [\" \']
+   [\/ \!]
+   ;; \{ \( \} \)
+   [\[ \(]
+   [\] \)]
+   ])
 
 ; Paste this into chrome and it will display properly
 ; https://ko.wikipedia.org/wiki/%EC%9C%84%ED%82%A4%EB%B0%B1%EA%B3%BC:%EB%8C%80%EB%AC%B8
@@ -32,10 +34,14 @@ coalesce into lists and are not disambiguated."
 (defn decode [ednish-str]
   (reduce (fn [a [k v]] (clojure.string/replace a k v))
           ednish-str
-          (clojure.set/map-invert -edn-dialect-mappings)))
+          (map (fn [[k v]] [v k]) (reverse -edn-dialect-mappings))))
 
 (tests
   (encode (pr-str :hyperfiddle.blog/post)) := ":hyperfiddle.blog!post"
+  (encode "pour l'amour") := "pour,l’amour"
+  (encode "pour l’amour") := "pour,l’amour" ; note the apostrophe
+  (decode (encode "pour l'amour")) := "pour l'amour"
+  (decode (encode "pour l’amour")) := "pour l'amour" ; typographic apostrophe replaced by typewriter apostrophe, DBs collates them anyway, should be harmless.
   (encode (pr-str :a!b)) := ":a!b"
   (encode (pr-str "kobe")) := "'kobe'"
   (encode (pr-str #{"events" "news"})) := "~{'news','events'}"
@@ -50,8 +56,14 @@ coalesce into lists and are not disambiguated."
   (encode-uri "|") := "'%7C'"
   (decode-uri "'%7C'") := "|"
 
-  (encode-uri "!$&'[]()*+,;=|") := "'!$&'()()*+,;=%7C'"
-  ;(decode-uri "'!$&'()()*+,;=%7C'") := "!$&'()()*+,;=|" -- todo why broken?
+  (encode-uri "!") := "'!'"
+  (decode-uri "'!'") := "/" ; Exclamation mark clashes with /
+
+  (encode-uri "$&'[]()*+,;=|") := "'$&’()()*+,;=%7C'"
+  (decode-uri "'$&’()()*+,;=%7C'") := "$&'[][]*+ ;=|"
+
+  (encode-uri `(Toggle)) := "(contrib.ednish!Toggle)"
+  (decode-uri "(contrib.ednish!Toggle)") := '[contrib.ednish/Toggle]
   )
 
 ;(tests -- No reader function for tag uri -- this test passes in hf-2020
