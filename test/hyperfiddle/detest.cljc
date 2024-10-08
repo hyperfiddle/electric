@@ -34,14 +34,17 @@
 #?(:cljs (defn random-seed [] (Long/fromBits (rand-int 0x100000000) (rand-int 0x100000000))))
 
 (defprotocol Engine
-  (exercise [this opts flow])
+  (exercise [this flow])
+  (->rng [this])
+  (->opts [this])
+  (->dbgf [this])
   (roll [this] [this nm])
   (add-proc [this proc])
   (del-proc [this proc]))
 
-(defn instrument [nm flow]
+(defn instrument [nm ngn flow]
   (fn [step done]
-    (let [it ((dbg/instrument* nm flow) step done)]
+    (let [it ((dbg/instrument* nm (->dbgf ngn) flow) step done)]
       (reify
         IFn
         (#?(:clj invoke :cljs -invoke) [_] (it))
@@ -53,17 +56,27 @@
   ([nm msg] (on-violate nm msg nil))
   ([nm msg e] (throw (ex-info (str nm " flow protocol violation: " msg) {} e))))
 
+(defn debug? [ngn] (-> ngn ->opts :debug))
+
 (defn ->engine
   ([] (->engine {}))
-  ([{:keys [seed]}]
-   (let [seed (or seed (random-seed)), rng (->xorshift64 seed), !proc* (atom [])]
+  ([{:keys [seed] :as o}]
+   (let [seed (or seed (random-seed)), rng (->xorshift64 seed), !proc* (atom [])
+         !n (atom 0), dbgf (case (:debug o)
+                             (:steps) (fn [_] (swap! !n inc))
+                             (:full) (fn [x] (swap! !n inc) (prn x))
+                             #_else prn)]
      (reify Engine
        (add-proc [_ proc] (swap! !proc* conj proc))
        (del-proc [_ proc] (swap! !proc* (fn [proc*] (filterv #(not= % proc) proc*))))
        (roll [_] (rng))
        (roll [_ n] (rng n))
-       (exercise [this opts flow]
-         (try (let [flow (fpe/enforce {:name ::root, :on-violate on-violate} flow)
+       (->rng [_] rng)
+       (->opts [_] o)
+       (->dbgf [_] dbgf)
+       (exercise [this flow]
+         (try (let [flow (fpe/enforce {:name 'root, :on-violate on-violate}
+                           (cond->> flow (debug? this) (dbg/instrument* 'root dbgf)))
                     !s (atom nil)
                     root (flow #(reset! !s :step) #(reset! !s :done))]
                 (add-proc this root)
@@ -81,6 +94,12 @@
                                                 (when-not (str/starts-with? (ex-message e) "[DETEST OK] ")
                                                   (throw e))))))
                       (proc (rng)))))
-                (dotimes [_ 3] (root)))
+                (dotimes [_ (rng 10)] (root)))
               (catch #?(:clj Throwable :cljs :default) e
-                (throw (ex-info (str "exercise failed with seed " seed) {:seed seed} e)))))))))
+                (throw (ex-info (str "exercise failed") {:seed seed, :steps @!n} e)))))))))
+
+(defn minimize [ngn <s> flow]
+  (try (exercise ngn flow)
+       (catch ExceptionInfo e
+         (let [[n0] (<s>), n1 (-> e ex-data :steps)]
+           (when (or (nil? n0) (< n1 n0)) (<s> [n1 (-> e ex-data :seed)]))))))
