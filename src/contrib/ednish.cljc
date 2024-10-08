@@ -48,7 +48,10 @@ coalesce into lists and are not disambiguated."
   (encode (pr-str #uuid "07655f77-608d-472b-bc5e-86fcecc40b00"))
   := "~uuid,'07655f77-608d-472b-bc5e-86fcecc40b00'")
 
-(def encode-uri (comp contrib.rfc3986/encode-pchar encode pr-str))
+(defn encode-uri [x]
+  (binding [*print-namespace-maps* true] ; unify platform default settings for more compact URLs. Defaults to: true in clj, false in cljs.
+    (-> x pr-str encode contrib.rfc3986/encode-pchar)))
+
 (def decode-uri (comp clojure.edn/read-string decode contrib.rfc3986/decode-pchar))
 
 (tests
@@ -64,6 +67,10 @@ coalesce into lists and are not disambiguated."
 
   (encode-uri `(Toggle)) := "(contrib.ednish!Toggle)"
   (decode-uri "(contrib.ednish!Toggle)") := '[contrib.ednish/Toggle]
+
+  (encode-uri {:foo :bar}) := "%7B:foo,:bar%7D"
+  (encode-uri {::foo :bar, :baz :asdf})  := "%7B:contrib.ednish!foo,:bar,,:baz,:asdf%7D"
+  (encode-uri {::foo :bar, ::baz :asdf}) := "~:contrib.ednish%7B:foo,:bar,,:baz,:asdf%7D"
   )
 
 ;(tests -- No reader function for tag uri -- this test passes in hf-2020
