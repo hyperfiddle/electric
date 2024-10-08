@@ -14,22 +14,24 @@
           "/" (some->> args
                 (map contrib.ednish/encode-uri)
                 (string/join "/")))))
-    () (encode [route])))
+    () (contrib.ednish/encode-uri route)))
 
 (def url-regex #"^/([^/?#]+/?)*(\?[^#]*)?(#.*)?$")
 
 (defn decode [s & [home-route]]
   {:pre [(string? s)]}
-  (if-let [[match _ query hash] (re-find url-regex s)]
-    (condp = match
-      "/" home-route ; todo many edge cases
-      (->> (cond-> match
-                   (seq hash) (-> (string/split #"#") first) ; ?
-                   (seq query) (-> (string/split #"\?") first)
-                   true (string/split #"/"))
-           (rest)
-           (map contrib.ednish/decode-uri)))
-    (throw (ex-info (str "Invalid url: " s) {::s s}))))
+  (if-not (clojure.string/starts-with? s "/")
+    (contrib.ednish/decode-uri (first (string/split s #"[/\?#]")))
+    (if-let [[match _ query hash] (re-find url-regex s)]
+      (condp = match
+        "/" home-route ; todo many edge cases
+        (->> (cond-> match
+               (seq hash) (-> (string/split #"#") first) ; ?
+               (seq query) (-> (string/split #"\?") first)
+               true (string/split #"/"))
+          (rest)
+          (map contrib.ednish/decode-uri)))
+      (throw (ex-info (str "Invalid sexpr encoded value: " s) {::s s})))))
 
 (tests
   "sexpr routes"
@@ -77,8 +79,8 @@
 
   ;; User friendliness
   (encode `(Toggle 1 2)) := "/contrib.sexpr-router!Toggle/1/2"
-  (encode "pour l'amour") := "/'pour,l’amour'/"  ; no quotation marks collision
-  (decode "/'pour,l’amour'/") := '("pour l'amour")
+  (encode "pour l'amour") := "'pour,l’amour'"  ; no quotation marks collision
+  (decode "'pour,l’amour'") := "pour l'amour"
 
   ;; nested structure is readable
   (encode [:app.datomic-browser/attribute :abstractRelease/name {:contrib.gridsheet/search "pour l'amour"}])
