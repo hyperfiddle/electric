@@ -54,6 +54,7 @@
          IFn (#?(:clj invoke :cljs -invoke) [_] (dbgf [nm id 'cancelled]) (it))
          (#?(:clj invoke :cljs -invoke) [_ _] it)
          IDeref (#?(:clj deref :cljs -deref) [_]
+                  (dbgf [nm id 'transferring])
                   (let [[t v] (try [::ok @it] (catch #?(:clj Throwable :cljs :default) e [::ex e]))]
                     (dbgf [nm id 'transferred (if (= ::ex t) [(type v) (ex-message v)] v)])
                     (if (= ::ex t) (throw v) v))))))))
