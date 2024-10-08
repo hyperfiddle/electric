@@ -2336,7 +2336,7 @@
       % := '[join 0 notified]
       % := '[join 0 cancelled]
       % := '[join 0 terminated]
-      (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
+      (update % 3 first) := ['join 0 'transferred Cancelled]
       % := '[join 0 cancelled]
       (tap ::done), % := ::done)))
 
@@ -2356,7 +2356,7 @@
       % := '[join 0 notified]
       % := '[join 0 cancelled]
       % := '[join 0 terminated]
-      (update % 3 first) := (conj '[join 0 transferred ::dbg/ex])
+      (update % 3 first) := ['join 0 'transferred Cancelled]
       % := '[join 0 cancelled]
       (tap ::done), % := ::done)))
 
