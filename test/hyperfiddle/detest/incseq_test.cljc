@@ -135,3 +135,9 @@
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn (m/reductions i/patch-vec [] (rand-incseq ngn))))))))
+
+(t/deftest detest-items
+  (dotimes [_ 1000]
+    (let [ngn (dt/->engine)]
+      (t/is (nil?
+              (dt/exercise ngn (i/items (rand-incseq ngn))))))))
