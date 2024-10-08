@@ -76,15 +76,15 @@
 
 
   ;; User friendliness
-  (encode `(Toggle 1 2)) := "/contrib.sexpr-router!%54oggle/1/2" ; uppercase T is not % encoded
+  (encode `(Toggle 1 2)) := "/contrib.sexpr-router!Toggle/1/2"
   (encode "pour l'amour") := "/'pour,l’amour'/"  ; no quotation marks collision
   (decode "/'pour,l’amour'/") := '("pour l'amour")
 
   ;; nested structure is readable
   (encode [:app.datomic-browser/attribute :abstractRelease/name {:contrib.gridsheet/search "pour l'amour"}])
-  := "/:app.datomic-browser!attribute/:abstract%52elease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D"
+  := "/:app.datomic-browser!attribute/:abstractRelease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D"
 
-  (decode "/:app.datomic-browser!attribute/:abstract%52elease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D")
+  (decode "/:app.datomic-browser!attribute/:abstractRelease!name/~:contrib.gridsheet%7B:search,'pour,l’amour'%7D")
   := '(:app.datomic-browser/attribute :abstractRelease/name #:contrib.gridsheet{:search "pour l'amour"})
   )
 
