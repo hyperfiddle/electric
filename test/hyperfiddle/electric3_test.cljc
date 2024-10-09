@@ -2371,3 +2371,38 @@
      (tests
        (with ((l/single {} (tap (.fooBar (js/Object.)))) tap (fn [_] (tap :error)))
          % := :error))))
+
+(tests
+
+  (let [!x (atom 0)
+        !y (atom true)
+        !z (atom true)
+        !clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! !clocks assoc k !)
+                    #(swap! !clocks dissoc k))))
+        tick (fn [k] ((@!clocks k) nil))]
+    ((l/local {::lang/client-clock [(clock :client-read) (clock :client-write)]
+               ::lang/server-clock [(clock :server-read) (clock :server-write)]}
+       (let [x (e/watch !x)]
+         (when (e/watch !y)
+           (e/server [(identity x)
+                      (when (e/watch !z) x)]))))
+     tap tap)
+    (tick :client-write)
+    (tick :server-read)
+    (tick :server-write)
+    (swap! !z not)
+    (tick :server-write)
+    (swap! !y not)
+    (tick :client-write)
+    (tick :client-read)
+    (tick :client-read)
+    (tick :server-read)
+    (tick :server-write)
+    (tick :client-read)
+    (tick :client-write)
+    (tap :done)
+    % := :done))
