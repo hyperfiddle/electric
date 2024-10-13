@@ -47,9 +47,12 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 - [electric starter app](https://github.com/hyperfiddle/electric-starter-app) – minimalist entrypoint
 
 # Documentation
-- [Talk: Electric Clojure — London Clojurians (2023)](https://www.youtube.com/watch?v=v-GE_P1JSOQ)
-- [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
-- [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+- [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
+- [Talk: Electric Clojure: compiler managed datasync for rich web apps (Getz 2023)]([https://www.youtube.com/watch?v=v-GE_P1JSOQ](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-compiler-managed-datasync-for-rich-web-apps-Getz-2023-e089a8c0caeb456daaf2f9675e3ac4e7))
+- [Talk: UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
+- [Talk: Missionary: a functional approach to massively concurrent application design (Noel 2023)](https://hyperfiddle-docs.notion.site/Talk-Missionary-a-functional-approach-to-massively-concurrent-application-design-Noel-2023-a74748f610c044328d19d038a6daffa1)
+- [You don't need a web framework, you need a web language (Getz 2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+- [Talk: Functional effects and streaming systems in Clojure (Noel 2021)](https://hyperfiddle-docs.notion.site/Talk-Functional-effects-and-streaming-systems-in-Clojure-Noel-2021-f3f907e5e9b04d08a3be33d53a3cd18e)
 - https://clojureverse.org/t/electric-clojure-a-signals-dsl-for-fullstack-web-ui/9788
 - https://clojureverse.org/t/signals-vs-streams/9840/1
 
