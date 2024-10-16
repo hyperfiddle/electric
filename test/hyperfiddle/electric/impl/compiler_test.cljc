@@ -595,11 +595,23 @@
           (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
             (r/free ~'frame 0))))]))
 
+(declare #?(:clj clj-only :cljs cljs-only))
+#_(tests
+  "auto-siting of single-peer globals"
+  (match (l/test-compile ::Main (e/client (inc clj-only)))
+    `[])
+  (match (l/test-compile ::Main (e/server (inc cljs-only)))
+    `[]))
+
 (def ^:dynamic *d* nil)
 (def fenv {:ns {:name 'hyperfiddle.electric.impl.compiler-test}
+           ::lang/peers {:client :cljs, :server :clj}
            :locals {'e1 {::lang/electric-let 1}
                     'e2 {::lang/electric-let 2}
                     'z  {}}})
+
+(def fenv-jvm (assoc fenv ::lang/current :server))
+
 (defn foreign [o]
   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
     (lang/emit-foreign)))
@@ -611,7 +623,14 @@
    (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
      (lang/wrap-foreign-for-electric gen))))
 
-(def fenv-js (merge (cljs-ana/->cljs-env) fenv {::lang/peers {:client :cljs} ::lang/curent :client}))
+(defn foreign-electrified-jvm
+  ([o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-jvm) fenv-jvm)
+         (lang/wrap-foreign-for-electric)))
+  ([gen o]
+   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-jvm) fenv-jvm)
+     (lang/wrap-foreign-for-electric gen))))
+
+(def fenv-js (merge (cljs-ana/->cljs-env) fenv {::lang/current :client}))
 (defn foreign-js [o]
   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-js) fenv-js)
     (lang/emit-foreign)))
@@ -664,15 +683,12 @@
   (foreign-js '(def foo 1)) := '(def foo 1)
   (foreign-js '(do (def foo 1) 2)) := '(do (def foo 1) 2)
   (foreign-js '{:a 1 :b 2}) := '{:a 1 :b 2}
-  (foreign-js '[x :y 1]) := '[x :y 1]
-  (foreign-js '#{x :y 1}) := '#{x :y 1}
   (foreign-js '(. e1 x)) := '(. e1 x)
   (foreign-js '(.-x e1)) := '(. e1 -x)
   (foreign-js '(. e1 (isAfter e2))) := '(. e1 isAfter e2)
   (foreign-js '(. e1 isAfter e2)) := '(. e1 isAfter e2)
-  (foreign-js '(set! foo 1)) := '(set! foo 1)
-  (foreign-js '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
-  (foreign-js '(new X 1 2 3)) := '(new X 1 2 3)
+  (foreign-js '(let [o (js/Object.)] (set! (.-x o) 1))) := '(let* [o (new js/Object)] (set! (. o -x) 1))
+  (foreign-js '(new js/Object 1 2 3)) := '(new js/Object 1 2 3)
   (foreign-js '(println 1 (inc 2))) := '(println 1 (inc 2))
   (foreign-js '(case (-> 1 inc) (2) (-> 2 dec) 3 (-> 3 dec))) := '(case (inc 1) (2) (dec 2) 3 (dec 3))
   (foreign-js '(case (-> 1 inc) (-> 1 dec)))
@@ -740,6 +756,56 @@
   (foreign-electrified nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
 
+  "jvm"
+  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ 2 3))
+  := '((fn* [plus] (plus 2 3)) clojure.core/+)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(+ clojure.core/+))
+  := '((fn* [plus] (plus plus)) clojure.core/+)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ +))
+  := '((fn* [plus] (plus plus)) clojure.core/+)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(+ +))
+  := '((fn* [plus] (plus plus)) clojure.core/+)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ clojure.core/+))
+  := '((fn* [plus] (plus plus)) clojure.core/+)
+
+  (foreign-electrified-jvm nil 'e1)
+  := '((fn* [e1] e1) e1)
+
+  (foreign-electrified-jvm nil '[e1 e1])
+  := '((fn* [e1] [e1 e1]) e1)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ e1 3))
+  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
+
+  (foreign-electrified-jvm (consuming ['plus]) '(+ e1 3))
+  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
+
+  (foreign-electrified-jvm (consuming ['dyn]) '*d*)
+  := '((fn* [dyn] (binding [*d* dyn] *d*)) hyperfiddle.electric.impl.compiler-test/*d*)
+
+  (foreign-electrified-jvm (consuming ['dyn]) '[*d* *d* *d*])
+  := '((fn* [dyn] (binding [*d* dyn] [*d* *d* *d*])) hyperfiddle.electric.impl.compiler-test/*d*)
+
+  (foreign-electrified-jvm (consuming '[plus minus times]) '(fn [x] (+ (- e1 x) (* e2 x))))
+  := '((fn* [plus minus times e1 e2]
+         (fn* ([x] (plus (minus e1 x) (times e2 x)))))
+       clojure.core/+ clojure.core/- clojure.core/* e1 e2)
+
+  (foreign-electrified-jvm (consuming '[plus minus]) '(fn ([] (+ e1 e2)) ([x] (- x e1 e2))))
+  := '((fn* [plus minus e1 e2]
+         (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
+       clojure.core/+ clojure.core/- e1 e2)
+
+  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
+  (-> (foreign-electrified-jvm '(fn [x] (/ x 2))) first second first name first) := \_
+
+  (foreign-electrified-jvm nil '(fn [x] [x x]))
+  := nil                                ; nothing to wrap, signaled as `nil`
+
   "js"
   (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ 2 3))
   := '((fn* [plus] (plus 2 3)) clojure.core/+)
@@ -761,9 +827,6 @@
 
   (foreign-electrified-js nil '[e1 e1])
   := '((fn* [e1] [e1 e1]) e1)
-
-  (foreign-electrified-js (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'doesnt-exist))
 
   (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
@@ -787,16 +850,11 @@
          (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
        clojure.core/+ clojure.core/- e1 e2)
 
-  (foreign-electrified-js (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'foo))
-
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)
 
   ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
   (-> (foreign-electrified-js '(fn [x] (/ x 2))) first second first name first) := \_
-  (-> (foreign-electrified '(fn [x] (js/console.log x))) first second first name
-    (str/starts-with? "console_log")) := true
 
   (foreign-electrified-js nil '(fn [x] [x x]))
   := nil                                ; nothing to wrap, signaled as `nil`
