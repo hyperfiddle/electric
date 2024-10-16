@@ -433,14 +433,17 @@
             #_(when (-> vr ::cljs-ana/meta node?)
                 (symbol (-> vr :name str))))))
 
-(defn analyze-clj-symbol [sym ns$]
+(defmulti analyze-symbol (fn [env-type _sym _env] env-type))
+
+(defn analyze-clj-symbol [sym env]
   (if (resolve-static-field sym)
     {::type ::static, ::sym sym}
-    (when-some [v (some-> (find-ns ns$) (ns-resolve sym))]
+    (when-some [v (some-> (find-ns (get-ns env)) (ns-resolve sym))]
       (if (var? v) {::type ::var, ::sym (symbol v) ::meta (meta v)} {::type ::static, ::sym sym}))))
 
-(def implicit-cljs-nses '#{goog goog.object goog.string goog.array Math String})
+(defmethod analyze-symbol :clj [_ sym env] (analyze-clj-symbol sym env))
 
+(def implicit-cljs-nses '#{goog goog.object goog.string goog.array Math String})
 (defn analyze-cljs-symbol [sym env]
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v)), ::meta (::cljs-ana/meta v)}
@@ -451,6 +454,8 @@
         (when (cljs-ana/imported? @!a sym (get-ns env))
           {::type ::static, ::sym sym})))))
 
+(defmethod analyze-symbol :cljs [_ sym env] (analyze-cljs-symbol sym env))
+
 (defn resolve-symbol [sym env]
   (if-some [local (-> env :locals (get sym))]
     (if-some [uid (::electric-let local)]
@@ -460,16 +465,18 @@
       {::lang nil, ::type ::self, ::sym sym}
       (if-some [nd (resolve-node sym env)]
         {::lang nil, ::type ::node, ::node nd}
-        (case (->peer-type env)
-          :clj (let [v (analyze-clj-symbol sym (get-ns env))]
-                 (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
-          :cljs (let [v (analyze-cljs-symbol sym env)]
-                  (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :cljs)))
-          #_unsited (case (->env-type env)
-                      :clj (assoc (or (analyze-clj-symbol sym (get-ns env)) {::type ::var, ::sym `r/cannot-resolve})
-                             :lang :clj)
-                      :cljs (assoc (or (analyze-cljs-symbol sym env) {::type ::var, ::sym `r/cannot-resolve})
-                              :lang :cljs)))))))
+        (let [peers (set (vals (::peers env)))
+              resolves (into {} (map #(vector % (analyze-symbol % sym env))) peers)]
+          (case (->peer-type env)
+            :clj (let [v (:clj resolves)]
+                   (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
+            :cljs (let [v (:cljs resolves)]
+                    (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :cljs)))
+            #_unsited (case (->env-type env)
+                        :clj (assoc (or (:clj resolves) {::type ::var, ::sym `r/cannot-resolve})
+                               :lang :clj)
+                        :cljs (assoc (or (:cljs resolves) {::type ::var, ::sym `r/cannot-resolve})
+                                :lang :cljs))))))))
 
 
 (defn ->bindlocal-value-e [ts e] (first (get-children-e ts e)))
