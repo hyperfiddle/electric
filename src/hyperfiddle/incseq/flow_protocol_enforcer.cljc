@@ -21,9 +21,10 @@
   ([flow] (enforce {} flow))
   ([{nm :name, f :transfer, violated :on-violate :as o :or {violated %violated}} flow]
    (fn [step done]
-     (let [!should-step? (atom ::init), !done? (atom false)
+     (let [!should-step? (atom ::init), !done? (atom false), !threw? (atom false)
            step (fn []
                   (when @!done? (violated nm "step after done"))
+                  (when @!threw? (violated nm "step after throw"))
                   (if (first (swap-vals! !should-step? not)) (cannot-throw step nm violated) (violated nm "double step")))
            done (fn [] (if (first (reset-vals! !done? true)) (violated nm "done called twice") (cannot-throw done nm violated)))
            cancel (try (flow step done)
@@ -40,7 +41,9 @@
                   (let [should-step (first (swap-vals! !should-step? not))
                         [t v] (try [:ok @cancel] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
                     (check-transfer t v)
+                    (when (= :ex t) (reset! !threw? true))
                     (when should-step (violated nm "transfer without step" (when (= :ex t) v)))
+                    (when (and (not @!should-step?) (= :ex t)) (violated nm "step in exceptional transfer"))
                     (if (= :ex t) (throw v) v))))))))
 
 (defn incseq [nm flow] (enforce {:name nm, :initialized true, :transfer #'diff?} flow))
