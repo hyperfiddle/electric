@@ -2329,16 +2329,22 @@
                  [msg m]))) tap tap)
 
       (s 1 {} "hi")
-      % := '[join 0 spawned]
+      % := '[join 0 spawning]
+      % := '[join 0 notifying]
       % := '[join 0 notified]
+      % := '[join 0 spawned]
       % := '[join 0 transferring]
       (update % 3 dissoc :change) := '[join 0 transferred {:degree 1, :permutation {}, :grow 1, :shrink 0, :freeze #{}}]
       (s 1 {} nil)
+      % := '[join 0 notifying]
       % := '[join 0 notified]
+      % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       % := '[join 0 transferring]
+      % := '[join 0 terminating]
       % := '[join 0 terminated]
-      (update % 3 first) := ['join 0 'transferred Cancelled]
+      % := '[join 0 transferred Cancelled]
+      % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       (tap ::done), % := ::done)))
 
@@ -2351,16 +2357,22 @@
                  [m msg]))) tap tap)
 
       (s 1 {} "hi")
-      % := '[join 0 spawned]
+      % := '[join 0 spawning]
+      % := '[join 0 notifying]
       % := '[join 0 notified]
+      % := '[join 0 spawned]
       % := '[join 0 transferring]
       (update % 3 dissoc :change) := '[join 0 transferred {:degree 1, :permutation {}, :grow 1, :shrink 0, :freeze #{}}]
       (s 1 {} nil)
+      % := '[join 0 notifying]
       % := '[join 0 notified]
+      % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       % := '[join 0 transferring]
+      % := '[join 0 terminating]
       % := '[join 0 terminated]
-      (update % 3 first) := ['join 0 'transferred Cancelled]
+      % := '[join 0 transferred Cancelled]
+      % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       (tap ::done), % := ::done)))
 
