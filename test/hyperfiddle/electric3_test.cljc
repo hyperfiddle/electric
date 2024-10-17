@@ -2377,3 +2377,40 @@
     (tick :client-write)
     (tap :done)
     % := :done))
+
+(tests
+  (let [!x (atom 0)
+        !y (atom true)
+        !z (atom true)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))]
+    ((l/local {::lang/client-clock [(clock :client) (m/seed (repeat nil))]
+               ::lang/server-clock [(clock :server) (m/seed (repeat nil))]}
+       (let [x (e/server (e/watch !x))]
+         (when (e/watch !y) (identity x))
+         (e/server (when (e/watch !z) (e/client (identity x))))))
+     prn prn)
+    (tick :client)
+    (tick :server)
+    (tick :client)
+    (tick :client)
+    (tick :server)
+    (tick :server)
+    (tick :client)
+    (tick :server)
+    (swap! !y not)
+    (swap! !z not)
+    (swap! !x inc)
+    (tick :client)
+    (tick :client)
+    (tick :client)
+    (tick :server)
+    (tick :server)
+    (tick :server)
+    (tap :done)
+    % := :done))

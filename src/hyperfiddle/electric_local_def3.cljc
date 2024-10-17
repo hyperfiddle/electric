@@ -49,7 +49,7 @@
 
 (def run-local
   (letfn [(subject [^objects state slot]
-            (fn [cb] (aset state slot cb) #(aset state slot nil)))
+            (fn [cb] (aset state slot cb) #()))
           (reader [^objects state slot]
             (m/ap (m/? (m/?> (m/seed (repeat (aget state slot)))))))
           (writer [^objects state slot latency events]
