@@ -1,5 +1,5 @@
 (ns contrib.triple-store
-  (:refer-clojure :exclude [find])
+  (:refer-clojure :exclude [find key])
   (:require [clojure.set :as set]
             [contrib.assert :as ca]
             [contrib.data :refer [->box]]))
@@ -59,10 +59,13 @@
 
 (defn ->node [ts e] (get (:eav ts) e))
 (defn ? [ts e k] (get (->node ts e) k))
-(defn find [ts & kvs]
-  (let [ret (reduce set/intersection (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) kvs))]
-    (when (seq ret) ret)))
+(defn find
+  ([ts k v] (-> ts :ave (get k) (get v) not-empty))
+  ([ts k v & kvs]
+   (not-empty (reduce set/intersection
+                (into [] (comp (partition-all 2) (map (fn [[k v]] (-> ts :ave (get k) (get v))))) (list* k v kvs))))))
 (defn find1 [ts & kvs]
   (let [vs (apply find ts kvs)]
     (ca/check #(= 1 (count %)) vs)
     (first vs)))
+(defn key [ts k] (when-some [vs (get (:ave ts) k)] (reduce into (vals vs))))

@@ -596,24 +596,55 @@
             (r/free ~'frame 0))))]))
 
 (declare #?(:clj clj-only :cljs cljs-only))
-#_(tests
+(tests
   "auto-siting of single-peer globals"
   (match (l/test-compile ::Main (e/client (inc clj-only)))
-    `[])
+    `[(r/cdef 0 [:server] [] :client
+        (fn [~'frame]
+          (r/define-node ~'frame 0
+            (r/lookup ~'frame ::clj-only (r/pure clj-only)))
+          (r/ap '{} (r/lookup ~'frame :clojure.core/inc)
+            (r/node ~'frame 0))))])
+  (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
+           (e/client (inc clj-only)))
+    `[(r/cdef 0 [:server] [] :client
+        (fn [~'frame]
+          (r/define-node ~'frame 0
+            (r/lookup ~'frame ::clj-only))
+          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+            (r/node ~'frame 0))))])
+  (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
+           (::lang/site nil (inc clj-only)))
+    `[(r/cdef 0 [:server] [] nil
+        (fn [~'frame]
+          (r/define-node ~'frame 0
+            (r/lookup ~'frame ::clj-only))
+          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+            (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (e/server (inc cljs-only)))
-    `[]))
+    `[(r/cdef 0 [:client] [] :server
+        (fn [~'frame]
+          (r/define-node ~'frame 0
+            (r/lookup ~'frame ::cljs-only))
+          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+            (r/node ~'frame 0))))]))
 
 (def ^:dynamic *d* nil)
 (def fenv {:ns {:name 'hyperfiddle.electric.impl.compiler-test}
            ::lang/peers {:client :cljs, :server :clj}
            :locals {'e1 {::lang/electric-let 1}
                     'e2 {::lang/electric-let 2}
+                    'x  {}
                     'z  {}}})
 
 (def fenv-jvm (assoc fenv ::lang/current :server))
 
 (defn foreign [o]
   (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv) fenv)
+    (lang/emit-foreign)))
+
+(defn foreign-jvm [o]
+  (-> (lang/analyze-foreign (lang/-expand-all-foreign o fenv-jvm) fenv-jvm)
     (lang/emit-foreign)))
 
 (defn foreign-electrified
@@ -661,14 +692,15 @@
   (foreign '(.-x e1)) := '(. e1 -x)
   (foreign '(. e1 (isAfter e2))) := '(. e1 isAfter e2)
   (foreign '(. e1 isAfter e2)) := '(. e1 isAfter e2)
-  (foreign '(set! foo 1)) := '(set! foo 1)
+  (foreign '(set! x 1)) := '(set! x 1)
   (foreign '(let [o (Object.)] (set! (.-x o) 1))) := '(let* [o (new Object)] (set! (. o -x) 1))
-  (foreign '(new X 1 2 3)) := '(new X 1 2 3)
   (foreign '(println 1 (inc 2))) := '(println 1 (inc 2))
   (foreign '(case (-> 1 inc) (2) (-> 2 dec) 3 (-> 3 dec))) := '(case (inc 1) (2) (dec 2) 3 (dec 3))
   (foreign '(case (-> 1 inc) (-> 1 dec)))
   (foreign '(throw (ex-info "hi" {}))) := '(throw (ex-info "hi" {}))
   ;; (foreign '#js{:x 1})
+  "jvm"
+  (foreign-jvm '(new Object 1 2 3)) := '(new Object 1 2 3)
   "js"
   (swap! lang/!a cljs-ana/purge-ns (ns-name *ns*))
   (cljs-ana/analyze-nsT lang/!a fenv-js (ns-name *ns*))
@@ -720,9 +752,6 @@
   (foreign-electrified nil '[e1 e1])
   := '((fn* [e1] [e1 e1]) e1)
 
-  (foreign-electrified (consuming ['nope]) 'doesnt-exist)
-  := '((fn* [nope] nope) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'doesnt-exist))
-
   (foreign-electrified (consuming ['plus]) '(clojure.core/+ e1 3))
   := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
 
@@ -744,9 +773,6 @@
   := '((fn* [plus minus e1 e2]
          (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
        clojure.core/+ clojure.core/- e1 e2)
-
-  (foreign-electrified (consuming '[a]) '(foo bar baz))
-  := '((fn* [a] (a a a)) (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'foo))
 
   ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
   (-> (foreign-electrified '(fn [x] (/ x 2))) first second first name first) := \_
@@ -861,7 +887,7 @@
 
   )
 
-(def unsited-fenv (assoc fenv ::lang/peers {:client :clj} ::lang/current nil))
+(def unsited-fenv fenv)
 (def unsited-fenv-js (assoc fenv-js ::lang/current nil))
 
 (defn foreign-electrified-unsited
@@ -888,8 +914,7 @@
        clojure.core//)
 
   (foreign-electrified-unsited (consuming '[first obj]) '(set! (.-x (-> [(js/Object.)] first)) 2))
-  := '((fn* [first obj] (set! (. (first [(new obj)]) -x) 2))
-       clojure.core/first (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'js/Object))
+  := '((fn* [first] (set! (. (first [(new Object)]) -x) 2)) clojure.core/first)
 
   (foreign-electrified-unsited (consuming '[cannot-resolve]) '(set! (.-title js/document) e1))
   := '((fn* [cannot-resolve e1] (set! (. cannot-resolve -title) e1))
@@ -908,9 +933,7 @@
        clojure.core//)
 
   (foreign-electrified-unsited-js (consuming '[first point]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
-  := '((fn* [first point] (set! (. (first [(new point 0 2)]) -x) 2))
-       clojure.core/first
-       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'java.awt.Point))
+  := '((fn* [first] (set! (. (first [(new js/Object 0 2)]) -x) 2)) clojure.core/first)
   )
 
 (comment
