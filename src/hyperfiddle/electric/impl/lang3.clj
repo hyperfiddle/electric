@@ -366,13 +366,8 @@
   ([env msg data] (throw (ex-info (str "\n" (get-ns env) (when-some [d (::def env)] (str "/" d)) ":" (-> env ::meta :line) ":" (-> env ::meta :column) "\n" msg)
                            (cond-> data (::def env) (assoc :in (::def env)), (::current env) (assoc :for (::current env)))))))
 
-(defn get-them [env] (-> env ::peers keys set (disj (::current env)) first))
-
 (defn cannot-resolve! [env form]
-  (fail! env (str "I cannot resolve [" form "]"
-               (when-let [them (get-them env)]
-                 (let [site (name them)]
-                   (str ", maybe it's only defined on the " site "?"))))))
+  (fail! env (str "I cannot resolve [" form "]")))
 
 (defn ns-qualify [node] (if (namespace node) node (symbol (str *ns*) (str node))))
 
@@ -465,19 +460,27 @@
       {::lang nil, ::type ::self, ::sym sym}
       (if-some [nd (resolve-node sym env)]
         {::lang nil, ::type ::node, ::node nd}
-        (let [peers (set (vals (::peers env)))
-              resolves (into {} (map #(vector % (analyze-symbol % sym env))) peers)]
-          (case (->peer-type env)
-            :clj (let [v (:clj resolves)]
-                   (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :clj)))
-            :cljs (let [v (:cljs resolves)]
-                    (case v nil (cannot-resolve! env sym) #_else (assoc v ::lang :cljs)))
-            #_unsited (case (->env-type env)
-                        :clj (assoc (or (:clj resolves) {::type ::var, ::sym `r/cannot-resolve})
-                               :lang :clj)
-                        :cljs (assoc (or (:cljs resolves) {::type ::var, ::sym `r/cannot-resolve})
-                                :lang :cljs))))))))
-
+        (let [ts (reduce-kv
+                   (fn [ts p t] (if-some [v (analyze-symbol t sym env)] (ts/add ts (assoc v :db/id p ::lang t ::peer p)) ts))
+                   (ts/->ts) (::peers env))]
+          (letfn [(node [e] (ts/->node ts e))
+                  (skip-auto-siting [nd] (dissoc nd ::peer))
+                  (for-peer   [p] (node (first (ts/find ts ::peer p))))
+                  (other-peer [p] (node (first (-> ts :ave ::peer (dissoc p) first second))))
+                  (a-peer     []  (node (first (ts/key ts ::peer))))
+                  (for-env    [t] (node (first (ts/find ts ::lang t))))
+                  (no-peer-resolved? [] (nil? (ts/key ts ::lang)))
+                  (every-peer-resolved? [ts env] (= (count (ts/key ts ::peer)) (count (::peers env))))]
+            (if (no-peer-resolved?)
+              (cannot-resolve! env sym)
+              (if-some [c (::current env)]
+                (if-some [res (for-peer c)]
+                  (skip-auto-siting res)
+                  (let [res (other-peer c)]
+                    (if (= ::var (::type res)) res (cannot-resolve! env sym))))
+                (if (every-peer-resolved? ts env)
+                  (skip-auto-siting (for-env (->env-type env)))
+                  (a-peer))))))))))
 
 (defn ->bindlocal-value-e [ts e] (first (get-children-e ts e)))
 (defn ->bindlocal-body-e [ts e] (second (get-children-e ts e)))
@@ -489,14 +492,14 @@
   (let [nd (get (:eav ts) e)]
     (case (::type nd)
       (::bindlocal) (recur ts (->bindlocal-body-e ts e))
-      (::site ::mklocal) (recur ts (get-child-e ts e))
+      (::site ::sitable ::mklocal) (recur ts (get-child-e ts e))
       #_else e)))
 
 (defn find-sitable-point-e [ts e]
   (loop [e e]
     (when-some [nd (ts/->node ts e)]
       (case (::type nd)
-        (::literal ::ap ::join ::pure ::comp ::ctor ::call ::frame) e
+        (::literal ::ap ::join ::pure ::comp ::ctor ::call ::frame ::sitable) e
         (::site) (when (some? (::site nd)) (recur (::parent nd)))
         (::var ::node ::lookup ::mklocal ::bindlocal ::localref) (some-> (::parent nd) recur)
         #_else (throw (ex-info (str "can't find-sitable-point-e for " (pr-str (::type nd))) (or nd {})))))))
@@ -585,6 +588,11 @@
 
 (defn field-access? [sym] (str/starts-with? (str sym) "-"))
 
+(defn ?swap-out-foreign-host-type [f env]
+  (case (->env-type env)
+    :clj (if (and (symbol? f) (jvm-type? f)) f 'Object)
+    :cljs (if (and (symbol? f) (js-type? f env)) f 'js/Object)))
+
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
   (let [env (?update-meta env form)]
     (cond
@@ -636,9 +644,7 @@
                          (recur `[~@arg*] pe env ts)))
         (new) (let [[_ f & args] form]
                 (if (my-turn? env)
-                  (let [f (case (->env-type env)
-                            :clj (if (and (symbol? f) (jvm-type? f)) f 'Object)
-                            :cljs (if (and (symbol? f) (js-type? f env)) f 'js/Object))
+                  (let [f (?swap-out-foreign-host-type f env)
                         f (let [gs (repeatedly (count args) gensym)] `(fn [~@gs] (new ~f ~@gs)))]
                     (add-ap-literal f args pe (->id) env form ts))
                   (recur `[~@args] pe env ts)))
@@ -735,6 +741,8 @@
         (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym}))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
         (::debug) (recur (second form) pe (assoc env ::debug true) ts)
+        (::sitable) (let [e (->id)] (recur (second form) e env (ts/add ts {:db/id e, ::parent pe, ::type ::sitable})))
+        (::k) ((second form) pe env ts)
         #_else (let [current (get (::peers env) (::current env)), [f & args] form]
                  (if (and (= :cljs (->env-type env)) (contains? #{nil :cljs} current) (symbol? f)
                        (let [js-call? (cljs-ana/js-call? @!a f (get-ns env))]
@@ -769,12 +777,16 @@
                            (ts/add {:db/id e, ::parent pe, ::type ::lookup, ::sym (keyword (ns-qualify form))})
                            (ts/add {:db/id ce, ::parent e, ::type ::pure})
                            (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v (list form)})))
-              (::static ::var) (if (::static-vars env)
-                                 (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                                   (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
-                                 (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
-                                                     ::var form, ::qualified-var (::sym ret)}
-                                              (::lang ret) (assoc ::resolved-in (::lang ret)))))
+              (::static ::var) (let [k (fn [pe env {{::keys [->id]} :o :as ts}]
+                                         (if (::static-vars env)
+                                           (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                                             (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
+                                           (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
+                                                               ::var form, ::qualified-var (::sym ret)}
+                                                        (::lang ret) (assoc ::resolved-in (::lang ret))))))]
+                                 (if (::peer ret)
+                                   (analyze (?meta form `(::site ~(::peer ret) (::sitable (::k ~k)))) pe env ts)
+                                   (k pe env ts)))
               (::node) (ts/add ts {:db/id e, ::parent pe, ::type ::node, ::node (::node ret)})
               #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {}))))
           (?add-source-map e form env)))
@@ -907,8 +919,13 @@
            (set!) (under ts {::t ::set!}
                     (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (new) (under ts {::t ::new}
-                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
+           (new) (let [[_ f & args] form]
+                   (if (my-turn? env)
+                     (under ts {::t ::new}
+                       (fn [ts]
+                         (let [f (?swap-out-foreign-host-type f env)]
+                           (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (cons f args)))))
+                     (recur ts `[~@args] env)))
 
            (do) (under ts {::t ::do}
                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
@@ -993,7 +1010,9 @@
                             (::local) (addf ts (->u)
                                         {::t ::local, ::sym form, ::resolved (::sym ret)})
                             (::static) (addf ts (->u)
-                                         {::t ::static, ::sym form, ::resolved (::sym ret)})
+                                         (if (= (::lang ret) (->env-type env))
+                                           {::t ::static, ::sym form, ::resolved (::sym ret)}
+                                           {::t ::var, ::sym form, ::resolved `r/cannot-resolve}))
                             (::self ::node) (throw (ex-info "Cannot pass electric defns to clojure(script) interop"
                                                      {:var form}))
                             (::var) (addf ts (->u)
@@ -1098,7 +1117,7 @@
            arg* (<arg*>), val* (<val*>), dyn* (<dyn*>)
            code (cond->> (emit-foreign ts) (seq dyn*) (list 'binding dyn*))
            e-local* (into [] (comp (map #(? % ::sym)) (distinct)) (find ::t ::electric-local))]
-       (when (or (seq arg*) (seq e-local*))
+       (when (or (seq arg*) (seq e-local*) (seq dyn*))
          (list* (list 'fn* (into arg* e-local*) code) (into val* e-local*)))))))
 
 (defn find-ctor-e [ts e]
@@ -1146,6 +1165,7 @@
          ::pure (list `r/pure (rec (get-child-e ts e)))
          ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e))) #_(list 'fn* '[] (doall (map rec (get-children-e ts e))))
          ::site (recur (get-child-e ts e))
+         ::sitable (recur (get-child-e ts e))
          ::ctor (list* `r/ctor nm (::ctor-idx nd)
                   (mapv (fn [e]
                           (let [nd (ts/->node ts e)]
@@ -1204,7 +1224,7 @@
                (case (::type nd)
                  (::literal ::var ::lookup ::node ::frame) (ord ts e)
                  (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
-                 (::site ::join ::pure ::call ::ctor ::mklocal) (ord (rec ts (get-child-e ts e)) e)
+                 (::site ::join ::pure ::call ::ctor ::mklocal ::sitable) (ord (rec ts (get-child-e ts e)) e)
                  (::bindlocal) (-> ts (rec (->bindlocal-value-e ts e)) (rec (->bindlocal-body-e ts e)) (ord e))
                  (::localref) (ord (rec ts (->localv-e ts (::ref nd))) (uid->e ts (::ref nd)))
                  #_else (throw (ex-info (str "cannot compute-program-order on " (pr-str (::type nd))) (or nd {})))
@@ -1245,7 +1265,7 @@
                    (case (::type nd)
                      (::literal ::var ::lookup ::frame) ts
                      (::ap ::comp) (reduce mark ts (get-children-e ts e))
-                     (::site ::join ::pure ::call ::ctor ::mklocal) (recur ts (get-child-e ts e))
+                     (::site ::join ::pure ::call ::ctor ::mklocal ::sitable) (recur ts (get-child-e ts e))
                      (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                      (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
                      (::node) (do (vswap! ret conj (::node nd)) ts)
@@ -1258,7 +1278,7 @@
      (let [nd (get (:eav ts) e)]
        (case (::type nd)
          ::ap (map rec (get-children-e ts e))
-         (::pure ::site) (rec (get-child-e ts e))
+         (::pure ::site ::sitable) (rec (get-child-e ts e))
          ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e)))
          ::literal (::v nd)
          ::ctor `(r/ctor ~nm ~(::ctor-idx nd))
@@ -1329,7 +1349,7 @@
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node ::frame) ts
                                 (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
-                                (::site ::join ::pure ::call ::mklocal) (recur ts (get-child-e ts e))
+                                (::site ::join ::pure ::call ::mklocal ::sitable) (recur ts (get-child-e ts e))
                                 (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                                 (::ctor) (if (::ctor-idx nd)
                                            ts
@@ -1404,7 +1424,7 @@
                             (case (::type nd)
                               (::literal ::var ::lookup ::node ::frame) ts
                               (::ap ::comp) (reduce optimize-locals ts (get-children-e ts e))
-                              (::site ::join ::pure ::ctor ::call ::mklocal) (recur ts (get-child-e ts e))
+                              (::site ::join ::pure ::ctor ::call ::mklocal ::sitable) (recur ts (get-child-e ts e))
                               (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                               (::localref)
                               (let [mklocal-uid (::ref nd), mklocal-e (uid->e ts mklocal-uid)
@@ -1446,7 +1466,7 @@
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node ::ctor ::frame) ts
                                 (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
-                                (::site ::join ::pure ::mklocal) (recur ts ctor-e (get-child-e ts e))
+                                (::site ::join ::pure ::mklocal ::sitable) (recur ts ctor-e (get-child-e ts e))
                                 (::bindlocal) (recur ts ctor-e (->bindlocal-body-e ts e))
                                 (::call) (if (::ctor-call nd)
                                            ts
