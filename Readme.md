@@ -43,8 +43,9 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 # Tutorial and live examples
 
-- Live Tutorial: https://electric.hyperfiddle.net/
-- [electric starter app](https://github.com/hyperfiddle/electric-starter-app) – minimalist entrypoint
+- [Electric v2 tutorial repo](https://github.com/hyperfiddle/electric-v2-tutorial)
+- [Electric v2 starter app](https://github.com/hyperfiddle/electric-v2-starter-app) – minimalist entrypoint
+- [Electric v2 datomic browser](https://github.com/hyperfiddle/electric-datomic-browser)
 
 # Documentation
 - [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
