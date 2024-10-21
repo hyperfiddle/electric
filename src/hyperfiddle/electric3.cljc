@@ -332,14 +332,6 @@ mount, therefore there is no `on-mount`. (Todo: we intend to rework this API in
 v3 to expose the full differential diff lifecycle)"
   [f] (input (on-unmount* f)))
 
-(defmacro boot-server [opts Main & args]
-  (let [env (merge (lang/normalize-env &env) web-config opts)
-        source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(clojure.core/fn [subject#]
-       (r/peer-events
-         (r/make-peer :server ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-           subject# (r/->defs {::Main ~source}) ::Main nil)))))
-
 (defmacro boot-client [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
