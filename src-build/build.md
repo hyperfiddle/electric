@@ -11,7 +11,7 @@
 git tag v3-alpha  # manually set a new tag, or skip to use commit distance from current tag
 clojure -T:build clean
 #clj -A:dev -T user/release -- distribute sources, lib consumer will build
-HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags`-SNAPSHOT # for overwritable maven artifacts
+HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --abbrev=0`-SNAPSHOT # for overwritable maven artifacts
 # HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long --always --dirty` # for definitive, immutable releases
 clojure -T:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
