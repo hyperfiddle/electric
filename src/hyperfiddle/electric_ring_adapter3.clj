@@ -129,7 +129,7 @@
       (recur))))
 
 (defn send-hf-heartbeat [delay ping!]
-  (m/sp (loop [] (m/? (m/sleep delay)) (ping!) (recur))))
+  (m/sp (loop [] (m/? (m/sleep delay)) (m/? ping!) (recur))))
 
 (defmulti handle-close-status-code
   "Perform an action on socket close, dispatching on status code. List of status
@@ -185,7 +185,7 @@
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
                         (write-msgs socket ((boot-fn ring-req) (r/subject-at state on-message-slot)))
-                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send socket "HEARTBEAT")))
+                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL (write-msg socket "HEARTBEAT")))
                       {} (partial failure socket)))) ; Start Electric process
      :on-close   (fn on-close [_socket _status-code & [_reason]]
                    (log/info "WS close")
