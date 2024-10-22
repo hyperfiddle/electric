@@ -43,7 +43,7 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 # Tutorial and live examples
 
-- [Electric v2 tutorial repo](https://github.com/hyperfiddle/electric-v2-tutorial)
+- [Electric v2 tutorial](https://electric2.hyperfiddle.net/), [Electric v2 tutorial repo](https://github.com/hyperfiddle/electric-v2-tutorial)
 - [Electric v2 starter app](https://github.com/hyperfiddle/electric-v2-starter-app) – minimalist entrypoint
 - [Electric v2 datomic browser](https://github.com/hyperfiddle/electric-datomic-browser)
 
