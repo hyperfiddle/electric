@@ -94,7 +94,7 @@
   "An HTTPKit-compatible ring middleware, starting an Electric server program defined by `electric-boot-fn` on websocket connection.
   E.g.: ```
   (-> ring-handler
-      (wrap-electric-websocket (fn [ring-req] (hyperfiddle.entrypoint/boot-server ring-req {} my-ns/MyElectricDefn (e/server ring-req))))
+      (wrap-electric-websocket (fn [ring-req] (e/boot-server {} my-ns/MyElectricDefn ring-req)))
       (wrap-cookies)
       (wrap-params)
     )
