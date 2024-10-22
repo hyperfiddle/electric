@@ -180,7 +180,7 @@
         on-close-slot     (int 1)
         keepalive-mailbox (m/mbx)]
     {:on-open    (fn on-open [socket]
-                   (log/debug "WS connect" ring-req)
+                   (log/info "WS connect" ring-req)
                    (aset state on-close-slot
                      ((m/join (fn [& _])
                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
@@ -188,10 +188,11 @@
                         (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send socket "HEARTBEAT")))
                       {} (partial failure socket)))) ; Start Electric process
      :on-close   (fn on-close [_socket _status-code & [_reason]]
+                   (log/info "WS close")
                    ((aget state on-close-slot)))
      :on-error   (fn on-error [_socket err]
                    (if (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
-                     (log/debug "Websocket was closed unexpectedly") ; common in dev
+                     (log/info "Websocket was closed unexpectedly") ; common in dev
                      (log/error err "Websocket error")))
      :on-ping    (fn on-ping [socket data] ; keep connection alive
                    (keepalive-mailbox nil))
