@@ -22,6 +22,7 @@
    [hyperfiddle.electric3 :as e :refer [$]]
    ;; [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.electric-dom3-props :as props]
+   [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.incseq :as i]
    [hyperfiddle.incseq.mount-impl :refer [mount]]
    #?(:cljs [hyperfiddle.kvs :as kvs])
@@ -407,41 +408,17 @@ input's value, use `EventListener`."
 ;; Events ;;
 ;;;;;;;;;;;;
 
-#?(:cljs (defn with-listener
-           ([n e f] (with-listener n e f nil))
-           ([n e f o] (.addEventListener n e f o) #(.removeEventListener n e f o))))
-
-#?(:cljs
-   (defn listen "Takes the same arguments as `addEventListener` and returns an uninitialized
-  missionary flow that handles the listener's lifecycle producing `(f e)`.
-  Relieves backpressure. `opts` can be a clojure map."
-     ([node event-type] (listen node event-type identity))
-     ([node event-type f] (listen node event-type f {}))
-     ([node event-type f opts]
-      (->> (m/observe (fn [!] (with-listener node event-type #(! (f %)) (clj->js opts))))
-        (m/relieve {})))))
-
-#?(:cljs
-   (defn listen-some "Takes the same arguments as `addEventListener` and returns an uninitialized
-  missionary flow that handles the listener's lifecycle producing `(f e)` unless
-  the result is `nil`. Relieves backpressure. `opts` can be a clojure map."
-     ([node event-type] (listen-some node event-type identity))
-     ([node event-type f] (listen-some node event-type f {}))
-     ([node event-type f opts]
-      (->> (m/observe (fn [!]
-                        (let [! #(some-> (f %) !), opts (clj->js opts)]
-                          (.addEventListener node event-type ! opts)
-                          #(.removeEventListener node event-type ! opts))))
-        (m/relieve {}))
-      ;; alternative implementation
-      #_(m/eduction (filter some?) (listen node typ f opts)))))
+;; Not inlined on purpose. electric core's clock listen to DOM's visibilityState and only ticks when visible.
+#?(:cljs (def with-listener events/with-listener))
+#?(:cljs (def listen events/listen))
+#?(:cljs (def listen-some events/listen-some))
 
 (e/defn On
   ([event-type]                    ($ On      event-type identity))
   ([event-type f]                  ($ On      event-type f        nil))
   ([event-type f init-v]           ($ On      event-type f        init-v {}))
   ([event-type f init-v opts]      ($ On node event-type f        init-v opts))
-  ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (listen node event-type ((e/capture-fn) f) opts))))))
+  ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (events/listen node event-type ((e/capture-fn) f) opts))))))
 
 (defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
   ([event-type]               `($ On ~event-type (e/client identity)))
@@ -476,7 +453,7 @@ input's value, use `EventListener`."
   ([event-type f opts]                    ($ On-all      event-type f        opts ##Inf))
   ([event-type f opts concurrency-factor] ($ On-all node event-type f        opts concurrency-factor))
   ([node event-type f opts concurrency-factor]
-   (e/client (e/join (e/input (fork concurrency-factor (listen-some node event-type ((e/capture-fn) f) opts)))))))
+   (e/client (e/join (e/input (fork concurrency-factor (events/listen-some node event-type ((e/capture-fn) f) opts)))))))
 
 ;;;;;;;;;;;;
 ;; Extras ;;
@@ -484,8 +461,8 @@ input's value, use `EventListener`."
 
 #?(:cljs (defn squarewave [node enter-event leave-event init]
            (->> (mx/mix
-                  (m/observe (fn [!] (with-listener node enter-event (fn [_] (! true)))))
-                  (m/observe (fn [!] (with-listener node leave-event (fn [_] (! false))))))
+                  (m/observe (fn [!] (events/with-listener node enter-event (fn [_] (! true)))))
+                  (m/observe (fn [!] (events/with-listener node leave-event (fn [_] (! false))))))
              (m/reductions {} init) (m/relieve {}))))
 
 (e/defn Mouse-over?

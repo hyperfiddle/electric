@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [fn defn apply letfn for])
   (:require [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
+            [hyperfiddle.electric-dom3-events :as dom-events]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
@@ -474,8 +475,17 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 
 (def system-time-ms (m/signal (m/sample -get-system-time-ms <clock)))
 
-(hyperfiddle.electric3/defn System-time-ms [] (input system-time-ms))
-(hyperfiddle.electric3/defn System-time-secs [] (math/floor-div (input system-time-ms) 1000))
+(hyperfiddle.electric3/defn DOMVisibilityState []
+  ;; "visible" | "hidden", historically also "prerender" and "unloaded"
+  ;; nowadays functionally equivalent to document.hidden true|false
+  ;; not clear if we should use ".visibilityState" or ".hidden" https://github.com/w3c/page-visibility/pull/64
+  ;; we stick with the least restricting impl
+  (client (input (m/reductions {} (.-visibilityState js/document) (dom-events/listen js/document "visibilitychange" (cc/fn [_event] (.-visibilityState js/document)))))))
+
+(hyperfiddle.electric3/defn DOMVisible? [] (client (= "visible" (DOMVisibilityState)))) ; prevents "visible" to cross network, a boolean is enough
+
+(hyperfiddle.electric3/defn System-time-ms [] (if (DOMVisible?) (input system-time-ms) (amb)))
+(hyperfiddle.electric3/defn System-time-secs [] (math/floor-div (System-time-ms) 1000))
 
 (cc/defn uf->is [uf]
   (m/ap (m/amb (i/empty-diff 0)
