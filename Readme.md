@@ -1,6 +1,6 @@
 # Electric Clojure – full-stack differential dataflow for UI
 
-(Electric v2) `com.hyperfiddle/electric {:mvn/version "v2-alpha-540-ga4699532"}` · 2024 Jan 10 · [Changelog](CHANGELOG.md)
+`com.hyperfiddle/electric {:mvn/version "v3-alpha-SNAPSHOT"}` · 2024 Oct 22
 
 > [!NOTE]
 > Electric v3 is now in private beta! Request beta access here: https://www.hyperfiddle.net/early-access.html
