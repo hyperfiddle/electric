@@ -200,7 +200,11 @@ T T T -> (EXPR T)
     (reduce (fn [r x] (deps x rf r site)) r inputs))
   (stats [_] {:type ::ap, :returns :incseq, :inputs inputs, :meta mt})
   (flow [_]
-    (apply i/latest-product (invoke-with mt) (map flow inputs))))
+    (if-some [cstats (into [] (map #(or (stats %) (reduced nil))) inputs)]
+      (if (every? #(= ::pure (:type %)) cstats)
+        (let [v* (mapv :v cstats)] (i/fixed (m/cp (apply (invoke-with mt) v*))))
+        (apply i/latest-product (invoke-with mt) (map flow inputs)))
+      (apply i/latest-product (invoke-with mt) (map flow inputs)))))
 
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
