@@ -109,7 +109,12 @@
 ;; Pure | Ap | Join | Slot
 (defprotocol Expr
   (deps [_ rf r site])                                      ;; emits ports
+  (stats [_])
   (flow [_]))                                               ;; returns incseq
+
+(extend-protocol Expr
+  #?(:clj Object :cljs default) (stats [_])
+  nil                           (stats [_]))
 
 (defn expr-deps [rf r site expr]
   (deps expr rf r site))
@@ -137,10 +142,15 @@
       (= value (.-value ^Pure other))))
   Expr
   (deps [_ _ r _] r)
+  (stats [_] {:type ::pure, :v value, :returns :incseq, :incseq-size 1})
   (flow [_]
     (if (failure? value)
       (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
-      (i/fixed (invariant value)))))
+      (if-some [cstats (stats value)]
+        (if (= ::join (:type cstats))
+          (do (prn 'peepholed-pure-join (:v cstats)) (:v cstats))
+          (i/fixed (invariant value)))
+        (i/fixed (invariant value))))))
 
 (defn pure "
 -> (EXPR VOID)
@@ -188,6 +198,7 @@ T T T -> (EXPR T)
   Expr
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
+  (stats [_] {:type ::ap, :returns :incseq, :inputs inputs, :meta mt})
   (flow [_]
     (apply i/latest-product (invoke-with mt) (map flow inputs))))
 
@@ -213,7 +224,13 @@ T T T -> (EXPR T)
       (= input (.-input ^Join other))))
   Expr
   (deps [_ rf r site] (deps input rf r site))
-  (flow [_] (i/latest-concat (flow input))))
+  (stats [_] {:type ::join, :v input, :returns :incseq})
+  (flow [_]
+    (if-some [cstats (stats input)]
+      (if (= ::pure (:type cstats))
+        (do (prn 'peepholed-join-pure (:v cstats)) (:v cstats))
+        (i/latest-concat (flow input)))
+      (i/latest-concat (flow input)))))
 
 (defn join "
 (EXPR (IS T)) -> (EXPR T)
@@ -230,6 +247,7 @@ T T T -> (EXPR T)
       (= x (.-x ^Id other))))
   Expr
   (deps [_ _ r _] r)
+  (stats [_] {:type ::id, :returns :incseq, :v x})
   (flow [_] x))
 
 (def effect "
@@ -276,6 +294,7 @@ T T T -> (EXPR T)
       (= key (.-key ^Unbound other))))
   Expr
   (deps [_ _ r _] r)
+  (stats [_] {:type ::unbound, :k key})
   (flow [_]
     (fn [step done]
       (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str key)))))))
@@ -540,6 +559,7 @@ T T T -> (EXPR T)
       (if (= site (port-site port))
         (port-deps rf r port)
         (rf r port))))
+  (stats [_] {:type ::slot, :returns :incseq, :frame frame, :id id})
   (flow [this]
     (port-flow (slot-port this))))
 
