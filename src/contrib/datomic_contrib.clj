@@ -1,7 +1,7 @@
 (ns contrib.datomic-contrib
   (:require [contrib.data :refer [index-by unqualify]]
             [contrib.datomic-m :as d]
-            [hyperfiddle.electric :as e] ; ?
+            #_[hyperfiddle.electric :as e] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]
             [contrib.test.datomic-peer-mbrainz :as test]))
@@ -92,7 +92,7 @@
       ; todo - only load the attrs that the renderers actually needs
       (index-by :db/ident as))))
 
-(defn schema> [db] (e/task->cp (schema! db)))
+#_(defn schema> [db] (e/task->cp (schema! db))) ; no electric here
 
 (tests
   (:db/ident (m/? (schema! test/db)))

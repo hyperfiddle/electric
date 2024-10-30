@@ -101,8 +101,8 @@
 (install-defs!)
 
 (tests
-  (cond 
-    (datomic-products 'datomic.api) (require '[test.datomic-peer-mbrainz :as test])
+  (cond
+    (datomic-products 'datomic.api) (require '[contrib.test.datomic-peer-mbrainz :as test])
     () (assert false (str "no tests for this datomic product: " (pr-str datomic-products))))
   (some? test/db) := true
   
