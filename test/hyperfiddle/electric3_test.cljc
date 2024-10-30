@@ -186,9 +186,62 @@
     % := :b
     % := :b))
 
+(comment
+  (case idx__22360__auto__
+    0 (r/cdef 0 [nil] [nil] nil
+        (fn [frame]
+          (r/define-node frame 0 (r/pure (r/ctor ::Main 1))) ; is IS but ctor ref is CF
+          (r/define-call frame 0
+            (r/ap (r/ap (r/pure hash-map) ; is IS
+                    (r/pure (quote nil)) (r/node frame 0)
+                    (r/pure (quote false)) (r/node frame 0))
+              (r/pure false)
+              (r/pure (r/ctor ::Main 2))))
+          (r/ap (r/pure RCF__tap) (r/join (r/call frame 0)))))
+    1 (r/cdef 0 [] [] nil (fn [frame] (r/ap (r/pure RCF__tap) (r/pure :b))))
+    2 (r/cdef 0 [] [] nil (fn [frame] (r/ap (r/pure RCF__tap) (r/pure :a)))))
+  ;; ->is {:type :r/pure, :v [r/create-call/fn--40329], :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/ap, :returns :incseq, :inputs ([hyperfiddle.electric.impl.runtime3.Ap 0x742ac563 "hyperfiddle.electric.impl.runtime3.Ap@4b3a37d6"] [hyperfiddle.electric.impl.runtime3.Pure 0x184196ec "hyperfiddle.electric.impl.runtime3.Pure@d3da8e59"] [hyperfiddle.electric.impl.runtime3.Pure 0x2dba588f "hyperfiddle.electric.impl.runtime3.Pure@bd45c5"]), :meta {}}
+  ;; ->is {:type :r/ap, :returns :incseq, :inputs ([hyperfiddle.electric.impl.runtime3.Pure 0x31ae6596 "hyperfiddle.electric.impl.runtime3.Pure@36f7a057"] [hyperfiddle.electric.impl.runtime3.Pure 0x130daf1d "hyperfiddle.electric.impl.runtime3.Pure@d3da890c"] :Slot[:Frame[] -1] [hyperfiddle.electric.impl.runtime3.Pure 0x7efad66 "hyperfiddle.electric.impl.runtime3.Pure@d3da8e59"] :Slot[:Frame[] -1]), :meta {}}
+  ;; ->is {:type :r/pure, :v false, :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/pure, :v [::Main 2 [] {}], :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/pure, :v [hash-map], :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/pure, :v nil, :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/slot, :v [::Main 1 [] {}], :returns :incseq, :incseq-size 1, :frame :Frame[], :id -1, :slot :Slot[:Frame[] -1], :slot-type :r/pure}
+  ;; ->is {:type :r/pure, :v false, :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/slot, :v [::Main 1 [] {}], :returns :incseq, :incseq-size 1, :frame :Frame[], :id -1, :slot :Slot[:Frame[] -1], :slot-type :r/pure}
+  ;; ->is {:type :r/pure, :v [hyperfiddle.electric3-test/fn--40449/fn--40450], :returns :incseq, :incseq-size 1}
+  ;; ->is {:type :r/join, :v :Slot[:Frame[] 0], :returns :incseq}
+  ;; ->is {:type :r/slot, :returns :incseq, :inputs ([hyperfiddle.electric.impl.runtime3.Pure 0x3a2ebb7a "hyperfiddle.electric.impl.runtime3.Pure@2b499c38"] [hyperfiddle.electric.impl.runtime3.Ap 0x44258e65 "hyperfiddle.electric.impl.runtime3.Ap@47b5f82f"]), :meta {}, :frame :Frame[], :id 0, :slot :Slot[:Frame[] 0], :slot-type :r/ap}
+  ;; STATS {:type :r/slot, :returns :incseq, :inputs ([hyperfiddle.electric.impl.runtime3.Pure 0x3a2ebb7a "hyperfiddle.electric.impl.runtime3.Pure@2b499c38"] [hyperfiddle.electric.impl.runtime3.Ap 0x44258e65 "hyperfiddle.electric.impl.runtime3.Ap@47b5f82f"]), :meta {}, :frame :Frame[], :id 0, :slot :Slot[:Frame[] 0], :slot-type :r/ap}
+  ;; ->is {:type :r/slot, :returns :incseq, :inputs ([hyperfiddle.electric.impl.runtime3.Pure 0x3a2ebb7a "hyperfiddle.electric.impl.runtime3.Pure@2b499c38"] [hyperfiddle.electric.impl.runtime3.Ap 0x44258e65 "hyperfiddle.electric.impl.runtime3.Ap@47b5f82f"]), :meta {}, :frame :Frame[], :id 0, :slot :Slot[:Frame[] 0], :slot-type :r/ap}
+
+  )
+
 (tests "reactive fn"
-  (with ((l/single {} (tap ($ (e/fn [x] (inc x)) 1))) tap tap)
-    % := 2))
+       (with ((l/single {} (tap ($ (e/fn [x] (inc x)) 1))) tap tap)
+         % := 2))
+
+(comment
+  (fn
+    ([] (hash-map 0 (r/ctor ::Main 0)))
+    ([idx__23102__auto__]
+     (case idx__23102__auto__
+       0 (r/cdef 0 [nil] [nil] nil
+           (fn [frame]
+             (r/define-node frame 0 (r/pure 1))
+             (r/define-call frame 0
+               (r/ap (r/pure r/dispatch)
+                 (r/ap (r/pure hash-map)
+                   (r/pure 1)
+                   (r/pure (r/ctor ::Main 1)))
+                 (r/pure (r/node frame 0))))
+             (r/join (r/call frame 0))))
+       1 (r/cdef 0 [] [] nil
+           (fn [frame]
+             (r/lookup frame 0)))))
+    ([get__23103__auto__ deps__23104__auto__] {}))
+  )
 
 (e/defn My-inc [x] (inc x))
 (tests "reactive defn"
@@ -598,6 +651,7 @@
                        (catch Pending _))) tap tap)
     % := 2))
 
+;; !!!
 (tests
   (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client foo)), foo 2] (e/server ($ Bar1))))) tap tap)
     % := 2))
@@ -1084,7 +1138,7 @@
                  (e/server x)))) tap tap)
       % := true
       (swap! !x not)
-      % := ::rcf/timeout)))
+      (tap :done), % := :done)))
 
 ;; TODO transfer try/catch
 ;; https://www.notion.so/hyperfiddle/distribution-glitch-stale-local-cache-of-remote-value-should-be-invalidated-pending-47f5e425d6cf43fd9a37981c9d80d2af
@@ -1164,16 +1218,38 @@
     % := 2))
 
 (tests "static method call in e/server"
-  (with ((l/local {} (tap (e/server (Math/max 2 1)))) tap tap)
+       (with ((l/local {} (tap (e/server (Math/max 2 1)))) tap tap)
     % := 2))
+
+(comment
+  ;; without e/server
+  (case idx__22358__auto__
+    0 (r/cdef 0 [] [] nil
+        (fn [frame]
+          (r/ap (r/lookup frame :hyperfiddle.rcf/tap (r/pure hyperfiddle.rcf/tap))
+            (r/ap (r/pure (fn [G__40282 G__40283] (Math/max G__40282 G__40283)))
+              (r/pure 2)
+              (r/pure 1))))))
+
+  ;; with e/server, breaks, returns empty incseq diff instead of initial value
+  (case idx__22358__auto__
+    0 (r/cdef 0 [:server] [] nil
+        (fn [frame]
+          (r/define-node frame 0
+            (r/ap (r/pure (fn [G__40313 G__40314] (Math/max G__40313 G__40314)))
+              (r/pure 2)
+              (r/pure 1)))
+          (r/ap (r/lookup frame :hyperfiddle.rcf/tap (r/pure hyperfiddle.rcf/tap))
+            (r/node frame 0)))))
+  )
 
 ;; TODO transfer try/catch
 (skip "static method call in e/client"
-  (with ((l/single {} (try (tap (e/server (subvec (vec (range 10))
-                                        (Math/min 1 1)
-                                        (Math/min 3 3))))
-                       (catch Pending _))) tap tap)
-    % := [1 2]))
+      (with ((l/single {} (try (tap (e/server (subvec (vec (range 10))
+                                                (Math/min 1 1)
+                                                (Math/min 3 3))))
+                               (catch Pending _))) tap tap)
+        % := [1 2]))
 
 (tests "static method call in e/client"
   (with ((l/local {} (tap (e/server (subvec (vec (range 10))
