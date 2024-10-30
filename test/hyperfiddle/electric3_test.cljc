@@ -2414,3 +2414,11 @@
     (tick :server)
     (tap :done)
     % := :done))
+
+(def ^:dynamic *x*)
+(e/defn GetX [] *x*)
+(tests "qualify binding symbol in presence of local with same name"
+  (with ((l/single {} (tap (let [*x* 0]
+                             (binding [*x* 1]
+                               (GetX))))) tap tap)
+    % := 1))
