@@ -520,9 +520,11 @@
           (::site) (::site nd)
           #_else (recur (::parent nd)))))))
 
+(defn resolve-as-non-local [sym env] (resolve-symbol sym (update env :locals dissoc sym)))
+
 (defn get-lookup-key [sym env]
   (if (symbol? sym)
-    (let [it (resolve-symbol sym env)]
+    (let [it (resolve-as-non-local sym env)]
       (case (::type it)
         (::var) (keyword (::sym it))
         (::node) (keyword (::node it))
