@@ -8,12 +8,14 @@
             [clojure.core :as cc]
             [clojure.string :as str]
             [contrib.data]
+            [contrib.measure :as cm]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
             #?(:clj [fipp.edn])
             [missionary.core :as m]
             [contrib.missionary-contrib :as mx]
-            [clojure.math :as math])
+            [clojure.math :as math]
+            [contrib.debug :as dbg])
   (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric3)))
 
@@ -468,3 +470,9 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 
 
 (def http-request "Bound to the HTTP request of the page in which the current Electric program is running." nil)
+
+(cc/defn measure< [nm v] (cm/measure nm v))
+(defmacro Measure [nm v] `(->> ~v pure (measure< ~nm) join))
+
+(cc/defn dbg< [nm v] (dbg/instrument* nm v))
+(hyperfiddle.electric3/defn DBG [nm x] (->> x pure (dbg< nm) join))
