@@ -219,12 +219,25 @@ T T T -> (EXPR T)
 (EXPR (IS T)) -> (EXPR T)
 " [input] (->Join input nil))
 
+(deftype Id [x]
+  #?(:clj Object)
+  #?(:cljs IHash)
+  (#?(:clj hashCode :cljs -hash) [_]
+    (hash x))
+  #?(:cljs IEquiv)
+  (#?(:clj equals :cljs -equiv) [_ other]
+    (and (instance? Id other)
+      (= x (.-x ^Id other))))
+  Expr
+  (deps [_ _ r _] r)
+  (flow [_] x))
+
 (def effect "
 -> (EXPR VOID)
 (IS T) -> (EXPR T)
 (IS T) (IS T) -> (EXPR T)
 (IS T) (IS T) (IS T) -> (EXPR T)
-" (comp join pure))
+" ->Id)
 
 (def fixed-signals "
 -> (IS VOID)
@@ -1127,6 +1140,10 @@ T T T -> (EXPR T)
                               (fn [_] "join")
                               (fn [^Join join]
                                 [(.-input join)]))
+                    Id    (t/write-handler
+                              (fn [_] "id")
+                              (fn [^Id id]
+                                [(.-x id)]))
                     Unbound (t/write-handler
                               (fn [_] "unbound")
                               (fn [^Unbound unbound]
@@ -1158,6 +1175,9 @@ T T T -> (EXPR T)
                 "join"           (t/read-handler
                                    (fn [[input]]
                                      (->Join input nil)))
+                "id"             (t/read-handler
+                                   (fn [[x]]
+                                     (->Id x)))
                 "ap"             (t/read-handler
                                    (fn [inputs]
                                      (->Ap {} inputs nil)))
