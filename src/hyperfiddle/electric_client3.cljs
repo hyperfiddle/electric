@@ -135,6 +135,7 @@
                                    (1000 1001) (do (js/console.debug (str "Electric websocket disconnected - " code)) true)
                                    (1005 1006) (do (js/console.log "Electric Websocket connection lost.") true)
                                    (1008) (throw (ex-info "Stale Electric client" {:hyperfiddle.electric/type ::stale-client}))
+                                   (1011) (do (js/console.log "Electric server terminated unexpectedly - " (pr-str info)) false)
                                    (1012)                   ; Incompatible client. Do not attempt to reconnect (it would fail again)
                                    (js/console.error (str "A mismatch between Electric client and server's programs was detected."
                                                        "\nThe connection was closed. Refresh the page to attempt a reconnect."
