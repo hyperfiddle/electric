@@ -131,23 +131,29 @@
                                          (aset state 0 nil)
                                          (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
                                            (.close ws) (m/? (m/compel (wait-for-close ws))))))]
-                           (when (case code                 ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
+                           (when (case code ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
                                    (1000 1001) (do (js/console.debug (str "Electric websocket disconnected - " code)) true)
+                                   ;; (1002) ; WS protocol error
+                                   ;; (1003) ; Invalid data format (e.g. text vs binary)
+                                   ;; (1004) ; Reserved by WS spec, might be defined in the future
                                    (1005 1006) (do (js/console.log "Electric Websocket connection lost.") true)
+                                   ;; (1007) ; Inconsistent data in message (e.g. non-UTF8 in text message)
                                    (1008) (throw (ex-info "Stale Electric client" {:hyperfiddle.electric/type ::stale-client}))
-                                   (1011) (do (js/console.log "Electric server terminated unexpectedly - " (pr-str info)) false)
-                                   (1012)                   ; Incompatible client. Do not attempt to reconnect (it would fail again)
+                                   ;; (1009) ; Message to big
+                                   ;; (1010) ; Couldn't negotiate WS extension with server - client terminated connection
+                                   (1011) ; Server crash, do not attempt to reconnect, let the user decide.
+                                   (js/console.log "Electric server terminated unexpectedly - " (pr-str info))
+                                   (1012) ; Not defined by WS spec - We use it for Incompatible Client. Do not attempt to reconnect (it would fail again).
                                    (js/console.error (str "A mismatch between Electric client and server's programs was detected."
                                                        "\nThe connection was closed. Refresh the page to attempt a reconnect."
                                                        "\nCommonly, in local dev envs, this is a stale browser tab auto-reconnecting, or the clj and cljs REPLs are out of sync due to evaluating an Electric def in one process but not the other."
                                                        "\nThis should not happen in prod. See `https://github.com/hyperfiddle/electric-starter-app/` for a reference configuration."))
-                                   (1013)                   ; server timeout - The WS spec defines 1011 - arbitrary server error,
-                                   ; and 1015 - TLS exception. 1012, 1013, and 1014 are undefined. We
-                                   ; pick 1013 for "Server closed the connection because it didn't hear of
-                                   ; this client for too long".
+                                   (1013) ; Not defined by WS spec - We use it for Server Timeout. i.e. "Server closed the connection because it didn't hear of this client for too long".
                                    (do (js/console.log "Electric server timed out, considering this Electric client inactive.")
                                        true)
-                                   ; else
+                                   ;; (1014) ; Not defined by WS spec.
+                                   ;; (1015) ; Reserved by WS spec - used for failed TLS handshakes - do not overload.
+                                   ;; else
                                    (do (js/console.log (str "Electric Websocket disconnected for an unexpected reason - " (pr-str info)))
                                        true))
                              (m/? (wait-for-window-to-be-visible))
