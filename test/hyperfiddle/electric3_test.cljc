@@ -2415,6 +2415,25 @@
     (tap :done)
     % := :done))
 
+(tests
+  (let [!switch (atom false)]
+    ((l/local {}
+       (e/server
+         (let [x (e/watch (atom :foo))]
+           (tap (when
+                  (e/client (nil? (if (e/watch !switch) nil x)))
+                  (e/client (e/input (m/reductions {} x
+                                       (m/observe (fn [_]
+                                                    (tap :up)
+                                                    #(tap :down)))))))))))
+     prn prn)
+    % := nil
+    (swap! !switch not)
+    % := :up
+    % := :foo
+    (tap :done)
+    % := :done))
+
 (def ^:dynamic *x*)
 (e/defn GetX [] *x*)
 (tests "qualify binding symbol in presence of local with same name"

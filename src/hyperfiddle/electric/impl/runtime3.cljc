@@ -777,21 +777,27 @@ T T T -> (EXPR T)
     (when-some [channel (aget remote remote-slot-channel)]
       (channel-output-sub channel o))))
 
+(defn input-active? [^objects input]
+  ((if (zero? (aget input input-slot-request-local))
+     odd? even?) (aget input input-slot-pending)))
+
+(defn output-active? [^objects output]
+  ((if (zero? (aget output output-slot-request-local))
+     odd? even?) (aget output output-slot-pending)))
+
 (defn input-ack [^objects input]
-  (when (zero? (aset input input-slot-pending
-                 (dec (aget input input-slot-pending))))
-    (when (zero? (aget input input-slot-request-local))
-      (if (zero? (aget input input-slot-request-remote))
-        (input-dispose input)
-        (input-reset input)))))
+  (aset input input-slot-pending (dec (aget input input-slot-pending)))
+  (when (zero? (aget input input-slot-request-remote))
+    (when-not (input-active? input)
+      ((if (zero? (aget input input-slot-pending))
+         input-dispose input-reset) input))))
 
 (defn output-ack [^objects output]
-  (when (zero? (aset output output-slot-pending
-                 (dec (aget output output-slot-pending))))
-    (when (zero? (aget output output-slot-request-local))
-      (if (zero? (aget output output-slot-request-remote))
-        (output-dispose output)
-        (output-reset output)))))
+  (aset output output-slot-pending (dec (aget output output-slot-pending)))
+  (when (zero? (aget output output-slot-request-remote))
+    (when-not (output-active? output)
+      ((if (zero? (aget output output-slot-pending))
+         output-dispose output-reset) output))))
 
 (defn remote-ack [^objects remote]
   (let [^objects tail (aget remote remote-slot-current-event)
@@ -805,9 +811,7 @@ T T T -> (EXPR T)
 
 (defn remote-change [^objects remote ^Slot slot diff]
   (let [^objects input (get (aget remote remote-slot-inputs) slot)]
-    (when (or (and (even? (aget input input-slot-pending))
-                (pos? (aget input input-slot-request-local)))
-            (pos? (aget input input-slot-request-remote)))
+    (when (or (input-active? input) (pos? (aget input input-slot-request-remote)))
       (aset input input-slot-diff (i/combine (aget input input-slot-diff) diff))
       (when-some [^objects sub (aget input input-slot-subs)]
         (loop [^objects s sub]
