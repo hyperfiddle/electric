@@ -2441,3 +2441,36 @@
                              (binding [*x* 1]
                                (GetX))))) tap tap)
     % := 1))
+
+(tests
+  (let [!x (atom true)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
+                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+              (if (e/watch !x) (e/server (tap :branch)) (tap :unmount)))
+            tap tap)]
+    (tick :client-writer)
+    (tick :server-writer)
+    (tick :client-reader)
+    (tick :server-reader)
+    (tick :client-reader)
+    (tick :server-reader)
+    (tick :server-writer)
+    % := :branch
+    (tick :client-writer)
+    (swap! !x not)
+    % := :unmount
+    (tick :client-writer)
+    (swap! !x not)
+    (tick :server-reader)
+    (tick :client-reader)
+    (tick :server-writer)
+    (tick :client-writer)
+    (tap :done)
+    % := :done))
