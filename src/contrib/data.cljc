@@ -344,17 +344,20 @@
 
 (defn treelister
   ([xs] (treelister xs (fn [_]) (fn [_ _] true)))
-  ([xs children-fn keep?] (fn [input] (-tree-list 0 xs children-fn keep? input))))
+  ([children-fn keep? xs] (fn [input] (-tree-list 0 xs children-fn keep? input))))
 
 (tests
-  (vec ((treelister [1 2 [3 4] [5 [6 [7]]]] #(when (vector? %) %) (fn [v _] (odd? v))) nil))
+  (vec ((treelister #(when (vector? %) %) (fn [v _] (odd? v))
+          [1 2 [3 4] [5 [6 [7]]]]) nil))
   := [[0 1] [0 [3 4]] [1 3] [0 [5 [6 [7]]]] [1 5] [1 [6 [7]]] [2 [7]] [3 7]]
 
-  ((treelister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle})) ) "a")
+  ((treelister :children (fn [v needle] (-> v :file #{needle}))
+     [{:dir "x" :children [{:file "a"} {:file "b"}]}]) "a")
   (count (vec *1)) := 2
 
   "directory is omitted if there are no children matching keep?"
-  ((treelister [{:dir "x" :children [{:file "a"} {:file "b"}]}] :children (fn [v needle] (-> v :file #{needle}))) "nope")
+  ((treelister :children (fn [v needle] (-> v :file #{needle}))
+     [{:dir "x" :children [{:file "a"} {:file "b"}]}]) "nope")
   (count (vec *1)) := 0)
 
 (defn fn->
