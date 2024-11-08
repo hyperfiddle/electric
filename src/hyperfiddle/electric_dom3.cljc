@@ -608,4 +608,4 @@ input's value, use `EventListener`."
                  #_(try (catch :default e (f e))))))))
 
 (e/defn Await-elements [node selector]
-  (e/client (e/join (e/uf->is (await-elements node selector)))))
+  (e/client (e/join (e/flow->incseq (await-elements node selector)))))
