@@ -446,19 +446,19 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 (hyperfiddle.electric3/defn System-time-ms [] (if (DOMVisible?) (input system-time-ms) (amb)))
 (hyperfiddle.electric3/defn System-time-secs [] (math/floor-div (System-time-ms) 1000))
 
-(cc/defn uf->is [uf]
+(cc/defn flow->incseq [uf]
   (m/ap (m/amb (i/empty-diff 0)
           (let [!first (atom true) v (m/?> uf)]
             (assoc (i/empty-diff 1) :grow (if @!first (do (swap! !first not) 1) 0), :change {0 v})))))
 
-(cc/letfn [(task->is [t] (uf->is (m/ap (m/? t))))
+(cc/letfn [(task->incseq [t] (flow->incseq (m/ap (m/? t))))
            (initialized [t init-v] (m/relieve {} (m/ap (m/amb= init-v (m/? t)))))]
   (hyperfiddle.electric3/defn Task
-    ([t] (join (task->is t)))
+    ([t] (join (task->incseq t)))
     ([t init-v] (input (initialized t init-v)))))
 
 #?(:clj (cc/defn -offload [tsk executor]
-          (uf->is (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
+          (flow->incseq (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
                              (catch Cancelled _ (m/amb)))))))
 
 
