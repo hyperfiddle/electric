@@ -377,8 +377,8 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
                   ([] (token nil))
                   ([ret] (reset! !t nil) ret)))
       step (cc/fn [!t v on?] (when (on? v) (compare-and-set! !t nil (->token !t))))]
-  (hyperfiddle.electric3/defn Token
-    ([v] (Token v some?))
+  (hyperfiddle.electric3/defn ^:deprecated TokenNofail
+    ([v] (TokenNofail v some?))
     ([v on?] (let [!t (atom nil)]
                (step !t v on?)
                (watch !t)))))
@@ -393,8 +393,8 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
                  (cond ; reuse outstanding token but clear error for new attempt
                    (some? err) (compare-and-set! !x [nil err] [(->token !x) nil])
                    () (compare-and-set! !x [nil nil] [(->token !x) nil])))))]
-  (hyperfiddle.electric3/defn RetryToken
-    ([v] (RetryToken v some?))
+  (hyperfiddle.electric3/defn Token
+    ([v] (Token v some?))
     ([v on?] (let [!x (atom [nil nil])] ; single watch for consistency
                (step !x v on?)
                (watch !x))))) ; route error to call site
