@@ -6,6 +6,7 @@
    [hyperfiddle.electric3 :as e :refer [$]]
    [hyperfiddle.electric-dom3 :as dom]
    #?(:cljs [hyperfiddle.electric.impl.runtime3 :refer [Failure]])
+   [hyperfiddle.token-zoo0 :refer [CyclicToken StampedToken TokenNofail]]
    [missionary.core :as m])
   #?(:clj (:import [hyperfiddle.electric.impl.runtime3 Failure]))
   #?(:cljs (:require-macros contrib.trace3)))
@@ -63,7 +64,7 @@
 
 (e/defn SendClientTraces [ms]
   (e/client
-    (when-some [spend! ($ e/CyclicToken (seq q))]
+    (when-some [spend! ($ CyclicToken (seq q))]
       (case ($ e/Task (m/sleep ms))
         (let [[trace+] (swap-vals! !q (constantly []))]
           (spend! (e/server (save-traces !db trace+))))))))
@@ -107,7 +108,7 @@
           (dom/props {:style {:position "absolute", :left (str offset "px")}
                       :title (e/server (contrib.str/pprint-str nd))})
           (dom/text (->pretty (e/server (::pretty-v nd))))
-          (when-some [spend! ($ e/TokenNofail ($ dom/On "click"))]
+          (when-some [spend! ($ TokenNofail ($ dom/On "click"))]
             (spend! (e/server (swap! !measure (fn [m] (conj (pop m) ve)))))))))))
 
 (e/defn RenderHistory [e origin]
@@ -128,7 +129,7 @@
             (abs (- (::stamp (ts/->node db starte)) (::stamp (ts/->node db ende)))))))
 
 (e/defn Throttle [ms v]
-  (let [[v2 spend!] ($ e/StampedToken v)]
+  (let [[v2 spend!] ($ StampedToken v)]
     (when spend! (spend! ($ e/Task (m/sleep ms))))
     (if spend! v2 v)))
 
