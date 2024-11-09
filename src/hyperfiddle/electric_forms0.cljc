@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-forms0
   #?(:cljs (:require-macros hyperfiddle.electric-forms0))
-  (:require [contrib.data :refer [index-by]]
+  (:require [contrib.data :refer [index-by auto-props qualify]]
             [contrib.str :refer [pprint-str]]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
@@ -220,12 +220,13 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
 (e/defn Form!*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
     edits ; concurrent edits are what give us dirty tracking
-    & {:keys [debug commit discard show-buttons auto-submit edit-merge genesis name edit-monoid]
-       :or {debug false show-buttons true edit-merge merge genesis false edit-monoid hash-map}}]
+    & {:as props}]
    (e/client
-     (let [dirty-count (e/Count edits)
+     (let [{::keys [debug commit discard show-buttons auto-submit edit-merge genesis name edit-monoid]}
+           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map})
+           dirty-count (e/Count edits)
            clean? (zero? dirty-count)
-           show-buttons (case show-buttons ::smart (not clean?) show-buttons)
+           show-buttons (case (qualify show-buttons) ::smart (not clean?) show-buttons)
            [form-t form-v :as form] (invert-fields-to-form edit-merge (e/as-vec edits))
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
                                  ::commit :label "commit"  :disabled clean?

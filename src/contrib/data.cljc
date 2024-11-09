@@ -4,21 +4,29 @@
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [contrib.data :refer [auto-props]])))
 
-(defn qualify
-  "Qualify a keyword with a namespace. If already qualified, leave kw untouched. Nil-safe.
-  (qualify :db :isComponent) -> :db/isComponent"
-  [ns ?kw]
+(defn -qualify [ns ?kw]
   {:pre [(some? ns) #_(not (namespace ns)) (keyword? ?kw)]}
   (when ?kw
-    (if (qualified-keyword? ?kw)
-      ?kw (keyword (name ns) (name ?kw)))))
+    (if (qualified-keyword? ?kw) ?kw
+      (keyword (name ns) (name ?kw)))))
+
+(defmacro qualify "
+Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-safe.
+  (qualify :db :isComponent) := :db/isComponent
+  (qualify :isComponent) := ::isComponent"
+  ([ns ?kw] `(-qualify ~ns ~?kw))
+  ([?kw] `(-qualify ~(str *ns*) ~?kw)))
 
 (tests
   ;(keyword (name (namespace ::ns)) (name :limit))
+  (qualify :limit) := ::limit
+
+  (qualify "contrib.data" :limit) := ::limit
+  (qualify :contrib.data :limit) := ::limit
   (qualify (namespace ::x) :limit) := ::limit
   ;(qualify (namespace ::x) "limit") thrown? AssertionError
   "leave qualified kws untouched"
-  (qualify (namespace ::x) :user/foo) := :user/foo)
+  (qualify :user/foo) := :user/foo)
 
 (defn unqualify
   "Strip namespace from keyword, discarding it and return unqualified keyword. Nil-safe.
@@ -80,7 +88,7 @@
 (defn -auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
   {:pre [(some? ns) (or (string? ns) (symbol? ns))]}
-  (merge defaults-qualified (update-keys props (partial qualify ns))))
+  (merge defaults-qualified (update-keys props (partial -qualify ns))))
 
 (defmacro auto-props
   ([ns props defaults-qualified] `(-auto-props ~ns ~props ~defaults-qualified))
