@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [empty?])
   (:require clojure.pprint
             clojure.string
+            [contrib.char$ :refer [char-code]]
             [contrib.data :refer [orp]]
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:import [goog.i18n MessageFormat DateTimeFormat]
@@ -240,3 +241,16 @@ var asdf = 111;")
    := "var x    = 1;\nvar y    = 11;\nvar asdf = 111;"
   )
 
+(defn abc "ascii ! through ~, which includes password characters" []
+  (->> (range 33 126) (map (comp str char))))
+
+(tests
+  (count (abc)) := 93
+  (nth (abc) 0) := "!"
+  (nth (abc) (- (char-code \A) (char-code \!))) := "A"
+  (nth (abc) (- (char-code \a) (char-code \!))) := "a"
+  (nth (abc) (- (char-code \0) (char-code \!))) := "0")
+
+(defn rand-password [] (apply str (repeatedly 10 #(rand-nth (abc)))))
+
+(defn rand-str [len] (apply str (take len (repeatedly #(char (+ (rand 26) (char-code \a)))))))
