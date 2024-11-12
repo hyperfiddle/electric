@@ -152,7 +152,7 @@ T T T -> (EXPR T)
 
 (defn clean-ex [mt msg]
   (let [msg (str "in " (::lang/ns mt) (let [d (::lang/def mt)] (when d (str "/" d)))
-              ", line " (::lang/line mt) ", column " (::lang/column mt) "\n\n" msg)]
+              ", line " (::lang/line mt) ", column " (::lang/column mt) "\n" msg)]
     #?(:clj (proxy [Exception] [msg nil false false])
        :cljs (js/Error msg))))
 
