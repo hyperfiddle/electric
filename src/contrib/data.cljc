@@ -31,17 +31,21 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
 (defn unqualify
   "Strip namespace from keyword, discarding it and return unqualified keyword. Nil-safe.
   (unqualify :db.type/ref) -> :ref"
-  [?qualified-kw]
-  (assert (or (nil? ?qualified-kw)
-              (qualified-keyword? ?qualified-kw)) (str " can't unqualify: " ?qualified-kw))
-  (if ?qualified-kw
-    (keyword (name ?qualified-kw))))
+  [?kw]
+  (assert (or (nil? ?kw) (keyword? ?kw) (symbol? ?kw)) (str " can't unqualify: " ?kw))
+  (cond
+    (nil? ?kw) nil
+    (keyword? ?kw) (keyword (name ?kw))
+    (symbol? ?kw) (symbol (name ?kw))))
 
 (tests
-  (unqualify ::x) := :x
   (unqualify :db.type/ref) := :ref
-  (unqualify nil) := nil
-  (unqualify "") :throws #?(:clj AssertionError :cljs js/Error))
+  (unqualify ::x) := :x
+  (unqualify :x) := :x
+  (unqualify `x) := 'x
+  (unqualify 'x) := 'x
+  (unqualify "") :throws #?(:clj AssertionError :cljs js/Error)
+  (unqualify nil) := nil)
 
 (defn unqualified-keys [m] (update-keys m unqualify))
 
