@@ -1493,7 +1493,7 @@
                                                        ::v `(fn* [] (r/cannot-resolve-fn '~(::var nd)))}))))
                                   ts (ts/find ts ::qualified-var `r/cannot-resolve)))
         ts (-> ts mark-used-calls2 index-calls reroute-local-aliases (optimize-locals (get-root-e ts))
-             inline-locals order-nodes order-frees #_collapse-ap-with-only-pures expand-cannot-resolve)]
+             inline-locals order-nodes order-frees collapse-ap-with-only-pures expand-cannot-resolve)]
     (when (::print-db env) (run! prn (ts->reducible ts)))
     ts))
 
