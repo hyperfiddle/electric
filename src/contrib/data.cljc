@@ -309,15 +309,19 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
 ; org.apache.commons.lang3.StringUtils.containsIgnoreCase()
 ;(defn str-contains-ignore-case [])
 
-;(defn clamp [n min max] (Math/min (Math/max n min) max))
-;
-;(tests
-;  (clamp 51 10 50) := 50
-;  (clamp 50 10 50) := 50
-;  (clamp 49 10 50) := 49
-;  (clamp 11 10 50) := 11
-;  (clamp 10 10 50) := 10
-;  (clamp 9  10 50) := 10)
+(defn clamp [n left right] (min (max n left) right))
+
+(tests
+  (clamp 51 10 50) := 50
+  (clamp 50 10 50) := 50
+  (clamp 49 10 50) := 49
+  (clamp 11 10 50) := 11
+  (clamp 10 10 50) := 10
+  (clamp 9  10 50) := 10)
+
+(defn window [cnt offset limit xs]
+  (subvec (vec xs) ; fast cast
+    (max offset 0) (min (+ offset limit) cnt)))
 
 #?(:clj
    (defmacro orp
