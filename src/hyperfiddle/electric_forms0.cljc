@@ -226,7 +226,9 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map})
            dirty-count (e/Count edits)
            clean? (zero? dirty-count)
-           show-buttons (case (qualify show-buttons) ::smart (not clean?) show-buttons)
+           show-buttons (cond
+                          (boolean? show-buttons) show-buttons
+                          (= ::smart (qualify show-buttons)) (not clean?))
            [form-t form-v :as form] (invert-fields-to-form edit-merge (e/as-vec edits))
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
                                  ::commit :label "commit"  :disabled clean?
