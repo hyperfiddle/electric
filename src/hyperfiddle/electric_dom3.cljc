@@ -60,11 +60,11 @@
 
 (def mount-items
   (mount
-    (fn [element child] (.appendChild element child))
-    (fn [element child previous] (.replaceChild element child previous))
-    (fn [element child sibling] (.insertBefore element child sibling))
-    (fn [element child] (.removeChild element child))
-    (fn [element i] (.item (.-childNodes element) i))))
+    (fn [element child] #_(prn 'appendChild (hash child) child) (.appendChild element child))
+    (fn [element child previous] #_(prn 'replaceChild (hash child) child) (.replaceChild element child previous))
+    (fn [element child sibling] #_(prn 'insertBefore (hash child) child) (.insertBefore element child sibling))
+    (fn [element child] #_(prn 'removeChild (hash child) child) (.removeChild element child))
+    (fn [element i] (let [child (.item (.-childNodes element) i)] #_(prn 'getChildItem element i (hash child)) child))))
 
 #?(:cljs
    (defn attach! [parent-node tag e]
