@@ -85,8 +85,7 @@
 (def port-slot-site 1)
 (def port-slot-deps 2)
 (def port-slot-flow 3)
-(def port-slot-stats 4)
-(def port-slots 5)
+(def port-slots 4)
 
 (def input-slot-remote 0)                                   ;; this is only required for peer access
 (def input-slot-port 1)
@@ -112,59 +111,18 @@
 
 ;; Pure | Ap | Join | Slot
 (defprotocol Expr
-  (deps [_ rf r site])                                      ;; emits ports
-  (stats [_])
+  (deps [_ rf r site]) ;; emits ports
+  (t [_])
   (peephole [_])
-  (flow [_]))                                               ;; returns incseq
+  (flow [_])
+  (pp [_]))                                               ;; returns incseq
 
 (extend-protocol Expr
-  #?(:clj Object :cljs default) (stats [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r)
-  nil                           (stats [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r))
+  #?(:clj Object :cljs default) (t [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r) (pp [x] x)
+  nil                           (t [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r) (pp [x] x))
 
-(declare ->cf-pure ->cf-id ->fixed slot-port port-stats)
-(defn as-stats [expr]
-  (letfn [(go [s] (if s
-                    (case (:type s)
-                      (::pure) (update s :v as-stats)
-                      (::join) (update s :v as-stats)
-                      (::ap) (update s :inputs #(mapv as-stats %))
-                      (::id) s
-                      (::unbound) s
-                      (::slot) (let [s2 (go (port-stats (slot-port (:slot s))))]
-                                 (merge s s2 {:type ::slot, :slot-type (:type s2)}))
-                      (::cf-pure) (update s :v as-stats)
-                      (::cf-thunk) s
-                      (::cf-ap) (update s :inputs #(mapv as-stats %)))
-                    expr))]
-    (go (stats expr))))
-(defn ->flow [expr]
-  (let [e (peephole expr)]
-    (when (not= expr e)
-      (prn 'before)
-      (clojure.pprint/pprint (as-stats expr))
-      (prn 'after)
-      (clojure.pprint/pprint (as-stats e)))
-    (flow e)))
-
-(defn ->is [x]
-  (let [s (stats x)]
-    ;; (prn '->is s)
-    (cond (= :incseq (:returns s)) x
-          (= :cf (:returns s)) (->fixed x)
-          :else x)))
-(defn ->cf [x]
-  (let [s (ca/is (stats x)), how #(throw (ex-info "how to turn to CF?" {:x x}))]
-    (if (= :cf (:returns s))
-      x
-      (case (:type s)
-        (::pure) (->cf-pure (:v s))
-        (::join) (how)
-        (::slot) (how)
-        (::id) (->cf-pure (:v s))
-        (::ap) (how)
-        (::unbound) x
-        (::fixed) (->cf-id (:v s))))))
-(defn size-1? [x] (let [s (stats x)] (or (= :cf (:returns s)) (= 1 (:incseq-size s)))))
+(defn ->flow [v] (flow v))
+(declare ->is ->cf size-1?)
 
 (deftype Fixed [cf ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
@@ -178,9 +136,10 @@
       (= cf (.-cf ^Fixed other))))
   Expr
   (deps [_ _ r _] r)
-  (stats [_] {:type ::fixed, :v cf, :returns :incseq, :incseq-size 1})
-  (peephole [this] this)
-  (flow [_] (i/fixed (flow cf))))
+  (t [_] ::fixed)
+  (peephole [this] (let [cf2 (peephole cf)] (if (= cf cf2) this (new Fixed cf2 nil))))
+  (pp [_] (list 'Fixed (pp cf)))
+  (flow [_] (i/fixed (->flow cf))))
 
 (defn ->fixed [cf] (->Fixed cf nil))
 
@@ -197,6 +156,41 @@
 
 (defn invariant [x] (m/cp x))
 
+(deftype Id [x]
+  #?(:clj Object)
+  #?(:cljs IHash)
+  (#?(:clj hashCode :cljs -hash) [_]
+    (hash x))
+  #?(:cljs IEquiv)
+  (#?(:clj equals :cljs -equiv) [_ other]
+    (and (instance? Id other)
+      (= x (.-x ^Id other))))
+  Expr
+  (deps [_ _ r _] r)
+  (t [_] ::id)
+  (peephole [this] this)
+  (pp [_] (pp x))
+  (flow [_] x))
+
+(deftype CFId [x]
+  #?(:clj Object)
+  #?(:cljs IHash)
+  (#?(:clj hashCode :cljs -hash) [_]
+    (hash x))
+  #?(:cljs IEquiv)
+  (#?(:clj equals :cljs -equiv) [_ other]
+    (and (instance? CFId other)
+      (= x (.-x ^CFId other))))
+  Expr
+  (deps [_ _ r _] r)
+  (t [_] ::cf-id)
+  (peephole [this] this)
+  (pp [_] (pp x))
+  (flow [_] (->flow x)))
+
+(defn ->cf-id [x] (->CFId x))
+
+(declare join-input)
 (deftype Pure [value
                ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
@@ -210,15 +204,16 @@
       (= value (.-value ^Pure other))))
   Expr
   (deps [_ _ r _] r)
-  (stats [_] {:type ::pure, :v value, :returns :incseq, :incseq-size 1})
+  (t [_] ::pure)
   (peephole [this]
     (if (failure? value)
       this
-      (if-some [cstats (stats value)]
-        (if (= ::join (:type cstats))
-          (do (prn 'peepholed-pure-join (:v cstats)) (:v cstats))
+      (if-some [typ (t value)]
+        (if (= ::join typ)
+          (->Id (join-input value))
           this)
         this)))
+  (pp [_] (list 'Pure (pp value)))
   (flow [_]
     (if (failure? value)
       (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
@@ -244,10 +239,11 @@ T T T -> (EXPR T)
       (= value (.-value ^CFPure other))))
   Expr
   (deps [_ _ r _] r)
-  (stats [_] {:type ::cf-pure, :v value, :returns :cf})
+  (t [_] ::cf-pure)
   ;; TODO cfjoin peephole?
   (peephole [this] this)
-  (flow [_] (invariant (flow value))))
+  (pp [_] (list 'CFPure (pp value)))
+  (flow [_] (invariant value)))
 
 (defn ->cf-pure [v] (->CFPure v nil))
 
@@ -263,8 +259,9 @@ T T T -> (EXPR T)
       (= thunk (.-thunk ^CFThunk other))))
   Expr
   (deps [_ _ r _] r)
-  (stats [_] {:type ::cf-thunk, :returns :cf, :thunk thunk})
+  (t [_] ::cf-thunk)
   (peephole [this] this)
+  (pp [_] '(CFThunk))
   (flow [_] (m/cp (thunk))))
 
 (defn ->cf-thunk [thunk] (->CFThunk thunk nil))
@@ -278,8 +275,7 @@ T T T -> (EXPR T)
 (defn ?swap-exception [f mt]
   (try (f)
        (catch #?(:clj Throwable :cljs :default) e
-         (throw e)
-         #_(let [clean-ex (clean-ex mt (ex-message e))]
+         (let [clean-ex (clean-ex mt (ex-message e))]
            (println `?swap-exception (ex-message clean-ex))
            (throw clean-ex)))))
 
@@ -307,15 +303,15 @@ T T T -> (EXPR T)
   Expr
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
-  (stats [_] {:type ::cf-ap, :returns :cf, :inputs inputs, :meta mt})
+  (t [_] ::cf-ap)
   (peephole [this]
     (let [in* (mapv peephole inputs)]
-      (if-some [cstats (into [] (map #(or (stats %) (reduced nil))) in*)]
-        (if (every? #(= ::cf-pure (:type %)) cstats)
-          (let [v* (mapv :v cstats)] (->cf-thunk #(apply (invoke-with mt) v*)))
-          (if (= in* inputs) this (new CFAp mt in* nil)))
+      (if (every? #(= ::cf-pure (t %)) in*)
+        (let [v* (mapv #(.-value ^CFPure %) in*)]
+          (->cf-thunk #(apply (invoke-with mt) v*)))
         (if (= in* inputs) this (new CFAp mt in* nil)))))
-  (flow [_] (apply m/latest (invoke-with mt) (map flow inputs))))
+  (pp [_] (cons 'CFAp (eduction (map pp) inputs)))
+  (flow [_] (apply m/latest (invoke-with mt) (map ->flow inputs))))
 
 (defn ->cf-ap [mt & inputs] (->CFAp mt inputs nil))
 
@@ -335,17 +331,16 @@ T T T -> (EXPR T)
   Expr
   (deps [_ rf r site]
     (reduce (fn [r x] (deps x rf r site)) r inputs))
-  (stats [_] {:type ::ap, :returns :incseq, :inputs inputs, :meta mt})
+  (t [_] ::ap)
   (peephole [this]
-    ;; TODO generic size-1 peephole
     (let [in* (mapv peephole inputs)]
-      (if-some [cstats (into [] (map #(or (stats %) (reduced nil))) in*)]
-        (if (every? #(= ::pure (:type %)) cstats)
-          (let [v* (mapv (comp ->cf-pure :v) cstats)] (peephole (apply ->cf-ap mt v*)))
-          (if (= in* inputs) this (new Ap mt in* nil)))
+      (if (every? size-1? in*)
+        (let [in* (mapv ->cf in*)]
+          (->fixed (peephole (apply ->cf-ap mt in*))))
         (if (= in* inputs) this (new Ap mt in* nil)))))
+  (pp [_] (cons 'Ap (eduction (map pp) inputs)))
   (flow [_] (let [in* (mapv ->is inputs)]
-              (apply i/latest-product (invoke-with mt) (mapv flow in*)))))
+              (apply i/latest-product (invoke-with mt) (mapv ->flow in*)))))
 
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
@@ -369,52 +364,21 @@ T T T -> (EXPR T)
       (= input (.-input ^Join other))))
   Expr
   (deps [_ rf r site] (deps input rf r site))
-  (stats [_] {:type ::join, :v input, :returns :incseq})
+  (t [_] ::join)
   (peephole [this]
     (let [in (peephole input)]
-      (if-some [cstats (stats in)]
-        ;; TODO generic incseq-1 carrying an incseq?
-        (if (= ::pure (:type cstats))
-          (do (prn 'peepholed-join-pure (:v cstats)) (:v cstats))
-          (if (= in input) this (new Join in nil)))
+      ;; TODO generic incseq-1 carrying an incseq?
+      (if (= ::pure (t in))
+        (->Id (.-value ^Pure in))
         (if (= in input) this (new Join in nil)))))
-  (flow [_] #_(prn 'STATS (-> input ->is stats)) (i/latest-concat (flow (->is input)))))
+  (pp [_] (list 'Join (pp input)))
+  (flow [_] (i/latest-concat (->flow (->is input)))))
 
 (defn join "
 (EXPR (IS T)) -> (EXPR T)
 " [input] (->Join input nil))
 
-(deftype Id [x]
-  #?(:clj Object)
-  #?(:cljs IHash)
-  (#?(:clj hashCode :cljs -hash) [_]
-    (hash x))
-  #?(:cljs IEquiv)
-  (#?(:clj equals :cljs -equiv) [_ other]
-    (and (instance? Id other)
-      (= x (.-x ^Id other))))
-  Expr
-  (deps [_ _ r _] r)
-  (stats [_] {:type ::id, :returns :incseq, :v x})
-  (peephole [this] this)
-  (flow [_] x))
-
-(deftype CFId [x]
-  #?(:clj Object)
-  #?(:cljs IHash)
-  (#?(:clj hashCode :cljs -hash) [_]
-    (hash x))
-  #?(:cljs IEquiv)
-  (#?(:clj equals :cljs -equiv) [_ other]
-    (and (instance? CFId other)
-      (= x (.-x ^CFId other))))
-  Expr
-  (deps [_ _ r _] r)
-  (stats [_] {:type ::cf-id, :returns :cf, :v x})
-  (peephole [this] this)
-  (flow [_] x))
-
-(defn ->cf-id [x] (->CFId x))
+(defn join-input [x] (.-input ^Join x))
 
 (def effect "
 -> (EXPR VOID)
@@ -460,7 +424,7 @@ T T T -> (EXPR T)
       (= key (.-key ^Unbound other))))
   Expr
   (deps [_ _ r _] r)
-  (stats [_] {:type ::unbound, :k key})
+  (t [_] ::unbound)
   (peephole [this] this)
   (flow [_]
     (fn [step done]
@@ -537,8 +501,6 @@ T T T -> (EXPR T)
 
 (defn port-flow [^objects port]
   (aget port port-slot-flow))
-
-(defn port-stats [^objects port] (aget port port-slot-stats))
 
 (defn port-deps [rf r ^objects port]
   (reduce-kv
@@ -728,11 +690,27 @@ T T T -> (EXPR T)
       (if (= site (port-site port))
         (port-deps rf r port)
         (rf r port))))
-  (stats [this]
-    (let [s2 (port-stats (slot-port this))]
-      (merge s2 {:type ::slot, :frame frame, :id id, :slot this, :slot-type (:type s2)})))
+  (t [_] ::slot)
   (peephole [this] this)
+  (pp [_] (list 'Slot id))
   (flow [this] (port-flow (slot-port this))))
+
+(defn ->is [x]
+  (case (t x)
+    (::pure ::join ::ap ::slot ::id ::fixed ::unbound) x
+    (::cf-pure ::cf-ap ::cf-thunk ::cf-id) (->fixed x)))
+
+(defn ->cf [x]
+  (let [how #(throw (ex-info "how to turn to CF?" {:x x}))]
+    (case (t x)
+      (::cf-pure ::cf-ap ::cf-thunk ::cf-id) x
+      (::pure) (->cf-pure (.-value ^Pure x))
+      (::fixed) (->cf-id (.-cf ^Fixed x))
+      #_else (how))))
+(defn size-1? [x]
+  (case (t x)
+    (::cf-pure ::cf-ap ::cf-thunk ::cf-id ::pure ::fixed) x
+    #_else false))
 
 (defn port-slot
   {:tag Slot}
@@ -806,7 +784,7 @@ T T T -> (EXPR T)
               (aset sub input-sub-slot-next sub))))
       (exit peer busy) (step) (->InputSub sub))))
 
-(defn make-port [^Slot slot site deps flow stats]
+(defn make-port [^Slot slot site deps flow]
   (let [port (object-array port-slots)
         peer (frame-peer (.-frame slot))]
     (aset port port-slot-slot slot)
@@ -816,7 +794,6 @@ T T T -> (EXPR T)
       (if (= site (peer-site peer))
         (m/signal i/combine flow)
         (input-sub port)))
-    (aset port port-slot-stats stats)
     port))
 
 (defn update-inc [m k]
@@ -833,43 +810,11 @@ T T T -> (EXPR T)
                site (frame-site frame))
         port (if (instance? Slot expr)
                (slot-port expr)
-               (let [pexpr (peephole expr)]
-                 #_(if (not= expr pexpr)
-                   (do
-                     (prn 'slot-before) (clojure.pprint/pprint (as-stats expr))
-                     (prn 'slot-after) (clojure.pprint/pprint (as-stats pexpr)))
-                   #_(do
-                     (prn 'slot) (clojure.pprint/pprint (as-stats pexpr))
-                     ))
-                 ;; makes latest-concat work because all ports are incseqs
-                 #_(let [iexpr (->is pexpr)]
-                   (make-port slot site
-                     (deps iexpr update-inc {} site)
-                     (flow iexpr)
-                     (stats iexpr)))
-                 (make-port slot site
-                   (deps pexpr update-inc {} site)
-                   (flow pexpr)
-                   (stats pexpr))))]
-    (aset ^objects (.-nodes frame) (- -1 id) port) nil))
-
-(defn define-incseq-slot [^Slot slot expr]
-  (let [^Frame frame (.-frame slot)
-        id (.-id slot)
-        site (if-some [site (let [cdef (frame-cdef frame)
-                                  nodes (.-nodes cdef)
-                                  id (- -1 id)]
-                              (if (= id (count nodes))
-                                (.-result cdef) (nodes id)))]
-               site (frame-site frame))
-        port (if (instance? Slot expr)
-               (slot-port expr)
                (let [pexpr (peephole expr)
                      iexpr (->is pexpr)]
                  (make-port slot site
                    (deps iexpr update-inc {} site)
-                   (flow iexpr)
-                   (stats iexpr))))]
+                   (->flow iexpr))))]
     (aset ^objects (.-nodes frame) (- -1 id) port) nil))
 
 (defn node
@@ -887,7 +832,7 @@ T T T -> (EXPR T)
 (defn define-node
   "Defines signals node id for given frame."
   [^Frame frame id expr]
-  (define-incseq-slot (node frame id) expr))
+  (define-slot (node frame id) expr))
 
 (defn slot-id
   "Returns the id of given slot."
@@ -905,9 +850,7 @@ T T T -> (EXPR T)
         frame (->Frame peer slot rank site ctor
                 (object-array (inc nodec)) (object-array callc) nil)
         built ((.-build cdef) frame)]
-    ;; (prn 'build)
-    ;; (clojure.pprint/pprint (as-stats built))
-    (define-incseq-slot (->Slot frame (- -1 nodec)) built) frame))
+    (define-slot (->Slot frame (- -1 nodec)) built) frame))
 
 (defn decode [^String s opts]
   #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts))
@@ -1500,14 +1443,13 @@ T T T -> (EXPR T)
     (aset call call-slot-port
       (make-port slot site
         (deps pexpr update-inc {} site)
-        (flow pexpr)
-        (stats pexpr)
+        (->flow pexpr)
         #_(i/latest-product
           (fn [ctor]
             (let [rank (aget call call-slot-rank)
                   frame (make-frame peer slot rank site ctor)]
               (aset call call-slot-rank (inc rank)) frame))
-          (flow expr))))
+          (->flow expr))))
     (aset call call-slot-rank (identity 0))
     call))
 
