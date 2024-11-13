@@ -343,12 +343,21 @@ v3 to expose the full differential diff lifecycle)"
          (r/make-peer :server ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
            subject# (r/->defs {::Main ~source}) ::Main nil)))))
 
+(defn- build-properly-configured? [compiler-state]
+  (let [shadow-build-state (:shadow.build.cljs-bridge/state compiler-state)]
+    (or (not= :dev (:shadow.build/mode shadow-build-state)) ; only check config in dev mode
+      (contains? (:hyperfiddle.electric.shadow-cljs/hooks3 shadow-build-state) 'hyperfiddle.electric.shadow-cljs.hooks3/reload-clj))))
+
 (defmacro boot-client [opts Main & args]
-  (let [env (merge (lang/normalize-env &env) web-config opts)
-        source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-    `(let [[subject# handler#] (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)]
-       (r/peer-boot (r/make-peer :client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-                      subject# (r/->defs {::Main ~source}) ::Main nil) handler#))))
+  (if (build-properly-configured? (deref cljs.env/*compiler*))
+    (let [env (merge (lang/normalize-env &env) web-config opts )
+          source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
+      `(let [[subject# handler#] (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)]
+         (r/peer-boot (r/make-peer :client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+                        subject# (r/->defs {::Main ~source}) ::Main nil) handler#)))
+    (let [message "Electric compilation error: a required shadow build hook is missing. Please add `hyperfiddle.electric.shadow-cljs.hooks3/reload-clj under :build-hooks in shadow-cljs.edn"]
+      (println message)
+      `(cc/fn [] (println ~message)))))
 
 (defmacro boot-single [opts Main & args]
   (let [env (merge (lang/normalize-env &env) web-config opts)
