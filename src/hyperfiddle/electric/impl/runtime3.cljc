@@ -474,13 +474,23 @@ T T T -> (EXPR T)
             (merge m k)) m)))
     (fn [& args] args)))
 
-(defn dispatch [nm F & args]
-  (let [arity (count args)]
-    (if-some [ctor (F arity)]
-      (apply bind-args (bind-self ctor) args)
-      (let [[fixed map? ctor] (get-variadic nm F arity)]
+(defn dispatch-varargs [nm F arity args]
+  (let [[fixed map? ctor] (get-variadic nm F arity)]
         (bind (apply bind-args (bind-self ctor) (take fixed args))
-          fixed (apply ap {} (pure (varargs map?)) (drop fixed args)))))))
+          fixed (apply ap {} (pure (varargs map?)) (drop fixed args)))))
+
+(defn dispatch
+  ([nm F] (if-some [ctor (F 0)] (bind-self ctor) (dispatch-varargs nm F 0 [])))
+  ([nm F a] (if-some [ctor (F 1)] (-> ctor bind-self (bind 0 a)) (dispatch-varargs nm F 1 [a])))
+  ([nm F a b] (if-some [ctor (F 2)] (-> ctor bind-self (bind 0 a) (bind 1 b)) (dispatch-varargs nm F 2 [a b])))
+  ([nm F a b c] (if-some [ctor (F 3)] (-> ctor bind-self (bind 0 a) (bind 1 b) (bind 2 c)) (dispatch-varargs nm F 3 [a b c])))
+  ([nm F a b c d] (if-some [ctor (F 4)] (-> ctor bind-self (bind 0 a) (bind 1 b) (bind 2 c) (bind 3 d)) (dispatch-varargs nm F 4 [a b c d])))
+  ([nm F a b c d e] (if-some [ctor (F 5)] (-> ctor bind-self (bind 0 a) (bind 1 b) (bind 2 c) (bind 3 d) (bind 4 e)) (dispatch-varargs nm F 5 [a b c d e])))
+  ([nm F a b c d e & args]
+   (let [args (list* a b c d e args), arity (count args)]
+     (if-some [ctor (F arity)]
+       (apply bind-args (bind-self ctor) args)
+       (dispatch-varargs nm F arity args)))))
 
 (defn peer-defs [^objects peer]
   (aget peer peer-slot-defs))
