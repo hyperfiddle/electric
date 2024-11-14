@@ -956,6 +956,8 @@ T T T -> (EXPR T)
     (aset o output-slot-pending (identity 0))
     (aset o output-slot-frozen false)
     (aset o output-slot-ready o)
+    (aset output output-slot-port nil)
+    ((aget output output-slot-process))
     (aset remote remote-slot-outputs
       (assoc (aget remote remote-slot-outputs)
         (port-slot port) o))
@@ -1054,6 +1056,9 @@ T T T -> (EXPR T)
   (aset output output-slot-request-remote (identity 0))
   (aset output output-slot-pending (identity 0)))
 
+(defn channel-cancel [^objects channel]
+  ((aget channel channel-slot-process)))
+
 (defn channel-crash [^objects channel]
   (let [^objects remote (aget channel channel-slot-remote)]
     (aset remote remote-slot-channel nil)
@@ -1073,7 +1078,8 @@ T T T -> (EXPR T)
             (dec (aget channel channel-slot-alive)))
           (try @(aget output output-slot-process)
                (catch #?(:clj Throwable :cljs :default) _)))
-        (recur)))))
+        (recur)))
+    (channel-cancel channel)))
 
 (defn output-local-toggle [^objects output]
   (let [^objects remote (aget output output-slot-remote)
@@ -1181,9 +1187,6 @@ T T T -> (EXPR T)
       (output-remote-down (slot-port slot)))
     (dotimes [_ diff]
       (output-remote-up (slot-port slot)))))
-
-(defn channel-cancel [^objects channel]
-  ((aget channel channel-slot-process)))
 
 (defn channel-transfer [^objects channel]
   (let [^objects remote (aget channel channel-slot-remote)

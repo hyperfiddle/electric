@@ -1,5 +1,6 @@
 (ns hyperfiddle.electric.impl.runtime3-test
-  (:require [missionary.core :as m]
+  (:require [hyperfiddle.incseq :as i]
+            [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric.impl.lang3 :as l]
             [hyperfiddle.electric.impl.runtime3 :as r]
@@ -287,3 +288,22 @@
 
 (tests
   (set (keys (r/->defs {:a (fn [_ _] {:b (fn [_ _] {:a (fn [_ _])})})}))) := #{:a :b})
+
+(tests
+  (let [client-peer (peer :client (fn [_]
+                                    (rcf/tap :reader-spawn)
+                                    #(rcf/tap :reader-dispose))
+                      (e/server (identity (e/client (#(throw (ex-info "oops" {})))))))
+        client-writer-ps ((r/peer-events client-peer) #(rcf/tap :writer-step) #(rcf/tap :writer-done))
+        client-root-ps ((r/peer-root client-peer) #(rcf/tap :root-step) #(rcf/tap :root-done))]
+    % := :reader-spawn
+    % := :writer-step
+    % := :root-step
+    @client-root-ps := (i/empty-diff 0)
+    (try @client-writer-ps
+         (catch #?(:clj Throwable :cljs :default) _
+           (rcf/tap :error)))
+    % := :root-step
+    % := :reader-dispose
+    % := :writer-done
+    % := :error))
