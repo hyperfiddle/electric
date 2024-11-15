@@ -225,3 +225,9 @@
        68459991991856131 #:db{:id 68459991991856131}}
       nil]
   nil)
+
+(defn easy-attr [schema k]
+  ((juxt
+     (comp unqualify identify :db/valueType)
+     (comp unqualify identify :db/cardinality))
+   (k schema)))
