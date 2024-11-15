@@ -80,14 +80,31 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
 (defn has-ns?
   "State if a `named` value (keyword or symbol) has such namespace `ns`.
   `ns` can be be a string, or a non-namespaced keyword or symbol."
-  [ns named]
-  {:pre [(or (string? ns) (simple-ident? ns))]}
-  (= (name ns) (namespace named)))
+  [?ns named]
+  {:pre [(or (string? ?ns) (simple-ident? ?ns) (nil? ?ns))]}
+  (= (some-> ?ns name) (some-> named namespace)))
+
+(tests
+  (has-ns? 'user :user/x) := true
+  (has-ns? :user :user/x) := true
+  (has-ns? "user" :user/x) := true
+  (has-ns? 'user :x) := false
+  (has-ns? 'user nil) := false
+  ;(has-ns? *ns* ::x) := true -- crash, todo
+  (has-ns? nil :user/x) := false
+  (has-ns? nil :x) := true
+  (has-ns? nil nil) := true)
 
 (defn select-ns
   "Like `select-keys` but select all namespaced keys by ns."
   [ns map]
   (into (empty map) (filter (fn [[k _v]] (has-ns? ns k))) map))
+
+(tests
+  (select-ns 'user {:user/yo 1 :x 2}) := {:user/yo 1}
+  (select-ns 'user {:x 2}) := {}
+  (select-ns nil {:a 1 :user/b 2}) := {:a 1}
+  (select-ns 'user nil) := nil)
 
 (defn -auto-props "qualify any unqualified keys to the current ns and then add qualified defaults"
   [ns props defaults-qualified]
