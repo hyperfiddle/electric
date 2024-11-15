@@ -49,9 +49,6 @@
             [t edit]) ; edit request, bubbles upward to service
           (e/amb)))))) ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
 
-; include the error for the pending monitor - unclear if right
-; encapsulate errors, the form already saw it when forwarding here
-
 (e/defn Checkbox! [k checked & {:keys [id label parse edit-monoid] :as props
                                 :or {id (random-uuid) parse identity edit-monoid hash-map}}]
   ; todo esc?
