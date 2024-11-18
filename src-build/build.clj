@@ -5,7 +5,8 @@
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
-(def basis (b/create-basis {:project "deps.edn"}))
+(def basis     (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn"}))
+(def aot-basis (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn", :aliases [:build-deps]}))
 
 (def class-dir "target/classes")
 
@@ -26,6 +27,10 @@
     (b/write-pom opts)
     (println "Copying resources to" class-dir)
     (b/copy-dir {:src-dirs ["src"], :target-dir class-dir})
+    (b/compile-clj {:basis aot-basis
+                    :class-dir class-dir
+                    :ns-compile '[hyperfiddle.electric.impl.entrypoint hyperfiddle.electric.impl.auth hyperfiddle.electric.impl.jwt hyperfiddle.electric.impl.auth0 hyperfiddle.electric.shadow-cljs.hooks3]
+                    :filter-nses '[hyperfiddle.electric.impl.entrypoint hyperfiddle.electric.impl.auth hyperfiddle.electric.impl.jwt hyperfiddle.electric.impl.auth0 hyperfiddle.electric.shadow-cljs.hooks3]})
     (println "Building jar" jar-file)
     (b/jar opts)))
 
