@@ -1,0 +1,3 @@
+[submodule "electric-secret"]
+	path = vendor/electric-secret
+	url = git@gitlab.com:hyperfiddle/electric-secret.git
