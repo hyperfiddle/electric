@@ -617,14 +617,16 @@
                             ts (analyze v e env ts)]
                         (recur bform e env ts))
         (case) (let [[_ test & brs] form
-                     [default brs2] (if (odd? (count brs)) [(last brs) (butlast brs)] [:TODO brs])
-                     <mp> (->box {})
-                     f (fn [bs [v br]]
-                         (let [b (gensym "case-val")]
-                           (<mp> (reduce (fn [ac nx] (assoc ac (list 'quote nx) b)) (<mp>) (if (seq? v) v [v])))
-                           (conj bs b `(::ctor ~br))))
-                     bs (transduce (partition-all 2) (completing f) [] brs2)]
-                 (recur (?meta form `(let* ~bs (::call (~(<mp>) ~test (::ctor ~default))))) pe env ts))
+                     [default brs2] (if (odd? (count brs))
+                                      [(last brs) (butlast brs)]
+                                      [`(r/case-default-required) brs])
+                     <br*> (->box []), track (fn [g] (-> (<br*>) (conj g) (<br*>)) g)
+                     code (transduce (take-nth 2) (fn ([ac] (conj ac (track (gensym "default"))))
+                                                    ([ac nx] (conj ac nx (track (gensym "branch"))))) [] brs2)]
+                 (recur (?meta form
+                          `(::call ((fn* ([test# ~@(<br*>)] (~'case test# ~@code)))
+                                    ~test ~@(-> (into [] (comp (take-nth 2) (map #(list ::ctor %))) (next brs2))
+                                              (conj `(::ctor ~default))))))  pe env ts))
         (quote) (let [e (->id)]
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form})))
@@ -965,18 +967,18 @@
            (if) (under ts {::t ::if}
                   (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
 
-           (case) (let [[_ test & branch*] form]
-                    (under ts {::t ::case}
-                      (fn [ts]
-                        (let [ts (under ts {::t ::case-test} (fn [ts] (analyze-foreign ts test env)))]
-                          (reduce (fn [ts nx]
-                                    (if (next nx) ; normal branch with test
-                                      (let [[test form] nx]
-                                        (under ts {::t ::case-branch, ::test test}
-                                          (fn [ts] (analyze-foreign ts form env))))
-                                      (under ts {::t ::case-default}
-                                        (fn [ts] (analyze-foreign ts (first nx) env)))))
-                            ts (eduction (partition-all 2) branch*))))))
+           (clojure.core/case case) (let [[_ test & branch*] form]
+                                      (under ts {::t ::case}
+                                        (fn [ts]
+                                          (let [ts (under ts {::t ::case-test} (fn [ts] (analyze-foreign ts test env)))]
+                                            (reduce (fn [ts nx]
+                                                      (if (next nx) ; normal branch with test
+                                                        (let [[test form] nx]
+                                                          (under ts {::t ::case-branch, ::test test}
+                                                            (fn [ts] (analyze-foreign ts form env))))
+                                                        (under ts {::t ::case-default}
+                                                          (fn [ts] (analyze-foreign ts (first nx) env)))))
+                                              ts (eduction (partition-all 2) branch*))))))
 
            (var) (under ts {::t ::builtin-var} (fn [ts] (analyze-foreign ts (second form) env)))
 
