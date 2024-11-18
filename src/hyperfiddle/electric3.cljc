@@ -481,3 +481,9 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 
 (cc/defn dbg< [nm v] (dbg/instrument* nm v))
 (hyperfiddle.electric3/defn DBG [nm x] (->> x pure (dbg< nm) join))
+
+;; low level unbundled conditional switch
+;; for taking a branch on one peer and joining it on another
+;; using low-level primitives
+(defmacro case_ [test & branches] `(::lang/case_ ~test ~@branches))
+(defmacro call_ [ctor] `(::lang/call ~ctor))
