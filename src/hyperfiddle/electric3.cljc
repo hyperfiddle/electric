@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [fn defn apply letfn for])
   (:require [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
+            #?(:clj [hyperfiddle.electric.impl.entrypoint]) ; TODO rename server-entrypoint
             [hyperfiddle.electric-dom3-events :as dom-events]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.electric.impl.mount-point :as mp]
@@ -334,6 +335,9 @@ A mount point can be :
 mount, therefore there is no `on-mount`. (Todo: we intend to rework this API in
 v3 to expose the full differential diff lifecycle)"
   [f] (input (on-unmount* f)))
+
+(defmacro boot-server [opts Main & args]
+  `(hyperfiddle.electric.impl.entrypoint/boot-server ~opts ~Main ~@args))
 
 (defn- build-properly-configured? [compiler-state]
   (let [shadow-build-state (:shadow.build.cljs-bridge/state compiler-state)]

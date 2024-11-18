@@ -8,6 +8,7 @@
          org.clojure/clojurescript  {:mvn/version "1.11.121"}
          org.clojure/tools.logging  {:mvn/version "1.2.4"}
          borkdude/edamame           {:mvn/version "1.4.25"}
+         com.hyperfiddle/electric-secret {:local/root "vendor/electric-secret"} ; prevents building from source, use maven release
          }
 
  :aliases {:shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.26.2"}}
