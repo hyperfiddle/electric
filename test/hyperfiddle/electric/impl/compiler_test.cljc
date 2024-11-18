@@ -380,49 +380,42 @@
 (tests "test-conditionals"
   ;; ({nil (ctor :y)} :x (ctor :z))
   (match (l/test-compile ::Main (case :x nil :y :z))
-    `[(r/cdef 0 [nil] [nil] nil
+    `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure (r/ctor ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap '{} (r/ap '{} (r/pure hash-map) (r/pure 'nil) (r/node ~'frame 0))
-                                     (r/pure :x)
-                                     (r/pure (r/ctor ::Main 2))))
+          (r/define-call ~'frame 0
+            (r/ap '{}
+              (r/pure
+                (fn* [] (tm/_ :x (r/ctor ::Main 1) (r/ctor ::Main 2))))))
           (r/join (r/call ~'frame 0))))
-      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure :y)))
-      (r/cdef 0 [] [] nil (fn [~'frame] (r/pure :z)))])
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure :y)))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame] (r/pure :z)))])
 
   (match (l/test-compile ::Main (case 'foo (foo bar) :share-this :else))
-    `[(r/cdef 0 [nil] [nil] nil
+    `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure (r/ctor ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap '{} (r/ap '{} (r/pure clojure.core/hash-map)
-                                              (r/pure '~'foo) (r/node ~'frame 0)
-                                              (r/pure '~'bar) (r/node ~'frame 0))
-                                     (r/pure '~'foo)
-                                     (r/pure (r/ctor ::Main 2))))
+          (r/define-call ~'frame 0
+            (r/ap '{}
+              (r/pure (fn* [] (tm/_ '~'foo (r/ctor ::Main 1) (r/ctor ::Main 2))))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
-        (fn [~'frame]
-          (r/pure :share-this)))
+        (fn [~'frame] (r/pure :share-this)))
       (r/cdef 0 [] [] nil
-        (fn [~'frame]
-          (r/pure :else)))])
+        (fn [~'frame] (r/pure :else)))])
 
   (match (l/test-compile ::Main (if 1 2 3))
-    `[(r/cdef 0 [nil] [nil] nil
+    `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure (r/ctor ::Main 1)))
-          (r/define-call ~'frame 0 (r/ap '{} (r/ap '{} (r/pure clojure.core/hash-map)
-                                              (r/pure 'nil) (r/node ~'frame 0)
-                                              (r/pure 'false) (r/node ~'frame 0))
-                                     (r/pure 1)
-                                     (r/pure (r/ctor ::Main 2))))
+          (r/define-call ~'frame 0
+            (r/ap '{}
+              (r/pure
+                (fn* [] (tm/_ 1 (r/ctor ::Main 1) (r/ctor ::Main 2))))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
-        (fn [~'frame]
-          (r/pure 3)))
+        (fn [~'frame] (r/pure 3)))
       (r/cdef 0 [] [] nil
-        (fn [~'frame]
-          (r/pure 2)))]))
+        (fn [~'frame] (r/pure 2)))]))
 
 (tests "test-lookup"
   (match (l/test-compile ::Main (::lang/lookup 0))
@@ -505,8 +498,8 @@
     `[(r/cdef 0 [nil] [nil nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-call ~'frame 0 (r/pure (r/ctor :hyperfiddle.electric.impl.compiler-test/Main 1)))
-          (r/define-call ~'frame 1 (r/pure (r/ctor :hyperfiddle.electric.impl.compiler-test/Main 2)))
+          (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
+          (r/define-call ~'frame 1 (r/pure (r/ctor ::Main 2)))
           (r/ap '{} (r/pure clojure.core/vector)
             (r/join (r/call ~'frame 0))
             (r/node ~'frame 0)

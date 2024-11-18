@@ -302,9 +302,10 @@
     (with ((l/single {} (tap (case (e/watch !x) foo 1 2))) tap tap)
       % := 1)))
 
-(tests "case on vector"
-  (with ((l/single {} (tap (case '[a b] [a b] 1 2))) tap tap)
-    % := 1))
+#?(:clj                                 ; hello cljs https://clojure.atlassian.net/browse/CLJS-3173
+   (tests "case on vector"
+     (with ((l/single {} (tap (case '[a b] [a b] 1 2))) tap tap)
+       % := 1)))
 
 (tests "case with list"
   (with ((l/single {} (tap (case 'a (a b) 1 2))) tap tap)

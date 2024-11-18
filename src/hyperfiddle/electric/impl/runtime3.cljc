@@ -1632,6 +1632,7 @@ entrypoint.
   (throw (ex-info (str "I cannot resolve [" sym "], maybe it's only defined on the other peer?") {:sym sym})))
 
 (defn tracing [info v] (print "[o_o]" info "=>> ") (prn v) v)
+(defn case-default-required [] (throw (ex-info "case default required" {})))
 
 (defn ->defs [mp]
   (loop [ret {}, left mp]
