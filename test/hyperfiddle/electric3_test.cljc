@@ -64,6 +64,10 @@
   (with ((l/single {} (let [x 1] (tap (#(inc x))))) tap tap)
     % := 2))
 
+(tests "sharing"
+  (with ((l/single {} (let [x 1] (tap [x x]))) tap tap)
+    % := [1 1]))
+
 #?(:clj
    (tests "."
      (with ((l/single {} (tap (. java.time.Instant EPOCH))) tap tap)
@@ -606,6 +610,7 @@
                            ($ Nf))))) tap tap)
     % := ::outer))
 
+;; TODO unique locals, then lift upwards. Allows more ap-pures to collapse
 (tests "lazy parameters. Flows are not run unless sampled"
   (with ((l/single {} [($ (e/fn [_]) (tap :not)) (tap :boom)]) tap tap)
     % := :boom))

@@ -1313,6 +1313,27 @@
 
 (defn get-program-order [ts e] (::pg-order (ts/->node ts e)))
 
+(defn pprint-db [ts write]
+  (write "\n")
+  (let [indent (fn indent [depth] (write (str/join "" (repeat (* 2 depth) \space))))
+        describe (fn describe [nd]
+                   (write (name (::type nd))) (when (::uid nd) (write " (") (write (::uid nd)) (write ")"))
+                   (write " ")
+                   (case (::type nd)
+                     (::literal) (write (::v nd))
+                     (::localref) (write (try (ts/? ts (uid->e ts (::ref nd)) ::k)
+                                              (catch Throwable e (prn nd) 'DANGLING #_(throw e))))
+                     (::mklocal) (write (::k nd))
+                     (::bindlocal) (write (::k nd))
+                     (::site) (write (::site nd))
+                     #_else nil)
+                   (write "\n"))
+        go (fn go [e depth]
+             (indent depth) (describe (ts/->node ts e))
+             (run! #(go % (inc depth)) (get-children-e ts e)))]
+    (go (get-root-e ts) 0)
+    ts))
+
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (when (::print-analysis env) (prn :analysis) (run! prn (ts->reducible ts)))
   (let [pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (pure-fns (::v nd))))
@@ -1321,7 +1342,11 @@
           (reduce (fn [ts ap-uid]
                     (let [ap-e (uid->e ts ap-uid), ce (get-children-e ts ap-e)]
                       (when (::print-ap-collapse env) (prn :ap-collapse) (run! prn (ts->reducible ts)))
-                      (if (every? #(= ::pure (::type (ts/->node ts (get-ret-e ts %)))) ce)
+                      #_(when (and (every? #(= ::pure (::type (ts/->node ts (get-ret-e ts %)))) ce)
+                              (not (every? #(= ::pure (ts/? ts % ::type)) ce)))
+                        (prn 'pure-not-pure ap-uid)
+                        (pprint-db ts print))
+                      (if (every? #(= ::pure #_(ts/? ts % ::type) (::type (ts/->node ts (get-ret-e ts %)))) ce)
                         (if (pure-fn? (->> ce first (get-ret-e ts) (get-child-e ts) (ts/->node ts)))
                           ;; (ap (pure vector) (pure 1) (pure 2)) -> (pure (comp-with list vector 1 2))
                           (-> (reduce (fn [ts ce]
@@ -1343,7 +1368,7 @@
                                 (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp}))
                               ce)))
                         ts)))
-            ts (eduction (map #(e->uid ts %)) (ts/find ts ::type ::ap))))
+            ts (identity #_reverse (eduction (map #(e->uid ts %)) (ts/find ts ::type ::ap)))))
         ->ctor-idx (->->id)
         seen (volatile! #{})
         mark-used-ctors (fn mark-used-ctors [ts e]
@@ -1406,6 +1431,38 @@
                           ts (->> ts :ave ::used-refs vals (reduce into)
                                (mapv #(e->uid ts %))
                                (remove #(has-node? ts %)))))
+        literal-node? (fn [ts mklocal-uid]
+                        (let [localv-e (->localv-e ts mklocal-uid)]
+                          (and (= ::pure (ts/? ts localv-e ::type))
+                            (let [nd (ts/->node ts (get-child-e ts localv-e))]
+                              (and (= ::literal (::type nd))
+                                (let [v (::v nd)]
+                                  (or (string? v) (keyword? v) (number? v))))))))
+        ?delete-ctor-nodes (fn ?delete-ctor-nodes [ts mklocal-uid]
+                             (reduce ts/del ts (ts/find ts ::ctor-ref mklocal-uid)))
+        ?delete-ctor-frees (fn ?delete-ctor-frees [ts mklocal-uid]
+                             (reduce ts/del ts (ts/find ts ::closed-ref mklocal-uid)))
+        inline-literals (fn inline-literals [ts]
+                          (reduce (fn [ts mklocal-uid]
+                                    (let [mklocal-nd (ts/->node ts (uid->e ts mklocal-uid))
+                                          localrefs-e (ts/find ts ::type ::localref, ::ref mklocal-uid)
+                                          localv-e (->localv-e ts mklocal-uid)
+                                          bindlocal-e (ts/? ts localv-e ::parent)
+                                          v (ts/? ts (get-child-e ts localv-e) ::v)]
+                                      ;; (prn 'inlining (::k mklocal-nd))
+                                      (-> (reduce (fn [ts localref-e]
+                                                    ;; (prn localref-e)
+                                                    (-> ts
+                                                      (ts/asc localref-e ::type ::pure)
+                                                      (ts/add {:db/id (->id), ::parent localref-e
+                                                               ::type ::literal, ::v v})))
+                                            ts localrefs-e)
+                                        (delete-point-recursively localv-e)
+                                        (implode-point bindlocal-e)
+                                        (implode-point (:db/id mklocal-nd))
+                                        (?delete-ctor-nodes mklocal-uid)
+                                        (?delete-ctor-frees mklocal-uid))))
+                            ts (eduction (map #(e->uid ts %)) (filter #(literal-node? ts %)) (ts/find ts ::type ::mklocal))))
         in-a-call? (fn in-a-call? [ts ref-e mklocal-e]
                      (loop [e (::parent (ts/->node ts ref-e))]
                        (when-let [nd (ts/->node ts e)]
@@ -1496,7 +1553,9 @@
                                                        ::v `(fn* [] (r/cannot-resolve-fn '~(::var nd)))}))))
                                   ts (ts/find ts ::qualified-var `r/cannot-resolve)))
         ts (-> ts mark-used-calls2 index-calls reroute-local-aliases (optimize-locals (get-root-e ts))
-             inline-locals order-nodes order-frees collapse-ap-with-only-pures expand-cannot-resolve)]
+             inline-locals #_(pprint-db print) inline-literals #_(pprint-db print)
+             order-nodes order-frees
+             collapse-ap-with-only-pures #_(pprint-db print) expand-cannot-resolve)]
     (when (::print-db env) (run! prn (ts->reducible ts)))
     ts))
 
