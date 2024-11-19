@@ -1,6 +1,7 @@
 (ns contrib.datomic-contrib
   (:require [contrib.data :refer [index-by unqualify]]
-            [contrib.datomic-m :as d]
+            [contrib.datomic-m :as d] ; care
+            datomic.api
             #_[hyperfiddle.electric :as e] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]
@@ -231,3 +232,29 @@
      (comp unqualify identify :db/valueType)
      (comp unqualify identify :db/cardinality))
    (k schema)))
+
+(defn includes-lowercase? [v needle]
+  (clojure.string/includes?
+    (.toLowerCase (or (str v) "")) ; v is str or str'able, e.g. keyword
+    (.toLowerCase (or needle ""))))
+
+(comment
+  (includes-lowercase? "alice@example.com" "Alice") := true
+  (includes-lowercase? "alice@example.com" "bob") := false
+  (includes-lowercase? "alice@example.com" "") := true
+  (includes-lowercase? :tx.district/richardson-allgrades "tx") := true
+  (includes-lowercase? 17592193910285 "285") := true
+  ;(needle-match 17592193910285 17592193910285) := true -- throws
+  )
+
+(defn ea-includes-lowercase? [db e a search]
+  (cond
+    (instance? clojure.lang.Keyword a) (includes-lowercase? (get (datomic.api/entity db e) a) search)
+    (instance? clojure.lang.PersistentHashSet a) (->> a (map #(ea-includes-lowercase? db e % search))
+                                                   (reduce #(or %1 %2)))))
+(comment
+  (require '[swing.suber-model :refer [*datomic-db* swing-edu]])
+  (ea-includes-lowercase? swing.suber-model/*datomic-db* 17592193910285 :school/name "") := true ; even if excised
+  (ea-includes-lowercase? *datomic-db* swing-edu :school/name "SwingEDU") := true
+  (ea-includes-lowercase? swing.suber-model/*datomic-db* 17592193910285 #{:school/name :db/id} "285") := true
+  (get (datomic.api/entity *datomic-db* swing-edu) :school/name) := true)
