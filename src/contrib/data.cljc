@@ -1,6 +1,8 @@
 (ns contrib.data
   (:require clojure.math
+            clojure.string
             [clojure.datafy :refer [datafy]] ; todo remove
+            #_[contrib.str :refer [any-matches?]] ; cycle, inlined impl
             [hyperfiddle.rcf :refer [tests]])
   #?(:cljs (:require-macros [contrib.data :refer [auto-props]])))
 
@@ -375,8 +377,12 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
                           (cond-> [] (keep? x input) (conj [depth x]))))))
     (datafy xs)))
 
+(defn- any-matches? [coll needle] ; duplicate of contrib.str/any-matches?
+  (let [substr (clojure.string/lower-case (str needle))]
+    (some #(when % (clojure.string/includes? (clojure.string/lower-case (str %)) substr)) coll)))
+
 (defn treelister
-  ([xs] (treelister xs (fn [_]) (fn [_ _] true)))
+  ([xs] (treelister (fn [_]) any-matches? xs))
   ([children-fn keep? xs] (fn [input] (-tree-list 0 xs children-fn keep? input))))
 
 (tests
