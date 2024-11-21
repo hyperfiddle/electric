@@ -482,16 +482,16 @@
                   (skip-auto-siting (for-env (->env-type env)))
                   (a-peer))))))))))
 
+(defn e->uid [ts e] (ca/is (::uid (ts/->node ts e)) some? "node without uid" {:e e, :nd (ts/->node ts e)}))
+(defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
 (defn ->bindlocal-value-e [ts e] (first (get-children-e ts e)))
 (defn ->bindlocal-body-e [ts e] (second (get-children-e ts e)))
-(defn ->localv-e [ts mklocal-uid]
-  (->> (ts/find ts ::type ::bindlocal, ::ref mklocal-uid) first (get-child-e ts)))
+(defn ->localv-e [ts mklocal-uid] (get-child-e ts (uid->e ts mklocal-uid)))
 
 
 (defn get-ret-e [ts e]
   (let [nd (get (:eav ts) e)]
     (case (::type nd)
-      (::bindlocal) (recur ts (->bindlocal-body-e ts e))
       (::site ::sitable ::mklocal) (recur ts (get-child-e ts e))
       #_else e)))
 
@@ -501,24 +501,23 @@
       (case (::type nd)
         (::literal ::ap ::join ::pure ::comp ::ctor ::call ::frame ::sitable) e
         (::site) (when (some? (::site nd)) (recur (::parent nd)))
-        (::var ::node ::lookup ::mklocal ::bindlocal ::localref) (some-> (::parent nd) recur)
+        (::var ::node ::lookup ::mklocal ::localref) (some-> (::parent nd) recur)
         #_else (throw (ex-info (str "can't find-sitable-point-e for " (pr-str (::type nd))) (or nd {})))))))
 
 (defn get-site [ts e]
   (loop [e (find-sitable-point-e ts e)]
     (when-some [nd (get (:eav ts) e)]
-      (case (::type nd)
-        ::site (::site nd)
-        #_else (recur (::parent nd))))))
+      (if (contains? nd ::site) (::site nd) (recur (::parent nd))))))
 
 (defn get-local-site [ts localv-e]
   (let [ret-e (get-ret-e ts localv-e)]
     (loop [e ret-e]
       (let [nd (ts/->node ts e)]
-        (case (::type nd)
-          (::localref) (get-local-site ts (->localv-e ts (::ref nd)))
-          (::site) (::site nd)
-          #_else (recur (::parent nd)))))))
+        (if (contains? nd ::site)
+          (::site nd)
+          (case (::type nd)
+            (::localref) (recur (->localv-e ts (::ref nd)))
+            #_else (recur (::parent nd))))))))
 
 (defn resolve-as-non-local [sym env] (resolve-symbol sym (update env :locals dissoc sym)))
 
@@ -579,8 +578,6 @@
   (swap! @(requiring-resolve 'cljs.env/*compiler*)
     assoc-in [:cljs.analyzer/namespaces ns :defs sym] {:name sym}))
 
-(defn e->uid [ts e] (ca/is (::uid (ts/->node ts e)) some? "node without uid" {:e e, :nd (ts/->node ts e)}))
-(defn uid->e [ts uid] (first (ca/check #(= 1 (count %)) (ts/find ts ::uid uid))))
 (defn reparent-children [ts from-e to-e]
   (reduce (fn [ts e] (ts/asc ts e ::parent to-e)) ts (ts/find ts ::parent from-e)))
 
@@ -595,8 +592,10 @@
     :clj (if (and (symbol? f) (jvm-type? f)) f 'Object)
     :cljs (if (and (symbol? f) (js-type? f env)) f 'js/Object)))
 
+(defn ->node [ts uid] (ts/->node ts (ts/find1 ts ::uid uid)))
+
 (defn analyze [form pe env {{::keys [->id ->uid]} :o :as ts}]
-  (let [env (?update-meta env form)]
+  (let [env (?update-meta env form), ctor (::ctor-uid env)]
     (cond
       (and (seq? form) (seq form))
       (case (first form)
@@ -608,14 +607,13 @@
                             bform (->> bs (partition 2) reverse)))
                    pe env ts))
         (::mklocal) (let [[_ k bform] form, e (->id), uid (->uid)
-                          ts (-> ts (ts/add {:db/id e, ::parent pe, ::type ::mklocal, ::k k, ::uid uid})
+                          ts (-> ts (ts/add {:db/id e, ::ctor-local ctor, ::type ::mklocal
+                                             ::k k, ::uid uid, ::site (::current env)})
                                (?add-source-map e form env))]
-                      (recur bform e (update-in env [:locals k] assoc ::electric-let uid) ts))
-        (::bindlocal) (let [[_ k v bform] form, e (->id)
-                            ts (ts/add ts {:db/id e, ::parent pe, ::type ::bindlocal ::k k
-                                           ::ref (-> env :locals (get k) ::electric-let)})
-                            ts (analyze v e env ts)]
-                        (recur bform e env ts))
+                      (recur bform pe (update-in env [:locals k] assoc ::electric-let uid) ts))
+        (::bindlocal) (let [[_ k v bform] form
+                            mklocal-e (:db/id (->node ts (-> env :locals (get k) ::electric-let)))]
+                        (recur bform pe env (analyze v mklocal-e env ts)))
         (::case_) (let [[_ test & brs] form
                         [default brs2] (if (odd? (count brs))
                                          [(last brs) (butlast brs)]
@@ -711,16 +709,16 @@
                   :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
                             (add-ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env form ts))))
         (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
-        (::ctor) (let [e (->id), ce (->id)]
-                   (recur (second form)
-                     ce env (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                              (ts/add {:db/id ce, ::parent e, ::type ::ctor, ::uid (->uid)})
-                              (?add-source-map e form env))))
+        (::ctor) (let [e (->id), ce (->id), uid (->uid)]
+                   (recur (second form) ce (assoc env ::ctor-uid uid)
+                     (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                       (ts/add {:db/id ce, ::parent e, ::type ::ctor, ::uid uid})
+                       (?add-source-map e form env))))
         (::call) (let [e (->id)] (recur (second form) e env
-                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid)})
+                                   (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-in-ctor ctor})
                                      (?add-source-map e form env))))
         (::tag) (let [e (->id)] (recur (second form) e env
-                                  (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-type ::tag})
+                                  (-> (ts/add ts {:db/id e, ::parent pe, ::type ::call, ::uid (->uid), ::call-in-ctor ctor, ::call-type ::tag})
                                     (?add-source-map e form env))))
         (::pure) (let [pure (with-meta (gensym "pure") {::dont-inline true})]
                    (recur `(let* [~pure ~(second form)] (::pure-gen ~pure)) pe env ts))
@@ -730,7 +728,7 @@
         (::join) (let [e (->id)] (recur (second form) e env (-> (ts/add ts {:db/id e, ::parent pe, ::type ::join})
                                                               (?add-source-map e form env))))
         (::site) (let [[_ site bform] form, current (::current env), env2 (assoc env ::current site)]
-                   (if (or (nil? site) (= site current) (= ::bindlocal (::type (ts/->node ts pe))))
+                   (if (or (nil? site) (= site current))
                      (let [e (->id)]
                        (recur bform e env2
                          (-> (ts/add ts {:db/id e, ::parent pe, ::type ::site, ::site site})
@@ -1125,9 +1123,12 @@
        (when (or (seq arg*) (seq e-local*) (seq dyn*))
          (list* (list 'fn* (into arg* e-local*) code) (into val* e-local*)))))))
 
-(defn find-ctor-e [ts e]
-  (let [pe (::parent (get (:eav ts) e))]
-    (if (or (nil? pe) (= ::ctor (::type (get (:eav ts) pe)))) pe (recur ts pe))))
+(defn find-ctor-uid [ts e]
+  (let [nd (ts/->node ts e)]
+    (case (::type nd)
+      (::ctor) (::uid nd)
+      (::mklocal) (::ctor-local nd)
+      #_else (some->> (::parent nd) (recur ts)))))
 
 (defn- ts->reducible* [ts f init]
   (loop [ac init, es (cons (get-root-e ts) (set/difference (-> ts :eav keys set) (->> ts :ave ::parent vals (reduce into)))), seen #{}]
@@ -1143,9 +1144,6 @@
     (reduce [_ f init] (ts->reducible* ts f init))
     (reduce [_ f] (ts->reducible* ts f (f)))))
 
-(defn get-node-idx [ts ctor-uid uid]
-  (->> (ts/find ts ::ctor-node ctor-uid, ::ctor-ref uid) first (ts/->node ts) ::node-idx))
-
 (defn ->thunk [xs] `(fn* [] (~@xs)))
 
 (defn tag-call? [ts e] (= ::tag (::call-type (ts/->node ts e))))
@@ -1157,50 +1155,46 @@
       (some-> (ts/? ts e ::parent) (recur)))))
 
 (defn emit [ts e ctor-e env nm]
-  ((fn rec [e]
-     (let [nd (get (:eav ts) e)]
-       (case (::type nd)
-         ::literal (::v nd)
-         ::ap (list* `r/ap (list 'quote (or (->code-meta ts e) {})) (mapv rec (get-children-e ts e)))
-         ::var (let [in (::resolved-in nd)]
-                 (list* `r/lookup 'frame (keyword (::qualified-var nd))
-                   (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
-         ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/resolve 'frame (keyword (::node nd)))))
-         ::join (list `r/join (rec (get-child-e ts e)))
-         ::pure (list `r/pure (rec (get-child-e ts e)))
-         ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e))) #_(list 'fn* '[] (doall (map rec (get-children-e ts e))))
-         ::site (recur (get-child-e ts e))
-         ::sitable (recur (get-child-e ts e))
-         ::ctor (list* `r/ctor nm (::ctor-idx nd)
-                  (mapv (fn [e]
-                          (let [nd (ts/->node ts e)]
-                            (case (::closed-over nd)
-                              ::node (list `r/node 'frame
-                                       (get-node-idx ts
-                                         (e->uid ts (find-ctor-e ts (uid->e ts (::ctor-free nd))))
-                                         (::closed-ref nd)))
-                              ::free (list `r/free 'frame
-                                       (->> (ts/find ts
-                                              ::ctor-free (e->uid ts
-                                                            (find-ctor-e ts (uid->e ts (::ctor-free nd))))
-                                              ::closed-ref (::closed-ref nd))
-                                         first (ts/->node ts) ::free-idx)))))
-                    (ts/find ts ::ctor-free (e->uid ts e))))
-         ::call (if (tag-call? ts e)
-                  (list `r/pure (list `r/tag 'frame (::call-idx nd)))
-                  (list `r/join (list `r/call 'frame (::call-idx nd))))
-         ::frame 'frame
-         ::lookup (list* `r/lookup 'frame (::sym nd) (when-some [c (?get-child-e ts e)] (list (rec c))))
-         ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
-         ::bindlocal (recur (get-ret-e ts (->bindlocal-body-e ts e)))
-         ::localref
-         (if-some [node-e (first (ts/find ts ::ctor-node (e->uid ts ctor-e), ::ctor-ref (::ref nd)))]
-           (list `r/node 'frame (::node-idx (ts/->node ts node-e)))
-           (if-some [free-e (first (ts/find ts ::ctor-free (e->uid ts ctor-e), ::closed-ref (::ref nd)))]
-             (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
-             (throw (ex-info "localref must be a node or free" nd))))
-         #_else (throw (ex-info (str "cannot emit on " (pr-str (::type nd))) (or nd {}))))))
-   e))
+  (let [ctor-uid (e->uid ts ctor-e)]
+    ((fn rec [e]
+       (let [nd (get (:eav ts) e)]
+         (case (::type nd)
+           ::literal (::v nd)
+           ::ap (list* `r/ap (list 'quote (or (->code-meta ts e) {})) (mapv rec (get-children-e ts e)))
+           ::var (let [in (::resolved-in nd)]
+                   (list* `r/lookup 'frame (keyword (::qualified-var nd))
+                     (when (or (nil? in) (= in (->env-type env))) [(list `r/pure (::qualified-var nd))])))
+           ::node (list `r/lookup 'frame (keyword (::node nd)) (list `r/pure (list `r/resolve 'frame (keyword (::node nd)))))
+           ::join (list `r/join (rec (get-child-e ts e)))
+           ::pure (list `r/pure (rec (get-child-e ts e)))
+           ::comp ((or (::comp-fn nd) ->thunk) (eduction (map rec) (get-children-e ts e))) #_(list 'fn* '[] (doall (map rec (get-children-e ts e))))
+           ::site (recur (get-child-e ts e))
+           ::sitable (recur (get-child-e ts e))
+           ::ctor (list* `r/ctor nm (::ctor-idx nd)
+                    (mapv (fn [e]
+                            (let [nd (ts/->node ts e)]
+                              (case (::closed-over nd)
+                                ::node (list `r/node 'frame
+                                         (->> (ts/find1 ts ::ctor-node ctor-uid, ::ctor-ref (::closed-ref nd))
+                                           (ts/->node ts) ::node-idx))
+                                ::free (list `r/free 'frame
+                                         (->> (ts/find1 ts ::ctor-free ctor-uid, ::closed-ref (::closed-ref nd))
+                                           (ts/->node ts) ::free-idx)))))
+                      (ts/find ts ::ctor-free (e->uid ts e))))
+           ::call (if (tag-call? ts e)
+                    (list `r/pure (list `r/tag 'frame (ca/is (::call-idx nd) number? nd)))
+                    (list `r/join (list `r/call 'frame (ca/is (::call-idx nd) number? nd))))
+           ::frame 'frame
+           ::lookup (list* `r/lookup 'frame (::sym nd) (when-some [c (?get-child-e ts e)] (list (rec c))))
+           ::mklocal (recur (get-ret-e ts (get-child-e ts e)))
+           ::localref
+           (if-some [node-e (first (ts/find ts ::ctor-node (e->uid ts ctor-e), ::ctor-ref (::ref nd)))]
+             (list `r/node 'frame (::node-idx (ts/->node ts node-e)))
+             (if-some [free-e (first (ts/find ts ::ctor-free (e->uid ts ctor-e), ::closed-ref (::ref nd)))]
+               (list `r/free 'frame (::free-idx (ts/->node ts free-e)))
+               (throw (ex-info "localref must be a node or free" nd))))
+           #_else (throw (ex-info (str "cannot emit on " (pr-str (::type nd))) (or nd {}))))))
+     e)))
 
 (defn emit-node-init [ts ctor-e node-e env nm]
   (let [nd (get (:eav ts) node-e)]
@@ -1230,7 +1224,6 @@
                  (::literal ::var ::lookup ::node ::frame) (ord ts e)
                  (::ap ::comp) (ord (reduce rec ts (get-children-e ts e)) e)
                  (::site ::join ::pure ::call ::ctor ::mklocal ::sitable) (ord (rec ts (get-child-e ts e)) e)
-                 (::bindlocal) (-> ts (rec (->bindlocal-value-e ts e)) (rec (->bindlocal-body-e ts e)) (ord e))
                  (::localref) (ord (rec ts (->localv-e ts (::ref nd))) (uid->e ts (::ref nd)))
                  #_else (throw (ex-info (str "cannot compute-program-order on " (pr-str (::type nd))) (or nd {})))
                  )))))
@@ -1271,7 +1264,6 @@
                      (::literal ::var ::lookup ::frame) ts
                      (::ap ::comp) (reduce mark ts (get-children-e ts e))
                      (::site ::join ::pure ::call ::ctor ::mklocal ::sitable) (recur ts (get-child-e ts e))
-                     (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                      (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
                      (::node) (do (vswap! ret conj (::node nd)) ts)
                      #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))]
@@ -1315,27 +1307,29 @@
 
 (defn pprint-db [ts write]
   (write "\n")
-  (let [indent (fn indent [depth] (write (str/join "" (repeat (* 2 depth) \space))))
-        describe (fn describe [nd]
-                   (write (name (::type nd))) (when (::uid nd) (write " (") (write (::uid nd)) (write ")"))
-                   (write " ")
-                   (case (::type nd)
-                     (::literal) (write (::v nd))
-                     (::localref) (write (try (ts/? ts (uid->e ts (::ref nd)) ::k)
-                                              (catch Throwable e (prn nd) 'DANGLING #_(throw e))))
-                     (::mklocal) (write (::k nd))
-                     (::bindlocal) (write (::k nd))
-                     (::site) (write (::site nd))
-                     #_else nil)
-                   (write "\n"))
-        go (fn go [e depth]
-             (indent depth) (describe (ts/->node ts e))
-             (run! #(go % (inc depth)) (get-children-e ts e)))]
+  (letfn [(indent [depth] (write (str/join "" (repeat (* 2 depth) \space))))
+          (describe [nd depth]
+            (write (name (::type nd))) (when (::uid nd) (write " (") (write (::uid nd)) (write ")"))
+            (write " ")
+            (case (::type nd)
+              (::literal) (write (::v nd))
+              (::localref) (write (try (ts/? ts (uid->e ts (::ref nd)) ::k)
+                                       (catch Throwable e (prn nd) 'DANGLING #_(throw e))))
+              (::mklocal) (write (::k nd))
+              (::site) (write (::site nd))
+              (::ctor) (do (run! #(write (str " " (ts/? ts % ::closed-ref))) (ts/find ts ::ctor-free (::uid nd)))
+                           (write "\n")
+                           (run! #(go % (inc depth)) (ts/find ts ::type ::mklocal, ::ctor-local (::uid nd))))
+              #_else nil)
+            (write "\n"))
+          (go [e depth]
+              (indent depth) (describe (ts/->node ts e) depth)
+              (run! #(go % (inc depth)) (get-children-e ts e)))]
     (go (get-root-e ts) 0)
     ts))
 
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
-  (when (::print-analysis env) (prn :analysis) (run! prn (ts->reducible ts)))
+  (when (::print-analysis env) (prn :analysis) (run! prn (->> (:eav ts) vals)))
   (let [pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (pure-fns (::v nd))))
         collapse-ap-with-only-pures
         (fn collapse-ap-with-only-pures [ts]
@@ -1380,7 +1374,6 @@
                                 (::literal ::var ::lookup ::node ::frame) ts
                                 (::ap ::comp) (reduce mark-used-ctors ts (get-children-e ts e))
                                 (::site ::join ::pure ::call ::mklocal ::sitable) (recur ts (get-child-e ts e))
-                                (::bindlocal) (recur ts (->bindlocal-body-e ts e))
                                 (::ctor) (if (::ctor-idx nd)
                                            ts
                                            (recur (ts/asc ts e ::ctor-idx (->ctor-idx)) (get-child-e ts e)))
@@ -1390,17 +1383,23 @@
         ctors-uid (mapv #(e->uid ts %) (get-ordered-ctors-e ts))
         has-node? (fn has-node? [ts uid] (ts/find ts ::ctor-ref uid))
         ensure-node (fn ensure-node [ts uid]
-                      (let [ctor-uid (e->uid ts (find-ctor-e ts (uid->e ts uid)))]
+                      (let [nd (->node ts uid)
+                            ctor-uid (::ctor-local nd) #_(e->uid ts (find-ctor-e ts (uid->e ts uid)))]
                         (cond-> ts (not (has-node? ts uid))
                                 (ts/add {:db/id (->id) ::ctor-node ctor-uid, ::ctor-ref uid}))))
-        ensure-free-node (fn ensure-free-node [ts uid ctor-uid]
+        ;; pctor-uid not strictly necessary in fns below, good for debugging
+        ensure-free-node (fn ensure-free-node [ts uid ctor-uid pctor-uid]
                            (cond-> ts (not (ts/find ts ::ctor-free ctor-uid, ::closed-ref uid))
-                                   (ts/add {:db/id (->id) ::ctor-free ctor-uid, ::closed-ref uid, ::closed-over ::node})))
-        ensure-free-free (fn ensure-free-free [ts uid ctor-uid]
+                                   (ts/add {:db/id (->id) ::ctor-free ctor-uid, ::closed-ref uid
+                                            ::closed-over ::node, ::pctor pctor-uid})))
+        ensure-free-free (fn ensure-free-free [ts uid ctor-uid pctor-uid]
                            (cond-> ts (not (ts/find ts ::ctor-free ctor-uid, ::closed-ref uid))
-                                   (ts/add {:db/id (->id) ::ctor-free ctor-uid, ::closed-ref uid, ::closed-over ::free})))
+                                   (ts/add {:db/id (->id) ::ctor-free ctor-uid, ::closed-ref uid
+                                            ::closed-over ::free, ::pctor pctor-uid})))
         ensure-free-frees (fn ensure-free-frees [ts uid ctors-uid]
-                            (reduce (fn [ts ctor-uid] (ensure-free-free ts uid ctor-uid)) ts ctors-uid))
+                            (reduce (fn [ts [pctor-uid ctor-uid]]
+                                      (ensure-free-free ts uid ctor-uid pctor-uid))
+                              ts (partition 2 1 ctors-uid)))
         order-nodes (fn order-nodes [ts]
                       (reduce (fn [ts nodes-e]
                                 (let [->idx (->->id)]
@@ -1438,30 +1437,25 @@
                               (and (= ::literal (::type nd))
                                 (let [v (::v nd)]
                                   (or (string? v) (keyword? v) (number? v))))))))
-        ?delete-ctor-nodes (fn ?delete-ctor-nodes [ts mklocal-uid]
+        delete-ctor-nodes (fn delete-ctor-nodes [ts mklocal-uid]
                              (reduce ts/del ts (ts/find ts ::ctor-ref mklocal-uid)))
-        ?delete-ctor-frees (fn ?delete-ctor-frees [ts mklocal-uid]
+        delete-ctor-frees (fn delete-ctor-frees [ts mklocal-uid]
                              (reduce ts/del ts (ts/find ts ::closed-ref mklocal-uid)))
         inline-literals (fn inline-literals [ts]
                           (reduce (fn [ts mklocal-uid]
                                     (let [mklocal-nd (ts/->node ts (uid->e ts mklocal-uid))
                                           localrefs-e (ts/find ts ::type ::localref, ::ref mklocal-uid)
                                           localv-e (->localv-e ts mklocal-uid)
-                                          bindlocal-e (ts/? ts localv-e ::parent)
                                           v (ts/? ts (get-child-e ts localv-e) ::v)]
-                                      ;; (prn 'inlining (::k mklocal-nd))
                                       (-> (reduce (fn [ts localref-e]
-                                                    ;; (prn localref-e)
                                                     (-> ts
                                                       (ts/asc localref-e ::type ::pure)
                                                       (ts/add {:db/id (->id), ::parent localref-e
                                                                ::type ::literal, ::v v})))
                                             ts localrefs-e)
-                                        (delete-point-recursively localv-e)
-                                        (implode-point bindlocal-e)
-                                        (implode-point (:db/id mklocal-nd))
-                                        (?delete-ctor-nodes mklocal-uid)
-                                        (?delete-ctor-frees mklocal-uid))))
+                                        (delete-point-recursively (:db/id mklocal-nd))
+                                        (delete-ctor-nodes mklocal-uid)
+                                        (delete-ctor-frees mklocal-uid))))
                             ts (eduction (map #(e->uid ts %)) (filter #(literal-node? ts %)) (ts/find ts ::type ::mklocal))))
         in-a-call? (fn in-a-call? [ts ref-e mklocal-e]
                      (loop [e (::parent (ts/->node ts ref-e))]
@@ -1475,71 +1469,73 @@
                                 (reduce (fn [ts bl-e]
                                           (let [v-e (get-child-e ts bl-e), v-nd (ts/->node ts v-e)]
                                             (if (= ::localref (::type v-nd))
-                                              (let [bl-nd (ts/->node ts bl-e)]
-                                                (reduce (fn [ts lr-e] (ts/asc ts lr-e ::ref (::ref v-nd)))
-                                                  ts
-                                                  (ts/find ts ::type ::localref, ::ref (::ref bl-nd))))
+                                              (-> (let [bl-nd (ts/->node ts bl-e)]
+                                                    (reduce (fn [ts lr-e] (ts/asc ts lr-e ::ref (::ref v-nd)))
+                                                      ts
+                                                      (ts/find ts ::type ::localref, ::ref (::uid bl-nd))))
+                                                (delete-point-recursively bl-e))
                                               ts)))
-                                  ts (ts/find ts ::type ::bindlocal)))
+                                  ts (ts/find ts ::type ::mklocal)))
         optimize-locals (fn optimize-locals [ts e] ; nodes and frees (closed over)
-                          (let [nd (ts/->node ts e)]
-                            (case (::type nd)
-                              (::literal ::var ::lookup ::node ::frame) ts
-                              (::ap ::comp) (reduce optimize-locals ts (get-children-e ts e))
-                              (::site ::join ::pure ::ctor ::call ::mklocal ::sitable) (recur ts (get-child-e ts e))
-                              (::bindlocal) (recur ts (->bindlocal-body-e ts e))
-                              (::localref)
-                              (let [mklocal-uid (::ref nd), mklocal-e (uid->e ts mklocal-uid)
-                                    mklocal-nd (ts/->node ts mklocal-e)
-                                    ctors-e (loop [ac '(), e (::parent (ts/->node ts e))]
-                                              (if (= mklocal-e e)
-                                                ac
-                                                (let [nd (ts/->node ts e)]
-                                                  (recur (cond-> ac (= ::ctor (::type nd)) (conj e)) (::parent nd)))))
-                                    ctors-uid (mapv #(e->uid ts %) ctors-e)
-                                    localv-e (->localv-e ts mklocal-uid)
-                                    ts (cond-> ts (::dont-inline (meta (::k mklocal-nd)))
-                                               (ensure-node mklocal-uid))
-                                    ts (if-some [call-e (in-a-call? ts e mklocal-e)]
-                                         (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
-                                           (ensure-node mklocal-uid))
-                                         ts)
-                                    ts (if (seq ctors-e) ; closed over
-                                         (-> ts (ensure-node mklocal-uid)
-                                           (ensure-free-node mklocal-uid (first ctors-uid))
-                                           (ensure-free-frees mklocal-uid (next ctors-uid)))
-                                         (cond-> (ts/upd ts mklocal-e ::used-refs #(conj (or % #{}) (::uid nd)))
-                                           (or (= 1 (count (::used-refs mklocal-nd))) ; before inc, now it's 2
-                                             (when-some [pt-e (find-sitable-point-e ts e)]
-                                               (not= (get-site ts pt-e) (get-local-site ts localv-e))))
-                                           (ensure-node mklocal-uid)))]
-                                (or (and (@seen mklocal-uid) ts)
-                                  (do (vswap! seen conj mklocal-uid)
-                                      (recur ts (get-ret-e ts localv-e)))))
-                              #_else (throw (ex-info (str "cannot optimize-locals on " (::type nd)) (or nd {}))))))
+                          ((fn go [ts e]
+                             (let [nd (ts/->node ts e)]
+                               (case (::type nd)
+                                 (::literal ::var ::lookup ::node ::frame) ts
+                                 (::ap ::comp) (reduce go ts (get-children-e ts e))
+                                 (::site ::join ::pure ::call ::mklocal ::sitable ::ctor) (recur ts (get-child-e ts e))
+                                 (::localref)
+                                 (let [mklocal-uid (::ref nd), mklocal-e (uid->e ts mklocal-uid)
+                                       mklocal-nd (ts/->node ts mklocal-e)
+                                       localv-e (->localv-e ts mklocal-uid)
+                                       ts (cond-> ts (::dont-inline (meta (::k mklocal-nd)))
+                                                  (ensure-node mklocal-uid))
+                                       ts (if-some [call-e (in-a-call? ts e mklocal-e)]
+                                            (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
+                                              (ensure-node mklocal-uid))
+                                            ts)
+                                       ctor (::ctor-local mklocal-nd)
+                                       ctor-uid* (loop [ctor-uid* '(), e e]
+                                                   (if-some [ctor-uid (find-ctor-uid ts e)]
+                                                     (if (= ctor-uid ctor)
+                                                       ctor-uid*
+                                                       (recur (cons ctor-uid ctor-uid*) (ts/? ts (uid->e ts ctor-uid) ::parent)))
+                                                     ctor-uid*))
+                                       ts (if (seq ctor-uid*) ; closed over
+                                            (-> ts (ensure-node mklocal-uid)
+                                              (ensure-free-node mklocal-uid (first ctor-uid*) ctor)
+                                              (ensure-free-frees mklocal-uid ctor-uid*))
+                                            (cond-> (ts/upd ts mklocal-e ::used-refs #(conj (or % #{}) (::uid nd)))
+                                              (or (= 1 (count (::used-refs mklocal-nd))) ; before inc, now it's 2
+                                                (when-some [pt-e (find-sitable-point-e ts e)]
+                                                  (not= (get-site ts pt-e) (get-local-site ts localv-e))))
+                                              (ensure-node mklocal-uid)))
+                                       ]
+                                   (or (and (@seen mklocal-uid) ts)
+                                     (do (vswap! seen conj mklocal-uid)
+                                         (recur ts (get-ret-e ts localv-e)))))
+                                 #_else (throw (ex-info (str "cannot optimize-locals on " (::type nd)) (or nd {}))))))
+                           ts e))
         ->call-idx (let [mp (zipmap ctors-uid (repeatedly ->->id))]
                      (fn ->call-idx [ctor-uid] ((get mp ctor-uid))))
         seen (volatile! #{})
-        mark-used-calls (fn mark-used-calls [ts ctor-e e]
+        mark-used-calls (fn mark-used-calls [ts e]
                           (if (@seen e)
                             ts
                             (let [nd (ts/->node ts e)]
                               (vswap! seen conj e)
                               (case (::type nd)
                                 (::literal ::var ::lookup ::node ::ctor ::frame) ts
-                                (::ap ::comp) (reduce #(mark-used-calls % ctor-e %2) ts (get-children-e ts e))
-                                (::site ::join ::pure ::mklocal ::sitable) (recur ts ctor-e (get-child-e ts e))
-                                (::bindlocal) (recur ts ctor-e (->bindlocal-body-e ts e))
+                                (::ap ::comp) (reduce mark-used-calls ts (get-children-e ts e))
+                                (::site ::join ::pure ::mklocal ::sitable) (recur ts (get-child-e ts e))
                                 (::call) (if (::ctor-call nd)
                                            ts
-                                           (-> (mark-used-calls ts ctor-e (get-child-e ts e))
-                                             (ts/asc e ::ctor-call (::uid (ts/->node ts ctor-e)))))
-                                (::let) (recur ts ctor-e (->bindlocal-body-e ts e))
+                                           (-> (mark-used-calls ts (get-child-e ts e))
+                                             (ts/asc e ::ctor-call (ca/is (::call-in-ctor nd) number? nd))))
                                 (::localref) (let [nx-e (->> (::ref nd) (->localv-e ts) (get-ret-e ts))]
-                                               (recur ts (find-ctor-e ts nx-e) nx-e))
+                                               (recur ts nx-e))
                                 #_else (throw (ex-info (str "cannot mark-used-calls on " (::type nd)) (or nd {})))))))
         mark-used-calls2 (fn [ts]
-                           (reduce (fn [ts ctor-e] (mark-used-calls ts ctor-e (get-ret-e ts (get-child-e ts ctor-e))))
+                           (reduce (fn [ts ctor-e] (mark-used-calls ts (get-ret-e ts (get-child-e ts ctor-e))))
                              ts (->> ts :ave ::ctor-idx vals (reduce into))))
         index-calls (fn [ts]
                       (reduce (fn [ts e] (ts/asc ts e ::call-idx (->call-idx (::ctor-call (ts/->node ts e)))))
@@ -1556,7 +1552,7 @@
              inline-locals #_(pprint-db print) inline-literals #_(pprint-db print)
              order-nodes order-frees
              collapse-ap-with-only-pures #_(pprint-db print) expand-cannot-resolve)]
-    (when (::print-db env) (run! prn (ts->reducible ts)))
+    (when (::print-db env) (run! prn (ts->reducible ts)) (pprint-db ts print))
     ts))
 
 (defn compile* [nm env ts]
