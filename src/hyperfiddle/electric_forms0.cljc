@@ -68,6 +68,17 @@
         (if waiting? [t (edit-monoid k ((fn [] (-> e .-target .-checked parse))))] (e/amb)))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
+(e/defn RadioGroup [edits]
+  (e/client
+    (let [!only-edit (atom nil)
+          [t edit] (e/watch !only-edit)]
+      (swap! !only-edit (fn [[t _edit :as old] new] (when old (t)) new) edits)
+      (if-not t
+        (e/amb)
+        [(fn ([] (t) (reset! !only-edit nil))
+           ([err] (t err) (reset! !only-edit nil)))
+         edit]))))
+
 (e/defn Button!
   "Transactional button with busy state. Disables when busy."
   [directive & {:keys [label disabled type form] :as props
