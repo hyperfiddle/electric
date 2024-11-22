@@ -49,25 +49,23 @@
             [t edit]) ; edit request, bubbles upward to service
           (e/amb)))))) ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
 
-(e/defn Checkbox! [k checked & {:keys [id label parse edit-monoid] :as props
-                                :or {id (random-uuid) parse identity edit-monoid hash-map}}]
+(e/defn Checkbox! [k checked & {:keys [id type label parse edit-monoid] :as props
+                                :or {id (random-uuid) type :checkbox parse identity edit-monoid hash-map}}]
   ; todo esc?
   (e/client
     (e/amb
-      (dom/div ; checkboxes don't have background so style wrapper div
-        (dom/props {:style {:display "inline-block" :width "fit-content"}})
-        (let [[e t err input-node]
-              (dom/input (dom/props {:type "checkbox", :id id}) (dom/props (dissoc props :id :label :parse))
-                (let [e (dom/On "change" identity) [t err] (e/Token e)] ; single txn, no concurrency
-                  [e t err dom/node]))
-              editing? (dom/Focused? input-node)
-              waiting? (some? t)
-              error? (some? err)
-              dirty? (or editing? waiting? error?)]
-          (when-not dirty? (set! (.-checked input-node) checked))
-          (when error? (dom/props {:aria-invalid true}))
-          (when waiting? (dom/props {:aria-busy true}))
-          (if waiting? [t (edit-monoid k ((fn [] (-> e .-target .-checked parse))))] (e/amb))))
+      (let [[e t err input-node]
+            (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse))
+                       (let [e (dom/On "change" identity) [t err] (e/Token e)] ; single txn, no concurrency
+                         [e t err dom/node]))
+            editing? (dom/Focused? input-node)
+            waiting? (some? t)
+            error? (some? err)
+            dirty? (or editing? waiting? error?)]
+        (when-not dirty? (set! (.-checked input-node) checked))
+        (when error? (dom/props input-node {:aria-invalid true}))
+        (when waiting? (dom/props input-node {:aria-busy true}))
+        (if waiting? [t (edit-monoid k ((fn [] (-> e .-target .-checked parse))))] (e/amb)))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 (e/defn Button!
