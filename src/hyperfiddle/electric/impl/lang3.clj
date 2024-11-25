@@ -1226,35 +1226,44 @@
        ~(mapv #(get-site ts %) calls-e)
        ~(get-site ts ret-e)
        (fn [~'frame]
-         ~@(let [node-inits (->> nodes-e
-                              (mapv (fn [e] [(->> e (ts/->node ts) ::ctor-ref (uid->e ts) (ts/->node ts) ::pg-order)
-                                             (emit-node-init ts ctor-e e env nm)])))
-                 call-inits (->> calls-e
-                              (remove #(tag-call? ts %))
-                              (mapv (fn [e] [(->> e (ts/->node ts) ::pg-order)
-                                             (emit-call-init ts ctor-e e env nm)])))]
-             ;; with xforms would be
-             ;; (into [] (comp cat (x/sort-by first) (map second)) [node-inits call-inits])
-             (->> (concat node-inits call-inits) (sort-by first) (eduction (map second))))
-         ~(emit ts ret-e ctor-e env nm)))))
+         (let [~@(into [] (mapcat #((ts/? ts % ::init-fn) ts ctor-e env nm)) (ts/find ts ::ctor-let-init ctor-uid))]
+           ~@(let [node-inits (->> nodes-e
+                                (mapv (fn [e] [(->> e (ts/->node ts) ::ctor-ref (uid->e ts) (ts/->node ts) ::pg-order)
+                                               (emit-node-init ts ctor-e e env nm)])))
+                   call-inits (->> calls-e
+                                (remove #(tag-call? ts %))
+                                (mapv (fn [e] [(->> e (ts/->node ts) ::pg-order)
+                                               (emit-call-init ts ctor-e e env nm)])))]
+               ;; with xforms would be
+               ;; (into [] (comp cat (x/sort-by first) (map second)) [node-inits call-inits])
+               (->> (concat node-inits call-inits) (sort-by first) (eduction (map second))))
+           ~(emit ts ret-e ctor-e env nm))))))
 
-(defn emit-deps [ts e]
-  (let [seen (volatile! #{})
-        ret (volatile! (sorted-set))
-        mark (fn mark [ts e]
-               (if (@seen e)
+(defn rewrite [ts opti]
+  (let [<seen> (->box #{})]
+    (letfn [(opt [ts t nd] (if-some [o (or (opti t) (opti true))] (o ts go nd) ts))
+            (go
+              ([ts] ts)
+              ([ts e]
+               (if ((<seen>) e)
                  ts
-                 (let [nd (ts/->node ts e)]
-                   (vswap! seen conj e)
-                   (case (::type nd)
-                     (::literal ::var ::lookup ::frame) ts
-                     (::ap ::comp) (reduce mark ts (get-children-e ts e))
-                     (::site ::join ::pure ::call ::ctor ::mklocal ::sitable) (recur ts (get-child-e ts e))
-                     (::localref) (recur ts (->> (::ref nd) (->localv-e ts) (get-ret-e ts)))
-                     (::node) (do (vswap! ret conj (::node nd)) ts)
-                     #_else (throw (ex-info (str "cannot emit-deps/mark on " (pr-str (::type nd))) (or nd {})))))))]
-    (mark ts e)
-    @ret))
+                 (let [nd (ts/->node ts e), t (::type nd)]
+                   (-> (<seen>) (conj e) (<seen>))
+                   (case t
+                     (::literal ::var ::lookup ::node ::frame) (opt ts t nd)
+                     (::ap ::comp) (opt (reduce go ts (get-children-e ts e)) t nd)
+                     (::site ::join ::pure ::call ::mklocal ::sitable) (opt (go ts (get-child-e ts e)) t nd)
+                     (::ctor) (let [ts (transduce (mapcat #(get-children-e ts %))
+                                         go ts (ts/find ts ::ctor-let-init (::uid nd)))]
+                                (opt (go ts (get-child-e ts e)) t nd))
+                     (::localref) (opt (go ts (uid->e ts (::ref nd))) t nd)
+                     #_else (throw (ex-info (str "cannot rewrite on " (pr-str (::type nd))) (or nd {}))))))))]
+      (go ts (get-root-e ts)))))
+
+(defn emit-deps [ts]
+  (let [<deps> (->box #{})]
+    (rewrite ts {::node (fn [_ts _go nd] (-> (<deps>) (conj (::node nd)) (<deps>)) ts)})
+    (<deps>)))
 
 (defn emit-fn [ts e nm]
   ((fn rec [e]
@@ -1314,33 +1323,20 @@
     (go (get-root-e ts) 0)
     ts))
 
-(defn rewrite [ts opti]
-  (let [<seen> (->box #{})]
-    (letfn [(opt [ts t nd] (if-some [o (or (opti t) (opti true))] (o ts go nd) ts))
-            (go [ts e]
-                (if ((<seen>) e)
-                  ts
-                  (let [nd (ts/->node ts e), t (::type nd)]
-                    (-> (<seen>) (conj e) (<seen>))
-                    (case t
-                      (::literal ::var ::lookup ::node ::frame) (opt ts t nd)
-                      (::ap ::comp) (opt (reduce go ts (get-children-e ts e)) t nd)
-                      (::site ::join ::pure ::call ::mklocal ::sitable ::ctor) (opt (go ts (get-child-e ts e)) t nd)
-                      (::localref) (opt (go ts (uid->e ts (::ref nd))) t nd)
-                      #_else (throw (ex-info (str "cannot rewrite on " (::type nd)) (or nd {})))))))]
-      (go ts (get-root-e ts)))))
-
-(defn analyze-electric [env {{::keys [->id]} :o :as ts}]
+(defn analyze-electric [env {{::keys [->id ->sym]} :o :as ts}]
   (when (::print-analysis env) (prn :analysis) (run! prn (->> (:eav ts) vals)))
-  (let [pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (pure-fns (::v nd))))
+  (let [->sym (or ->sym gensym)
+        pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (pure-fns (::v nd))))
         ap-of-pures (fn ap-of-pures [ts _go {ap-e :db/id}]
-                      (let [ce (get-children-e ts ap-e)]
-                        (when (::print-ap-collapse env) (prn :ap-collapse) (run! prn (ts->reducible ts)))
+                      (let [ce (get-children-e ts ap-e)
+                            nd* (mapv #(ts/->node ts %) ce)
+                            pure-cnt (transduce (keep #(when (= ::pure (::type %)) 1)) + 0 nd*)]
                         #_ (when (and (every? #(= ::pure (::type (ts/->node ts (get-ret-e ts %)))) ce)
                                    (not (every? #(= ::pure (ts/? ts % ::type)) ce)))
                              (prn 'pure-not-pure ap-uid)
                              (pprint-db ts print))
-                        (if (every? #(= ::pure #_ (ts/? ts % ::type) (::type (ts/->node ts (get-ret-e ts %)))) ce)
+                        (cond
+                          (= pure-cnt (count nd*))
                           (if (pure-fn? (->> ce first (get-ret-e ts) (get-child-e ts) (ts/->node ts)))
                             ;; (ap (pure vector) (pure 1) (pure 2)) -> (pure (comp-with list vector 1 2))
                             (-> (reduce (fn [ts ce]
@@ -1361,7 +1357,30 @@
                                   (ts/add {:db/id pure-e, ::parent ap-e, ::type ::pure})
                                   (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp}))
                                 ce)))
-                          ts)))
+
+                          (> pure-cnt 1)
+                          (let [<arg*> (->box []), <call> (->box []), fsym (->sym "init-fn"), init-e (->id)
+                                ts (reduce (fn [ts e]
+                                             (if (= ::pure (ts/? ts e ::type))
+                                               (do (-> (<call>) (conj (get-child-e ts e)) (<call>))
+                                                   (ts/asc ts e ::parent init-e))
+                                               (let [s (->sym "arg")]
+                                                 (-> (<arg*>) (conj s) (<arg*>))
+                                                 (-> (<call>) (conj s) (<call>))
+                                                 ts)))   ts ce)
+                                ctor-uid (find-ctor-uid ts ap-e)
+                                e (-> ap-e (+ (first ce)) (/ 2))]
+                            (-> ts (ts/add {:db/id init-e, ::ctor-let-init ctor-uid,
+                                            ::init-fn (fn [ts ctor-e env nm]
+                                                        `[~fsym (fn ~fsym ~(<arg*>)
+                                                                  ~(doall (map #(if (number? %)
+                                                                                  (emit ts % ctor-e env nm)
+                                                                                  %)
+                                                                            (<call>))))])})
+                              (ts/add {:db/id e, ::parent ap-e, ::type ::pure})
+                              (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v fsym})))
+
+                          :else ts)))
         ->ctor-idx (->->id)
         seen (volatile! #{})
         mark-used-ctors (fn mark-used-ctors [ts e]
@@ -1491,7 +1510,7 @@
                                        ctor-uid*
                                        (recur (cons ctor-uid ctor-uid*) (ts/? ts (uid->e ts ctor-uid) ::parent)))
                                      ctor-uid*))]
-                   (if (seq ctor-uid*) ; closed over
+                   (if (seq ctor-uid*)  ; closed over
                      (-> ts (ensure-node mklocal-uid)
                        (ensure-free-node mklocal-uid (first ctor-uid*) ctor)
                        (ensure-free-frees mklocal-uid ctor-uid*))
@@ -1546,7 +1565,7 @@
         _  (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
         ts (analyze-electric env ts)
         ctors (mapv #(emit-ctor ts % env root-key) (get-ordered-ctors-e ts))
-        deps-set (emit-deps ts (get-root-e ts))
+        deps-set (emit-deps ts)
         deps (into {} (map (fn [dep] [(keyword dep) dep])) deps-set)
         source `(fn ([] ~(emit-fn ts (get-root-e ts) root-key))
                   ([idx#] (case idx# ~@(interleave (range) ctors)))

@@ -68,6 +68,10 @@
   (with ((l/single {} (let [x 1] (tap [x x]))) tap tap)
     % := [1 1]))
 
+(tests "sharing"
+  (with ((l/single {} (let [x (inc 1)] (tap [1 x [1 x]]))) tap tap)
+    % := [1 2 [1 2]]))
+
 #?(:clj
    (tests "."
      (with ((l/single {} (tap (. java.time.Instant EPOCH))) tap tap)
