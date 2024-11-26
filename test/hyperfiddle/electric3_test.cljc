@@ -326,17 +326,17 @@
                        (catch #?(:clj Throwable :cljs :default) e (tap [:wrong e])))) tap tap))
   % := [:right "No matching clause: 2"])
 
-(def foo 1)
+(e/defn Foo [] 1)
 (tests "binding"
-  (with ((l/single {} (tap (binding [foo 2] foo))) tap tap)
+  (with ((l/single {} (tap (binding [Foo 2] Foo))) tap tap)
     % := 2))
 
 (tests "binding - fn"
-  (with ((l/single {} (binding [foo (partial tap)] (foo 1))) tap tap)
+  (with ((l/single {} (binding [Foo (partial tap)] (let [foo Foo] (foo 1)))) tap tap)
     % := 1))
 
 (tests "binding - e/fn"
-  (with ((l/single {} (binding [foo (e/fn [x] (tap x))] ($ foo 1))) tap tap)
+  (with ((l/single {} (binding [Foo (e/fn [x] (tap x))] (Foo 1))) tap tap)
     % := 1))
 
 (tests "lexical closure"
@@ -344,14 +344,14 @@
     % := 1))
 
 (tests "join captures dynamic scope"
-  (with ((l/single {} (let [Q (e/fn [] foo)]
-                    (binding [foo 2]
+  (with ((l/single {} (let [Q (e/fn [] Foo)]
+                    (binding [Foo 2]
                       (tap ($ Q))))) tap tap)
     % := 2))
 
 (tests "if with bindings"
   (let [!a (atom true)]
-    (with ((l/single {} (tap (binding [foo 2] (if (e/watch !a) foo (- foo))))) tap tap)
+    (with ((l/single {} (tap (binding [Foo 2] (if (e/watch !a) Foo (- Foo))))) tap tap)
       % := 2
       (swap! !a not)
       % := -2)))
@@ -359,7 +359,7 @@
 (def !a (atom true))
 (tests "if with unwinding binding"
   (let [!a (atom true)]
-    (with ((l/single {} (tap ($ (binding [foo 2] (e/fn [] (if (e/watch !a) foo (- foo))))))) tap tap)
+    (with ((l/single {} (tap (e/call (binding [Foo (e/fn [] 2)] (e/fn [] (if (e/watch !a) (Foo) (- (Foo)))))))) tap tap)
       % := 1
       (swap! !a not)
       % := -1)))
@@ -387,9 +387,9 @@
 (def !items (atom ["a"]))
 (tests "Reactive for with bindings"
   (let [!items (atom ["a"])]
-    (with ((l/single {} (binding [foo 2]
+    (with ((l/single {} (binding [Foo 2]
                           (e/for-by identity [item (e/watch !items)]
-                            (tap foo)
+                            (tap Foo)
                             item))) tap tap)
 
       % := 2
@@ -473,7 +473,7 @@
        (swap! !xx inc)
        % := 1))) ; mutable map is clojure.core/=, therefore skipped
 
-(def trace!)
+(e/defn trace! [])
 (e/defn Div [child] (trace! child) [:div child])
 (e/defn Widget [x] ($ Div [($ Div x) ($ Div :a)]))
 
@@ -491,11 +491,11 @@
       % := [[:div 1] [:div :a]]
       % := [:div [[:div 1] [:div :a]]])))
 
-(e/defn G [x] x)                                      ; reactive fn (DAG). Compiler marks dag with meta
-(defn f [x] x)                                            ; This var is not marked with meta
+(e/defn G [x] x)                                      ; reactive fn (DAG). uppercased first character
+(defn f [x] x)                                      ; host fn. lowercase
 (tests "node call vs fn call"
   (let [!x (atom 0)]
-    (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) ($ G x)]))) tap tap)
+    (with ((l/single {} (tap (let [x (e/watch !x)] [(f x) (G x)]))) tap tap)
       % := [0 0])))
 
 (tests "higher order dags"
@@ -600,7 +600,7 @@
                             (catch #?(:clj AssertionError, :cljs :default) _ ::outer)))) tap tap)
     % := ::outer))
 
-(def inner)
+(e/defn inner [])
 (e/defn Outer [] inner)
 
 (tests "dynamic scope (note that try/catch has the same structure)"
@@ -641,7 +641,7 @@
     % := 1))
 
 (tests
-  (with ((l/single {} (tap (binding [foo 2] (e/server (e/client foo))))) tap tap)
+  (with ((l/single {} (tap (binding [Foo 2] (e/server (e/client Foo))))) tap tap)
     % := 2))
 
 ;; TODO network
@@ -651,19 +651,19 @@
     % := 1))
 
 (tests
-  (with ((l/local {} (tap (binding [foo 2] (e/server ($ (e/fn [] (e/client foo))))))) tap tap)
+  (with ((l/local {} (tap (binding [Foo 2] (e/server ($ (e/fn [] (e/client Foo))))))) tap tap)
     % := 2))
 
 ;; TODO try/catch
-(def Bar1)
+(e/defn Bar1 [])
 (skip
-  (with ((l/single {} (try (tap (binding [foo 2] (e/server (Bar1.))))
+  (with ((l/single {} (try (tap (binding [Foo 2] (e/server (Bar1))))
                        (catch Pending _))) tap tap)
     % := 2))
 
 ;; !!!
 (tests
-  (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client foo)), foo 2] (e/server ($ Bar1))))) tap tap)
+  (with ((l/local {} (tap (binding [Bar1 (e/fn [] (e/client Foo)), Foo 2] (e/server ($ Bar1))))) tap tap)
     % := 2))
 
 ;; TODO try/catch
@@ -756,14 +756,15 @@
     (dispose)
     % := [::unmount 2]))
 
-(def x2 1)
+(e/defn x2 [])
 (defn up-down [x trace!] (m/observe (fn [!] (trace! :up) (! x) #(trace! :down))))
 (tests "object lifecycle 4"
   (let [!input (atom [1 2])]
     (with ((l/single {}
-             (tap (e/for-by identity [id (e/watch !input)]
-                    (binding [x2 (do id x2)]
-                      (e/input (up-down x2 tap)))))) tap tap)
+             (binding [x2 1]
+               (tap (e/for-by identity [id (e/watch !input)]
+                      (binding [x2 (do id x2)]
+                        (e/input (up-down x2 tap))))))) tap tap)
       [% %] := [:up :up]
       % := [1 1]
       (swap! !input pop)
@@ -814,8 +815,8 @@
       (swap! !x inc)
       % := :ok)))
 
-(def unbound1)
-(def unbound2)
+(e/defn unbound1 [])
+(e/defn unbound2 [])
 (tests
   (with ((l/single {} (tap ($ (e/fn [] (binding [unbound1 1 unbound2 2] (+ unbound1 unbound2)))))) tap tap)
    % := 3))
@@ -1008,7 +1009,7 @@
       (reset! !state [3])
       % := [3 3])))
 
-(def state)
+(e/defn state [])
 (tests
   "Nested e/for with transfer"
   (let [!state (atom [1])]
@@ -1267,7 +1268,7 @@
                                        (Math/min 3 3))))) tap tap)
     % := [1 2]))
 
-(def global)
+(e/defn global [])
 (tests "Inline cc/fn support"
   (let [!state3 (atom 0)]
     (with ((l/single {} (let [state (e/watch !state3)
@@ -2520,11 +2521,11 @@
     (tap :done)
     % := :done))
 
-(def ^:dynamic *x*)
-(e/defn GetX [] *x*)
+(e/defn *x [])
+(e/defn GetX [] *x)
 (tests "qualify binding symbol in presence of local with same name"
-  (with ((l/single {} (tap (let [*x* 0]
-                             (binding [*x* 1]
+  (with ((l/single {} (tap (let [*x 0]
+                             (binding [*x 1]
                                (GetX))))) tap tap)
     % := 1))
 

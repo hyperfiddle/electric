@@ -781,12 +781,11 @@
                            (ts/add {:db/id ce, ::parent e, ::type ::pure})
                            (ts/add {:db/id (->id), ::parent ce, ::type ::literal, ::v (list form)})))
               (::static ::var) (let [k (fn [pe env {{::keys [->id]} :o :as ts}]
-                                         (if (::static-vars env)
-                                           (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
-                                             (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form}))
-                                           (ts/add ts (cond-> {:db/id e, ::parent pe, ::type ::var
-                                                               ::var form, ::qualified-var (::sym ret)}
-                                                        (::lang ret) (assoc ::resolved-in (::lang ret))))))]
+                                         (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure})
+                                           (ts/add {:db/id (->id), ::parent e, ::type ::literal
+                                                    ::v (let [lang (::lang ret)]
+                                                          (if (or (nil? lang) (= lang (->env-type env)))
+                                                            form `r/cannot-resolve))})))]
                                  (if (::peer ret)
                                    (analyze (?meta form `(::site ~(::peer ret) (::sitable (::k ~k)))) pe env ts)
                                    (k pe env ts)))
@@ -1016,8 +1015,9 @@
                                          (if (= (::lang ret) (->env-type env))
                                            {::t ::static, ::sym form, ::resolved (::sym ret)}
                                            {::t ::var, ::sym form, ::resolved `r/cannot-resolve}))
-                            (::self ::node) (throw (ex-info "Cannot pass electric defns to clojure(script) interop"
-                                                     {:var form}))
+                            (::self ::node) (addf ts (->u)
+                                              {::t ::electric-var, ::sym form ::resolved (::node ret)
+                                               ::meta (::meta ret)})
                             (::var) (addf ts (->u)
                                       {::t ::var, ::sym form ::resolved (::sym ret), ::meta (::meta ret)})
                             #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
@@ -1086,7 +1086,7 @@
                  (::map) (apply hash-map (eduction (map emit) (find ::p u)))
                  (::set) (set (eduction (map emit) (find ::p u)))
                  (::vector) (vec (eduction (map emit) (find ::p u)))
-                 (::electric-local ::local ::static ::var) (::sym nd))))]
+                 (::electric-local ::local ::static ::electric-var ::var) (::sym nd))))]
      (emit u))))
 
 (defn wrap-foreign-for-electric
@@ -1116,7 +1116,7 @@
                        (<seen> (assoc seen r lex))
                        (ts/asc ts (:db/id nd) ::sym lex))))))
            xf (remove #(let [nd (->node %)] (and (zero? (::i nd)) (not= -1 (::p nd)) (= ::set! (? (::p nd) ::t)))))
-           ts (transduce xf (completing f) ts (find ::t ::var))
+           ts (transduce xf (completing f) ts (find ::t ::electric-var))
            arg* (<arg*>), val* (<val*>), dyn* (<dyn*>)
            code (cond->> (emit-foreign ts) (seq dyn*) (list 'binding dyn*))
            e-local* (into [] (comp (map #(? % ::sym)) (distinct)) (find ::t ::electric-local))]
