@@ -191,9 +191,11 @@
                    (log/info "WS close")
                    ((aget state on-close-slot)))
      :on-error   (fn on-error [_socket err]
-                   (if (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
+                   (cond
+                     (or (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
+                       (instance? #_org.eclipse.jetty.io.EofException java.io.EOFException err)) ; broken pipe
                      (log/info "Websocket was closed unexpectedly") ; common in dev
-                     (log/error err "Websocket error")))
+                     () (log/error err "Websocket error")))
      :on-ping    (fn on-ping [socket data] ; keep connection alive
                    (keepalive-mailbox nil))
      :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
