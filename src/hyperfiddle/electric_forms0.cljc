@@ -228,7 +228,8 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
     edits ; concurrent edits are what give us dirty tracking
     & {:as props}]
    (e/client
-     (let [{::keys [debug commit discard show-buttons auto-submit edit-merge genesis name edit-monoid]}
+     (let [{::keys [debug commit ; :commit fn must be side-effect free, :debug true will call :commit on every edit and present the result to the user
+                    discard show-buttons auto-submit edit-merge genesis name edit-monoid]}
            (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map})
            dirty-count (e/Count edits)
            clean? (zero? dirty-count)
@@ -277,7 +278,12 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
          (e/When debug
            (dom/span (dom/text " " dirty-count " dirty"))
            (dom/pre #_(dom/props {:style {:min-height "4em"}})
-             (dom/text (pprint-str form-v :margin 80)))))))))
+             (dom/text (let [commit-edit (if commit (commit form-v "-1") form-v)
+                             form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
+                         (pprint-str (if commit
+                                       {:fields form-v, :expected-commit form-v-edit}
+                                       {:expected-commit [form-v-edit]})
+                           :margin 80))))))))))
 
 (defmacro Form! [fields1 & kwargs] ; note - the fields must be nested under this form - which is fragile and unobvious
   `(dom/form ; for form "reset" event
