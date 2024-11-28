@@ -106,7 +106,9 @@ Simple uncontrolled checkbox, e.g.
     (dom/props (-> props (dissoc :label :disabled) (assoc :type type)))
     (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
           [btn-t err] (e/Token x)] ; genesis
-      (dom/props {:disabled (or disabled (some? btn-t))})
+      (if disabled  ; don't set :disabled on <input type=submit> WHILE submit event bubbles, it prevents form submission
+        (dom/props {:disabled disabled})
+        (dom/props {({:submit :aria-disabled} type :disabled) (some? btn-t)}))
       (dom/props {:aria-busy (some? btn-t)})
       (dom/props {:aria-invalid (some? err)})
       (if btn-t
@@ -177,29 +179,38 @@ in an associated optimistic collection view!"
 (e/defn FormSubmit! ; dom/node must be a form
   [directive & {:keys [disabled show-button label auto-submit form] :as props}]
   (e/client
-    (let [[t err] (e/amb
-                    ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
-                    (e/When show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
-                    (let [submit-event (dom/On "submit" #(do (.preventDefault %) (.stopPropagation %) (when-not (or auto-submit disabled) %)) nil)]
-                      submit-event ; force signal
-                      (if auto-submit
-                        (e/Token form)
-                        (e/When (not show-button) ; show-buttons will render an <button type=submit> auto handling Enter
-                          (do (dom/On "keypress" (fn [e] (let [target (.-target e)] ; submit form on enter
-                                                           (when (and (= "Enter" (.-key e)) (= "INPUT" (.-nodeName target)))
-                                                             (.stopPropagation e)
-                                                             (.requestSubmit (.-form target)) ; fire submit event
-                                                             nil))) nil)
-                              (let [[t err :as token] (e/Token submit-event)]
-                                (dom/props {:aria-invalid (some? err)})
-                                token))))))]
-      (if t ; TODO unify with FormSubmit! and Button!
-        (let [[form-t form-v] form]
-          [(fn token
-             ([] (t) (when form-t (form-t))) ; reset controlled form and both buttons, cancelling any in-flight commit
-             ([err] (t err) #_(form-t err))) ; redirect error to button ("retry"), leave uncommitted form dirty
-           (if form-t [directive form-v] [directive nil])]) ; compat
-        (e/amb)))))
+    ;; Simulate submit by pressing Enter on <input> nodes
+    ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
+    (when (and (not show-button) (not disabled))
+      (dom/On "keypress" (fn [e] (let [target (.-target e)] ; submit form on enter
+                                   (when (and (= "Enter" (.-key e)) (= "INPUT" (.-nodeName target)))
+                                     (.stopPropagation e)
+                                     (.requestSubmit (.-form target)) ; fire submit event
+                                     nil))) nil))
+    ;; Simulate autosubmit
+    (when auto-submit
+      (dom/On "change" (fn [e] (some->  e .-target .-form .requestSubmit) e) nil) ; checkboxes
+      (dom/On "input"  (fn [e] (some->  e .-target .-form .requestSubmit) e) nil) ; text inputs
+      )
+    (if-let [t
+          ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
+          (let [[btn-t btn-err :as btn] (e/When show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
+                submit-event (dom/On "submit" #(doto % (.preventDefault)) nil)
+                [t err] (e/Token submit-event)]
+            btn ; force let branch
+            (dom/props {:aria-invalid (some? err)})
+            (when t
+              (when btn-t (dom/props ((fn [^js e] (.-submitter e)) submit-event) {:disabled true})) ; hard-disable submitter button while form submits
+              (fn
+                ([] (t) (when btn-t (btn-t)))
+                ([err] (t err) (when btn-t (btn-t err))))))]
+      ; TODO unify with FormSubmit! and Button!
+      (let [[form-t form-v] form]
+        [(fn token
+           ([] (t) (when form-t (form-t))) ; reset controlled form and both buttons, cancelling any in-flight commit
+           ([err] (t err) #_(form-t err))) ; redirect error to button ("retry"), leave uncommitted form dirty
+         (if form-t [directive form-v] [directive nil])]) ; compat
+      (e/amb))))
 
 (e/defn FormSubmitGenesis!
   "Spawns a new tempid/token for each submit. You must monitor the spawned entity's
