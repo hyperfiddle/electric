@@ -182,12 +182,12 @@
                    (fn [!]
                      (def s->c !)
                      #(prn :dispose))
-                   (rcf/tap (e/server :foo))))
+                   (rcf/tap (e/server (identity :foo)))))
      (def server (peer :server
                    (fn [!]
                      (def c->s !)
                      #(prn :dispose))
-                   (rcf/tap (e/server :foo))))
+                   (rcf/tap (e/server (identity :foo)))))
      (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
      % := :step-c
@@ -266,12 +266,12 @@
                    (fn [!]
                      (def s->c !)
                      #(prn :dispose))
-                   (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
+                   (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
      (def server (peer :server
                    (fn [!]
                      (def c->s !)
                      #(prn :dispose))
-                   (rcf/tap (e/join (e/pure (let [x (e/server 2)] x))))))
+                   (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
      (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(rcf/tap :done-c)))
      % := :step-c
