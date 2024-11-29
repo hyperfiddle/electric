@@ -10,6 +10,7 @@
             [contrib.triple-store :as ts]
             [fipp.edn]
             [hyperfiddle.electric3 :as-alias e]
+            [hyperfiddle.electric.impl.pures-fns :as pure-fns]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [hyperfiddle.electric.impl.destructure :as dst]
             [hyperfiddle.electric.impl.runtime3 :as r]
@@ -1295,17 +1296,6 @@
          ::localref (recur (->> (::ref nd) (->localv-e ts) (get-ret-e ts))))))
    e))
 
-(def pure-fns '#{clojure.core/vector clojure.core/hash-map clojure.core/get clojure.core/boolean
-                 clojure.core/identity clojure.core/concat clojure.core/inc clojure.core/dec
-                 clojure.core/str
-                 missionary.core/watch
-                 hyperfiddle.incseq/fixed
-                 hyperfiddle.electric.impl.runtime3/incseq
-                 hyperfiddle.electric.impl.runtime3/invariant
-                 hyperfiddle.electric.impl.runtime3/drain
-                 hyperfiddle.electric.impl.runtime3/bind
-                 })
-
 (defn implode-point [ts e]              ; remove e, reparent child, keep e as id
   (let [nd (ts/->node ts e), ce (get-child-e ts e), cnd (ts/->node ts ce)]
     (-> ts (ts/del e) (ts/del ce) (ts/add (assoc cnd :db/id e, ::parent (::parent nd))) (reparent-children ce e))))
@@ -1352,7 +1342,7 @@
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
   (when (::print-analysis env) (run! prn (->> (:eav ts) vals)) (pprint-db ts print))
   (let [->sym (or (::->sym env) gensym)
-        pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (symbol? (::v nd)) (pure-fns (qualify-sym (::v nd) env))))
+        pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (symbol? (::v nd)) (pure-fns/pure-fns (qualify-sym (::v nd) env))))
         ap-of-pures (fn ap-of-pures [ts _go {ap-e :db/id, site ::site}]
                       (let [ce (get-children-e ts ap-e)
                             nd* (mapv #(ts/->node ts %) ce)

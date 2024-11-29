@@ -94,7 +94,7 @@
   (match (l/test-compile ::Main (name (e/server :foo)))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/pure (fn* [] (~'name :foo))))))])
+          (r/ap '{} (r/pure (~'name :foo)))))])
 
   (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (e/ctor nil))))))
     `[(r/cdef 0 [:server :client] [:client] nil
