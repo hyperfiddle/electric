@@ -47,7 +47,7 @@
 ;; General ;;
 ;;;;;;;;;;;;;
 
-(def node)
+(e/defn node [])
 
 #?(:cljs
    (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]

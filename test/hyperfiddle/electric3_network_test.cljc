@@ -25,18 +25,18 @@
   (with-electric [tap step] {} (tap (e/server (e/call (e/fn [] (e/client 2)))))
     (step #{2})))
 
-(declare foo)
+(e/defn foo [])
 (t/deftest binding-foo
   (with-electric [tap step] {} (tap (binding [foo 2] (e/server (e/call (e/fn [] (e/client (identity foo)))))))
     (step #{2})))
 
-(declare Bar1)
+(e/defn Bar1 [])
 (t/deftest binding-foo-Bar
   (with-electric [tap step] {} (tap (binding [Bar1 (e/fn [] (e/client (identity foo))), foo 2]
                                       (e/server (e/call Bar1))))
     (step #{2})))
 
-(declare state)
+(e/defn state [])
 (t/deftest nested-efor-with-transfer
   (let [!state (atom [1])]
     (with-electric [tap step] {} (binding [state (e/watch !state)]
