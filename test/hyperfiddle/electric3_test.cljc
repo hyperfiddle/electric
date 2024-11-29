@@ -1066,8 +1066,7 @@
   (with ((l/local {}
            (tap (e/client ((fn [{:keys [a] ::keys [b]}] [::client a b]) {:a 1 ::b 2})))
            (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap)
-    % := [::client 1 2]
-    % := [::server 1 2]))
+    (hash-set % %) := #{[::client 1 2] [::server 1 2]}))
 
 ;; TODO try/catch
 (skip

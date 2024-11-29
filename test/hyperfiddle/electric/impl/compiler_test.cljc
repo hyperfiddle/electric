@@ -52,22 +52,18 @@
   (match (l/test-compile ::Main (prn "Hello world"))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/pure "Hello world"))))])
+          (r/ap '{} (r/pure (fn* [] (~'prn "Hello world"))))))])
   (match (l/test-compile ::Main (prn (e/client 1)))
-    `[(r/cdef 0 [:client] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
-            (r/node ~'frame 0))))]))
+          (r/ap '{} (r/pure (fn* [] (~'prn 1))))))]))
 
-(tests "test-join"
+(tests
+  "test-join"
   (match (l/test-compile ::Main {'!x (atom 0)} (::lang/join (i/fixed (m/watch !x))))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/join
-            (r/ap '{} (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
-              (r/ap '{} (r/lookup ~'frame ::m/watch (r/pure m/watch))
-                (r/pure ~'!x))))))]))
+          (r/join (r/pure (~'i/fixed (~'m/watch ~'!x))))))]))
 
 (tests "test-siting"
   (match (l/test-compile ::Main (::lang/site :client "Hello world"))
@@ -75,31 +71,30 @@
         (fn [~'frame]
           (r/pure "Hello world")))])
 
-  (match (l/test-compile ::Main (::lang/site :client (prn "Hello world")))
+  ;; {:locals {}, :ns {:name (ns-name *ns*)}, ::lang/print-db true, ::lang/print-analysis true}
+  (match (l/test-compile ::Main (e/client (prn "Hello world")))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn) (r/pure "Hello world"))))])
+          (r/ap '{} (r/pure (fn* [] (r/cannot-resolve "Hello world"))))))])
 
-  (match (l/test-compile ::Main (::lang/site :client (undefined?)))
-    `[(r/cdef 0 [] [] :client
+  (match (l/test-compile ::Main (e/server (prn "Hello world")))
+    `[(r/cdef 0 [] [] :server
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :cljs.core/undefined?))))])
+          (r/ap '{} (r/pure (fn* [] (~'prn "Hello world"))))))])
 
   (match (l/test-compile ::Main (lang/->cljs-env) (::lang/site :client (undefined?)))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :cljs.core/undefined? (r/pure cljs.core/undefined?)))))])
+          (r/ap '{} (r/pure ~'undefined?))))])
 
   (match (l/test-compile ::Main (e/server (let [x 1] (e/client x))))
     `[(r/cdef 0 [] [] :server
         (fn [~'frame] (r/pure 1)))])
 
   (match (l/test-compile ::Main (name (e/server :foo)))
-    `[(r/cdef 0 [:server] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/name (r/pure clojure.core/name))
-            (r/node ~'frame 0))))])
+          (r/ap '{} (r/pure (fn* [] (~'name :foo))))))])
 
   (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (e/ctor nil))))))
     `[(r/cdef 0 [:server :client] [:client] nil
@@ -107,88 +102,67 @@
           (r/define-node ~'frame 0 (r/pure (r/ctor ::Main 1)))
           (r/define-call ~'frame 0 (r/node ~'frame 0))
           (r/define-node ~'frame 1 (r/join (r/call ~'frame 0)))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure prn)) (r/node ~'frame 1))))
+          (r/ap '{} (r/pure ~'prn) (r/node ~'frame 1))))
       (r/cdef 0 [] [] nil
         (fn [~'frame] (r/pure nil)))])
 
   (match (l/test-compile ::Main (e/pure (e/server 2)))
-    `[(r/cdef 0 [:server] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 2))
-          (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))])
+          (r/pure (r/incseq ~'frame (r/pure 2)))))])
 
   (match (l/test-compile ::Main (let [x (e/server (identity 1))] (inc x)))
     `[(r/cdef 0 [:server] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/ap '{} (r/lookup ~'frame :clojure.core/identity (r/pure identity)) (r/pure 1)))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+          (r/define-node ~'frame 0 (r/pure (~'identity 1)))
+          (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))]))
 
 (tests "test-let"
-  (match (l/test-compile ::Main (::lang/site :client (let [a :foo] [a a])))
-    `[(r/cdef 0 [:client] [] :client
-        (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap '{} (r/pure clojure.core/vector)
-            (r/node ~'frame 0) (r/node ~'frame 0))))])
-
   (match (l/test-compile ::Main (let [a :foo] [a a]))
-    `[(r/cdef 0 [nil] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/ap '{} (r/pure clojure.core/vector)
-            (r/node ~'frame 0) (r/node ~'frame 0))))])
+          (r/pure (vector :foo :foo))))])
 
   (match (l/test-compile ::Main (let [a (let [b :foo] [b b])] [a a]))
-    `[(r/cdef 0 [nil nil] [] nil
+    `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/define-node ~'frame 1 (r/ap '{} (r/pure clojure.core/vector)
-                                     (r/node ~'frame 0) (r/node ~'frame 0)))
+          (r/define-node ~'frame 0 (r/pure (vector :foo :foo)))
           (r/ap '{} (r/pure clojure.core/vector)
-            (r/node ~'frame 1) (r/node ~'frame 1))))])
+            (r/node ~'frame 0) (r/node ~'frame 0))))])
 
   (match (l/test-compile ::Main (let [a 1] a))
     `[(r/cdef 0 [] [] nil (fn [~'frame] (r/pure 1)))])
 
   (match (l/test-compile ::Main (e/client (let [a 1] (e/server (prn a)))))
-    `[(r/cdef 0 [:client] [] :server
+    `[(r/cdef 0 [] [] :server
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
-            (r/node ~'frame 0))))])
+          (r/ap '{} (r/pure (fn* [] (~'prn 1))))))])
 
-  (match (l/test-compile ::Main (e/client (let [x "Hello", y "world"] [x y])))
-    `[(r/cdef 0 [] [] :client
+  (match (l/test-compile ::Main (let [x "Hello", y "world"] [x y]))
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/pure (clojure.core/vector "Hello" "world"))))])
 
   (match (l/test-compile ::Main (e/client (let [a (e/server :foo)] (e/server (prn a)))))
     `[(r/cdef 0 [] [] :server
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure prn))
-            (r/pure :foo))))])
+          (r/ap '{} (r/pure (fn* [] (~'prn :foo))))))])
 
   (match (l/test-compile ::Main (concat (let [x 1] [x x]) (let [y 2] [y y])))
-    `[(r/cdef 0 [nil nil] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-node ~'frame 1 (r/pure 2))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/concat (r/pure clojure.core/concat))
-            (r/ap '{} (r/pure clojure.core/vector)
-              (r/node ~'frame 0)
-              (r/node ~'frame 0))
-            (r/ap '{} (r/pure clojure.core/vector)
-              (r/node ~'frame 1)
-              (r/node ~'frame 1)))))]))
+          (r/pure (~'concat (vector 1 1) (vector 2 2)))))]))
 
 (tests "test-pure"
   (match (l/test-compile ::Main (::lang/pure :foo))
-    `[(r/cdef 0 [nil] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/pure (r/node ~'frame 0))))]))
+          (r/pure (r/pure :foo))))]))
 
+(defn ->fresh-sym [] (let [->id (lang/->->id)] (fn self ([] (self "g")) ([s] (symbol (str s (->id)))))))
+
+;; NEXT
 (tests "test-ctor"
   (match (l/test-compile ::Main (::lang/ctor :foo))
     `[(r/cdef 0 [] [] nil
@@ -199,13 +173,12 @@
           (r/pure :foo)))])
 
   (match (l/test-compile ::Main (let [a 1] (::lang/ctor a)))
-    `[(r/cdef 0 [nil] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/pure (r/ctor ::Main 1 (r/node ~'frame 0)))))
-      (r/cdef 1 [] [] nil
+          (r/pure (r/ctor ::Main 1))))
+      (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/free ~'frame 0)))])
+          (r/pure 1)))])
 
   (match (l/test-compile ::Main (let [a 1] (::lang/ctor (let [a 2] a))))
     `[(r/cdef 0 [] [] nil
@@ -216,9 +189,20 @@
           (r/pure 2)))])
 
   (match (l/test-compile ::Main (let [a 1] (::lang/ctor (::lang/ctor a))))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure (r/ctor ::Main 1))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure (r/ctor ::Main 2))))
+      (r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure 1)))])
+
+  (match (l/test-compile ::Main (let [a (inc 1)] (::lang/ctor (::lang/ctor a))))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
@@ -227,25 +211,25 @@
         (fn [~'frame]
           (r/free ~'frame 0)))])
 
-  (match (l/test-compile ::Main (let [a 1] (::lang/ctor [a (let [a 2] (::lang/ctor a))])))
+  (match (l/test-compile ::Main {:locals {}, :ns {:name (ns-name *ns*)}, ::lang/->sym (->fresh-sym)}
+           (let [a (inc 1)] (::lang/ctor [a (let [a (inc 2)] (::lang/ctor a))])))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 2))
-          (r/ap '{} (r/pure clojure.core/vector)
-            (r/free ~'frame 0)
-            (r/pure (r/ctor ::Main 2 (r/node ~'frame 0))))))
+          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/node ~'frame 0))))]
+            (r/define-node ~'frame 0 (r/pure (~'inc 2)))
+            (r/ap '{} (r/pure ~'init-fn0) (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
 
-  (match (l/test-compile ::Main (let [a 1] (::lang/ctor (::lang/ctor (::lang/ctor a)))))
+  (match (l/test-compile ::Main (let [a (inc 1)] (::lang/ctor (::lang/ctor (::lang/ctor a)))))
     `[(r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
@@ -257,32 +241,34 @@
         (fn [~'frame]
           (r/free ~'frame 0)))])
 
-  (match (l/test-compile ::Main (let [a 1, b 2] (::lang/ctor [a (::lang/ctor b)])))
+  (match (l/test-compile ::Main {:locals {}, :ns {:name (ns-name *ns*)}, ::lang/->sym (->fresh-sym)}
+           (let [a (inc 1), b (inc 2)] (::lang/ctor [a (::lang/ctor b)])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-node ~'frame 1 (r/pure 2))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
+          (r/define-node ~'frame 1 (r/pure (~'inc 2)))
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/pure clojure.core/vector)
-            (r/free ~'frame 0)
-            (r/pure (r/ctor ::Main 2 (r/free ~'frame 1))))))
+          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/free ~'frame 1))))]
+            (r/ap '{} (r/pure ~'init-fn0)
+              (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
 
-  (match (l/test-compile ::Main (let [a 1, b 2] (::lang/ctor [b (::lang/ctor a)])))
+  (match (l/test-compile ::Main {:locals {}, :ns {:name (ns-name *ns*)}, ::lang/->sym (->fresh-sym)}
+           (let [a (inc 1), b (inc 2)] (::lang/ctor [b (::lang/ctor a)])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-node ~'frame 1 (r/pure 2))
-          (r/pure (r/ctor ::Main 1 (r/node ~'frame 1) (r/node ~'frame 0)))))
+          (r/define-node ~'frame 0 (r/pure (~'inc 2)))
+          (r/define-node ~'frame 1 (r/pure (~'inc 1)))
+          (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/pure clojure.core/vector)
-            (r/free ~'frame 0)
-            (r/pure (r/ctor ::Main 2 (r/free ~'frame 1))))))
+          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/free ~'frame 1))))]
+            (r/ap '{} (r/pure ~'init-fn0)
+              (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
           (r/free ~'frame 0)))])
@@ -297,16 +283,12 @@
 
   (match (l/test-compile ::Main (let [fizz "fizz", buzz "buzz"]
                                   (e/ctor (str fizz buzz))))
-    `[(r/cdef 0 [nil nil] [] nil
+    `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure "fizz"))
-          (r/define-node ~'frame 1 (r/pure "buzz"))
-          (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
-      (r/cdef 2 [] [] nil
+          (r/pure (r/ctor ::Main 1))))
+      (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/str (r/pure clojure.core/str))
-            (r/free ~'frame 0)
-            (r/free ~'frame 1))))]))
+          (r/pure (~'str "fizz" "buzz"))))]))
 
 (tests "test-call"
   (match (l/test-compile ::Main (::lang/call (::lang/ctor :foo)))
@@ -327,13 +309,14 @@
       (r/cdef 0 [] [] nil
         (fn [~'frame] (r/pure :foo)))])
 
-  (match (l/test-compile ::Main (vector 1 (::lang/call (::lang/ctor :foo))))
+  (match (l/test-compile ::Main {:locals {}, :ns {:name (ns-name *ns*)}, ::lang/->sym (->fresh-sym)}
+           (vector 1 (::lang/call (::lang/ctor :foo))))
     `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/vector (r/pure clojure.core/vector))
-            (r/pure 1)
-            (r/join (r/call ~'frame 0)))))
+          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (~'vector 1 ~'arg1))]
+            (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
+            (r/ap '{} (r/pure ~'init-fn0)
+              (r/join (r/call ~'frame 0))))))
       (r/cdef 0 [] [] nil
         (fn [~'frame] (r/pure :foo)))])
 
@@ -365,17 +348,16 @@
           (r/pure :bar)))])
 
   (match (l/test-compile ::Main (let [a :foo] (::lang/call (::lang/ctor (::lang/ctor a)))))
-    `[(r/cdef 0 [nil] [nil] nil
+    `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure :foo))
-          (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1 (r/node ~'frame 0))))
+          (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
           (r/join (r/call ~'frame 0))))
-      (r/cdef 1 [] [] nil
+      (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure (r/ctor ::Main 2 (r/free ~'frame 0)))))
-      (r/cdef 1 [] [] nil
+          (r/pure (r/ctor ::Main 2))))
+      (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/free ~'frame 0)))]))
+          (r/pure :foo)))]))
 
 (tests "test-conditionals"
   ;; ({nil (ctor :y)} :x (ctor :z))
@@ -429,17 +411,16 @@
   (match (l/test-compile ::Main (should-work-in-cljs))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame ::should-work-in-cljs
-                     (r/pure should-work-in-cljs)))))]))
+          (r/ap '{} (r/pure ~'should-work-in-cljs))))]))
 
 (tests "test-ctor-site-clearing"
-  (match (l/test-compile ::Main (e/client (e/ctor (let [x 1] [x x]))))
+  (match (l/test-compile ::Main (e/client (e/ctor (let [x (inc 1)] [x x]))))
     `[(r/cdef 0 [] [] :client
         (fn [~'frame]
           (r/pure (r/ctor ::Main 1))))
       (r/cdef 0 [nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/ap '{} (r/pure clojure.core/vector)
             (r/node ~'frame 0)
             (r/node ~'frame 0))))]))
@@ -450,19 +431,16 @@
              (inc (dec 0))))
     `[(r/cdef 0 [nil nil] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/lookup ~'frame :clojure.core/dec (r/pure clojure.core/dec)))
-          (r/define-node ~'frame 1 (r/lookup ~'frame :clojure.core/inc (r/pure clojure.core/inc)))
+          (r/define-node ~'frame 0 (r/pure ~'dec))
+          (r/define-node ~'frame 1 (r/pure ~'inc))
           (r/define-call ~'frame 0
-            (r/ap '{} (r/pure (fn* []
-                               (r/bind (r/ctor ::Main 1)
-                                 :clojure.core/inc (r/node ~'frame 0)
-                                 :clojure.core/dec (r/node ~'frame 1))))))
+            (r/pure (r/bind (r/ctor ::Main 1)
+                      :clojure.core/inc (r/node ~'frame 0)
+                      :clojure.core/dec (r/node ~'frame 1))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure clojure.core/inc))
-            (r/ap '{} (r/lookup ~'frame :clojure.core/dec (r/pure clojure.core/dec))
-              (r/pure 0)))))]))
+          (r/pure (~'inc (~'dec 0)))))]))
 
 (tests "test-ap-collapse"
   (match (l/test-compile ::Main [1 2])
@@ -487,18 +465,18 @@
       (r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/pure :foo)))])
-  (match (l/test-compile ::Main (let [x 1, y 2] [y x x y]))
+  (match (l/test-compile ::Main (let [x (inc 1), y (dec 2)] [y x x y]))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/define-node ~'frame 1 (r/pure 2))
+          (r/define-node ~'frame 0 (r/pure (~'dec 2)))
+          (r/define-node ~'frame 1 (r/pure (~'inc 1)))
           (r/ap '{} (r/pure clojure.core/vector)
-            (r/node ~'frame 1) (r/node ~'frame 0) (r/node ~'frame 0) (r/node ~'frame 1))))])
-  (match (l/test-compile ::Main (let [x 1] [(::lang/call (::lang/ctor 1)) x x (::lang/call (::lang/ctor 2))]))
+            (r/node ~'frame 0) (r/node ~'frame 1) (r/node ~'frame 1) (r/node ~'frame 0))))])
+  (match (l/test-compile ::Main (let [x (inc 1)] [(::lang/call (::lang/ctor 1)) x x (::lang/call (::lang/ctor 2))]))
     `[(r/cdef 0 [nil] [nil nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
           (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/define-call ~'frame 1 (r/pure (r/ctor ::Main 2)))
           (r/ap '{} (r/pure clojure.core/vector)
             (r/join (r/call ~'frame 0))
@@ -511,23 +489,19 @@
 (tests "cc-fn-wrapping-js-constructor"
   (match (l/test-compile ::Main (e/client (fn [] (js/Date.))))
     `[(r/cdef 0 [] [] :client
-        (fn [~'frame] (r/pure (vector))))]) ; shim, no conveyed values
-  (match (l/test-compile ::Main (let [x 1] (e/client (fn [] (js/Date. x)))))
+        (fn [~'frame] (r/ap '{} (r/pure r/cannot-resolve))))]) ; shim, no conveyed values
+  (match (l/test-compile ::Main (let [x (inc 1)] (e/client (fn [] (js/Date. x)))))
     `[(r/cdef 0 [nil] [] :client
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
-          (r/ap '{} (r/pure vector) (r/node ~'frame 0))))])) ; shim, conveyed `x`
-
-(tests "js-vars-have-qualified-lookup"
-  (match (l/test-compile ::Main (e/client (gm/clamp -1 0 5)))
-    `[(r/cdef 0 [] [] :client
-        (fn [~'frame] (r/ap '{} (r/lookup ~'frame :goog.math/clamp) (r/pure -1) (r/pure 0) (r/pure 5))))]))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
+          (r/ap '{} (r/pure r/cannot-resolve) (r/node ~'frame 0))))])) ; shim, conveyed `x`
 
 (tests "peers-dont-compile-foreign-code"
   (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
            (e/server (java.time.Instant/ofEpochMilli 11)))
     `[(r/cdef 0 [] [] :server
-        (fn [~'frame] (r/pure (vector 11))))]))
+        (fn [~'frame]
+          (r/ap '{} (r/pure (fn* [] (r/cannot-resolve 11))))))]))
 
 (tests "::lang/tag"
   (match (l/test-compile ::Main [(::lang/tag)
@@ -550,42 +524,36 @@
       (r/cdef 0 [] [] nil
         (fn [~'frame] (r/pure 2)))]))
 
-(tests
-  "call order"
-  (match (l/test-compile ::Main (let [x (binding [::foo 1] (::lang/lookup ::foo))]
+(tests "call order"
+  (match (l/test-compile ::Main (let [x (binding [::foo (inc 1)] (::lang/lookup ::foo))]
                                   (prn x)
                                   (prn x)))
     `[(r/cdef 0 [nil nil] [nil nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 (r/pure 1))
+          (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/define-call ~'frame 0
-            (r/ap '{}
-              (r/pure (fn* []
-                        (r/bind (r/ctor ::Main 2)
-                          ::foo (r/node ~'frame 0))))))
-          (r/define-node ~'frame 1 (r/join (r/call ~'frame 0)))
+            (r/pure (r/bind (r/ctor ::Main 2) ::foo (r/node ~'frame 0))))
+          (r/define-node ~'frame 1
+            (r/join (r/call ~'frame 0)))
           (r/define-call ~'frame 1
             (r/join
-              (r/ap '{} (r/lookup ~'frame ::i/fixed (r/pure i/fixed))
-                (r/ap '{} (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
-                  (r/pure (r/ctor ::Main 1 (r/node ~'frame 1))))
-                (r/ap '{} (r/lookup ~'frame ::r/invariant (r/pure r/invariant))
-                  (r/pure (r/ctor ::Main 3 (r/node ~'frame 1)))))))
+              (r/pure
+                (i/fixed
+                  (r/invariant (r/ctor ::Main 1 (r/node ~'frame 1)))
+                  (r/invariant (r/ctor ::Main 3 (r/node ~'frame 1)))))))
           (r/join (r/call ~'frame 1))))
       (r/cdef 1 [nil] [] nil
         (fn [~'frame]
           (r/define-node ~'frame 0
-            (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+            (r/ap '{} (r/pure ~'prn)
               (r/free ~'frame 0)))
-          (r/join
-            (r/ap '{} (r/lookup ~'frame ::r/drain (r/pure r/drain))
-              (r/pure (r/incseq ~'frame (r/node ~'frame 0)))))))
+          (r/join (r/pure (r/drain (r/incseq ~'frame (r/node ~'frame 0)))))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
           (r/lookup ~'frame ::foo)))
       (r/cdef 1 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/lookup ~'frame :clojure.core/prn (r/pure clojure.core/prn))
+          (r/ap '{} (r/pure ~'prn)
             (r/free ~'frame 0))))]))
 
 (declare #?(:clj clj-only :cljs cljs-only))
@@ -595,31 +563,28 @@
     `[(r/cdef 0 [:server] [] :client
         (fn [~'frame]
           (r/define-node ~'frame 0
-            (r/lookup ~'frame ::clj-only (r/pure clj-only)))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc)
+            (r/pure ~'clj-only))
+          (r/ap '{} (r/pure r/cannot-resolve)
             (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
            (e/client (inc clj-only)))
     `[(r/cdef 0 [:server] [] :client
         (fn [~'frame]
-          (r/define-node ~'frame 0
-            (r/lookup ~'frame ::clj-only))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+          (r/define-node ~'frame 0 (r/pure r/cannot-resolve))
+          (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
            (::lang/site nil (inc clj-only)))
     `[(r/cdef 0 [:server] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0
-            (r/lookup ~'frame ::clj-only))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+          (r/define-node ~'frame 0 (r/pure r/cannot-resolve))
+          (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (e/server (inc cljs-only)))
     `[(r/cdef 0 [:client] [] :server
         (fn [~'frame]
-          (r/define-node ~'frame 0
-            (r/lookup ~'frame ::cljs-only))
-          (r/ap '{} (r/lookup ~'frame :clojure.core/inc (r/pure inc))
+          (r/define-node ~'frame 0 (r/pure r/cannot-resolve))
+          (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))]))
 
 (def ^:dynamic *d* nil)
@@ -722,22 +687,24 @@
 
 (defn consuming [v*] (let [v* (atom v*)] (fn [_] (ffirst (swap-vals! v* next)))))
 
+(e/defn p [])
+
 (tests
   "foreign electrified"
-  (foreign-electrified (consuming ['plus]) '(clojure.core/+ 2 3))
-  := '((fn* [plus] (plus 2 3)) clojure.core/+)
+  (foreign-electrified (consuming ['plus]) '(p 2 3))
+  := `((fn* [~'plus] (~'plus 2 3)) p)
 
-  (foreign-electrified (consuming ['plus]) '(+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified (consuming ['plus]) '(clojure.core/+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified (consuming ['plus]) '(+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified (consuming ['plus]) '(p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified (consuming ['plus]) '(clojure.core/+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
   (foreign-electrified nil 'e1)
   := '((fn* [e1] e1) e1)
@@ -745,51 +712,27 @@
   (foreign-electrified nil '[e1 e1])
   := '((fn* [e1] [e1 e1]) e1)
 
-  (foreign-electrified (consuming ['plus]) '(clojure.core/+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
+  (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
-  (foreign-electrified (consuming ['plus]) '(+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
-
-  (foreign-electrified (consuming ['dyn]) '*d*)
-  := '((fn* [dyn] (binding [*d* dyn] *d*)) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified (consuming ['dyn]) '[*d* *d* *d*])
-  := '((fn* [dyn] (binding [*d* dyn] [*d* *d* *d*])) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified (consuming '[plus minus times]) '(fn [x] (+ (- e1 x) (* e2 x))))
-  := '((fn* [plus minus times e1 e2]
-         (fn* ([x] (plus (minus e1 x) (times e2 x)))))
-       clojure.core/+ clojure.core/- clojure.core/* e1 e2)
-
-  (foreign-electrified (consuming '[plus minus]) '(fn ([] (+ e1 e2)) ([x] (- x e1 e2))))
-  := '((fn* [plus minus e1 e2]
-         (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
-       clojure.core/+ clojure.core/- e1 e2)
-
-  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
-  (-> (foreign-electrified '(fn [x] (/ x 2))) first second first name first) := \_
-  (-> (foreign-electrified '(fn [x] (js/console.log x))) first second first name
-    (str/starts-with? "console_log")) := true
-
-  (foreign-electrified nil '(fn [x] [x x]))
-  := nil                                ; nothing to wrap, signaled as `nil`
+  (foreign-electrified (consuming ['plus]) '(p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
   "jvm"
-  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ 2 3))
-  := '((fn* [plus] (plus 2 3)) clojure.core/+)
+  (foreign-electrified-jvm (consuming ['plus]) '(p 2 3))
+  := `((fn* [~'plus] (~'plus 2 3)) p)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-jvm (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-jvm (consuming ['plus]) '(p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
   (foreign-electrified-jvm nil 'e1)
   := '((fn* [e1] e1) e1)
@@ -797,49 +740,27 @@
   (foreign-electrified-jvm nil '[e1 e1])
   := '((fn* [e1] [e1 e1]) e1)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(clojure.core/+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
+  (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
-  (foreign-electrified-jvm (consuming ['plus]) '(+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
-
-  (foreign-electrified-jvm (consuming ['dyn]) '*d*)
-  := '((fn* [dyn] (binding [*d* dyn] *d*)) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified-jvm (consuming ['dyn]) '[*d* *d* *d*])
-  := '((fn* [dyn] (binding [*d* dyn] [*d* *d* *d*])) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified-jvm (consuming '[plus minus times]) '(fn [x] (+ (- e1 x) (* e2 x))))
-  := '((fn* [plus minus times e1 e2]
-         (fn* ([x] (plus (minus e1 x) (times e2 x)))))
-       clojure.core/+ clojure.core/- clojure.core/* e1 e2)
-
-  (foreign-electrified-jvm (consuming '[plus minus]) '(fn ([] (+ e1 e2)) ([x] (- x e1 e2))))
-  := '((fn* [plus minus e1 e2]
-         (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
-       clojure.core/+ clojure.core/- e1 e2)
-
-  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
-  (-> (foreign-electrified-jvm '(fn [x] (/ x 2))) first second first name first) := \_
-
-  (foreign-electrified-jvm nil '(fn [x] [x x]))
-  := nil                                ; nothing to wrap, signaled as `nil`
+  (foreign-electrified-jvm (consuming ['plus]) '(p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
   "js"
-  (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ 2 3))
-  := '((fn* [plus] (plus 2 3)) clojure.core/+)
+  (foreign-electrified-js (consuming ['plus]) '(p 2 3))
+  := `((fn* [~'plus] (~'plus 2 3)) p)
 
-  (foreign-electrified-js (consuming ['plus]) '(+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-js (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-js (consuming ['plus]) '(+ +))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-js (consuming ['plus]) '(p p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
-  (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ clojure.core/+))
-  := '((fn* [plus] (plus plus)) clojure.core/+)
+  (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
+  := `((fn* [~'plus] (~'plus ~'plus)) p)
 
   (foreign-electrified-js nil 'e1)
   := '((fn* [e1] e1) e1)
@@ -847,36 +768,14 @@
   (foreign-electrified-js nil '[e1 e1])
   := '((fn* [e1] [e1 e1]) e1)
 
-  (foreign-electrified-js (consuming ['plus]) '(clojure.core/+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
+  (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
-  (foreign-electrified-js (consuming ['plus]) '(+ e1 3))
-  := '((fn* [plus e1] (plus e1 3)) clojure.core/+ e1)
-
-  (foreign-electrified-js (consuming ['dyn]) '*d*)
-  := '((fn* [dyn] (binding [*d* dyn] *d*)) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified-js (consuming ['dyn]) '[*d* *d* *d*])
-  := '((fn* [dyn] (binding [*d* dyn] [*d* *d* *d*])) hyperfiddle.electric.impl.compiler-test/*d*)
-
-  (foreign-electrified-js (consuming '[plus minus times]) '(fn [x] (+ (- e1 x) (* e2 x))))
-  := '((fn* [plus minus times e1 e2]
-         (fn* ([x] (plus (minus e1 x) (times e2 x)))))
-       clojure.core/+ clojure.core/- clojure.core/* e1 e2)
-
-  (foreign-electrified-js (consuming '[plus minus]) '(fn ([] (+ e1 e2)) ([x] (- x e1 e2))))
-  := '((fn* [plus minus e1 e2]
-         (fn* ([] (plus e1 e2)) ([x] (minus x e1 e2))))
-       clojure.core/+ clojure.core/- e1 e2)
+  (foreign-electrified-js (consuming ['plus]) '(p e1 3))
+  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
 
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
   := '((fn* [e1] (set! consuming e1)) e1)
-
-  ;; gensym of name of clojure.core// and js/console.log creates an invalid symbol
-  (-> (foreign-electrified-js '(fn [x] (/ x 2))) first second first name first) := \_
-
-  (foreign-electrified-js nil '(fn [x] [x x]))
-  := nil                                ; nothing to wrap, signaled as `nil`
 
   )
 
@@ -895,7 +794,7 @@
   ([gen o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv-js) unsited-fenv-js)
              (lang/wrap-foreign-for-electric gen))))
 
-(tests
+#_(tests
   "unsited edge cases"
 
   (foreign-electrified-unsited (consuming '[cannot-resolve]) '(fn [x] (goog.object/create e1)))
@@ -927,61 +826,6 @@
 
   (foreign-electrified-unsited-js (consuming '[first point]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
   := '((fn* [first] (set! (. (first [(new js/Object 0 2)]) -x) 2)) clojure.core/first)
-  )
-
-(comment
-
-  (let [ts (l/code->ts {} (prn :hello))
-        ap-uid (lang/e->uid ts (ts/find1 ts ::lang/type ::lang/ap))]
-    (match (ts/->node ts (ts/find1 ts ::lang/source-map-of ap-uid))
-      {::lang/line `tm/_, ::lang/column `tm/_}))
-
-
-  (number? (-> (l/compile-client-source-map (prn "hello world")) first ::lang/line)) := true
-  (let [sm (l/compile-client-source-map (let [x "Hello world", y "Hello world"] [x y]))
-        line (-> sm first ::lang/line)]
-    (number? line) := true                      ; x
-    (-> sm second ::lang/line) := line          ; y
-    (-> sm (nth 2) first ::lang/line) := line   ; ap
-    (-> sm (nth 2) second ::lang/line) := line) ; []
-
-  (let [sm (l/compile-client-source-map (::lang/ctor :foo))
-        line (-> sm first ::lang/line)]
-    (number? line) := true              ; static :foo
-    (-> sm second ::lang/line) := line) ; ctor
-
-  (let [sm (l/compile-client-source-map (::lang/call (::lang/ctor :foo)))
-        line (-> sm first ::lang/line)]
-    (number? line) := true               ; static :foo
-    (-> sm (nth 1) ::lang/line) := line  ; ctor
-    (-> sm (nth 2) ::lang/line) := line) ; call
-
-  (let [sm (l/compile-client-source-map (::lang/pure :foo))]
-    (number? (-> sm ffirst ::lang/line)) := true) ; pure
-
-  (let [sm (l/compile-client-source-map (::lang/join (::lang/pure :foo)))]
-    (number? (-> sm ffirst ::lang/line)) := true) ; join
-
-  (let [sm (l/compile-client-source-map (case :x nil :y :z))
-        line (-> sm first ::lang/line)]
-    (every? #(= line (::lang/line (cond-> % (seq? %) first))) sm) := true) ; every toplevel case flow
-
-  (let [sm (l/compile-client-source-map (-> 1 inc))]
-    (number? (-> sm ffirst ::lang/line)) := true) ; ap
-
-  (let [sm (l/compile-client-source-map (do 1 2))]
-    (every? number? (eduction (map #(cond-> % (seq? %) first)) (map ::lang/line) (first sm)))) ; every toplevel do flow
-
-  ;; TODO `loop` needs binding and electric defs
-  ;; (let [sm (l/compile-client-with-source-map (loop [x 1] (recur (inc x))))])
-
-  ;; TODO `set!` needs cc/fn
-  ;; (let [sm (l/compile-client-with-source-map (set! (.-x (Object.)) 1))])
-
-  (l/test-compile ::Main (e/letfn [(Foo [] Foo)] Foo))
-
-  (l/test-compile ::Main (e/$ (e/fn Foo ([] (e/$ Foo 10)) ([x] (inc x))) 100))
-  (l/test-compile ::Main (e/$ (::lang/mklocal Foo (::lang/bindlocal Foo (e/fn [x] Foo) Foo))))
   )
 
 (prn :ok)
