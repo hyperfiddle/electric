@@ -692,90 +692,90 @@
 (tests
   "foreign electrified"
   (foreign-electrified (consuming ['plus]) '(p 2 3))
-  := `((fn* [~'plus] (~'plus 2 3)) p)
+  := `[(~'plus 2 3) [~'plus] [p]]
 
   (foreign-electrified (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified (consuming ['plus]) '(p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified nil 'e1)
-  := '((fn* [e1] e1) e1)
+  := '[e1 [e1] [e1]]
 
   (foreign-electrified nil '[e1 e1])
-  := '((fn* [e1] [e1 e1]) e1)
+  := '[[e1 e1] [e1] [e1]]
 
   (foreign-electrified (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   (foreign-electrified (consuming ['plus]) '(p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   "jvm"
   (foreign-electrified-jvm (consuming ['plus]) '(p 2 3))
-  := `((fn* [~'plus] (~'plus 2 3)) p)
+  := `[(~'plus 2 3) [~'plus] [p]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-jvm nil 'e1)
-  := '((fn* [e1] e1) e1)
+  := '[e1 [e1] [e1]]
 
   (foreign-electrified-jvm nil '[e1 e1])
-  := '((fn* [e1] [e1 e1]) e1)
+  := '[[e1 e1] [e1] [e1]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   (foreign-electrified-jvm (consuming ['plus]) '(p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   "js"
   (foreign-electrified-js (consuming ['plus]) '(p 2 3))
-  := `((fn* [~'plus] (~'plus 2 3)) p)
+  := `[(~'plus 2 3) [~'plus] [p]]
 
   (foreign-electrified-js (consuming ['plus]) '(p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-js (consuming ['plus]) '(p p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p hyperfiddle.electric.impl.compiler-test/p))
-  := `((fn* [~'plus] (~'plus ~'plus)) p)
+  := `[(~'plus ~'plus) [~'plus] [p]]
 
   (foreign-electrified-js nil 'e1)
-  := '((fn* [e1] e1) e1)
+  := '[e1 [e1] [e1]]
 
   (foreign-electrified-js nil '[e1 e1])
-  := '((fn* [e1] [e1 e1]) e1)
+  := '[[e1 e1] [e1] [e1]]
 
   (foreign-electrified-js (consuming ['plus]) '(hyperfiddle.electric.impl.compiler-test/p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   (foreign-electrified-js (consuming ['plus]) '(p e1 3))
-  := `((fn* [~'plus ~'e1] (~'plus ~'e1 3)) p ~'e1)
+  := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
 
   (foreign-electrified-js (consuming '[a]) '(set! consuming e1))
-  := '((fn* [e1] (set! consuming e1)) e1)
+  := '[(set! consuming e1) [e1] [e1]]
 
   )
 
@@ -794,38 +794,32 @@
   ([gen o] (-> (lang/analyze-foreign (lang/-expand-all-foreign o unsited-fenv-js) unsited-fenv-js)
              (lang/wrap-foreign-for-electric gen))))
 
-#_(tests
+(tests
   "unsited edge cases"
 
-  (foreign-electrified-unsited (consuming '[cannot-resolve]) '(fn [x] (goog.object/create e1)))
-  := '((fn* [cannot-resolve e1] (fn* ([x] (cannot-resolve e1))))
-       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'goog.object/create) e1)
+  (foreign-electrified-unsited (consuming '[]) '(fn [x] (goog.object/create e1)))
+  := '[(fn* ([x] ((hyperfiddle.electric.impl.runtime3/cannot-resolve-fn (quote goog.object/create)) e1))) [e1] [e1]]
 
-  (foreign-electrified-unsited (consuming '[div]) '(fn [x] (try (/ 1 0) (catch js/Error e e))))
-  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch Throwable e e)))))
-       clojure.core//)
+  (foreign-electrified-unsited (consuming '[]) '(fn [x] (try (/ 1 0) (catch js/Error e e))))
+  := '[(fn* ([x] (try (/ 1 0) (catch Throwable e e)))) [] []]
 
-  (foreign-electrified-unsited (consuming '[first obj]) '(set! (.-x (-> [(js/Object.)] first)) 2))
-  := '((fn* [first] (set! (. (first [(new Object)]) -x) 2)) clojure.core/first)
+  (foreign-electrified-unsited (consuming '[]) '(set! (.-x (-> [(js/Object.)] first)) 2))
+  := '[(set! (. (first [(new Object)]) -x) 2) [] []]
 
-  (foreign-electrified-unsited (consuming '[cannot-resolve]) '(set! (.-title js/document) e1))
-  := '((fn* [cannot-resolve e1] (set! (. cannot-resolve -title) e1))
-       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'js/document) e1)
+  (foreign-electrified-unsited (consuming '[]) '(set! (.-title js/document) e1))
+  := '[(set! (. (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn (quote js/document)) -title) e1) [e1] [e1]]
 
-  (foreign-electrified-unsited-js (consuming '[cannot-resolve]) '(fn [x] (Thread/sleep e1)))
-  := '((fn* [cannot-resolve e1] (fn* ([x] (. cannot-resolve sleep e1))))
-       (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn 'Thread) e1)
+  (foreign-electrified-unsited-js (consuming '[]) '(fn [x] (Thread/sleep e1)))
+  := '[(fn* ([x] (. (hyperfiddle.electric.impl.runtime3/cannot-resolve-fn (quote Thread)) sleep e1))) [e1] [e1]]
 
-  (foreign-electrified-unsited-js (consuming '[div]) '(fn [x] (try (/ 1 0) (catch Exception e e))))
-  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch :default e e)))))
-       clojure.core//)
+  (foreign-electrified-unsited-js (consuming '[]) '(fn [x] (try (/ 1 0) (catch Exception e e))))
+  := '[(fn* ([x] (try (/ 1 0) (catch :default e e)))) [] []]
 
-  (foreign-electrified-unsited-js (consuming '[div]) '(fn [x] (try (/ 1 0) (catch Exception e e) (catch Throwable e e))))
-  := '((fn* [div] (fn* ([x] (try (div 1 0) (catch :default e e)))))
-       clojure.core//)
+  (foreign-electrified-unsited-js (consuming '[]) '(fn [x] (try (/ 1 0) (catch Exception e e) (catch Throwable e e))))
+  := '[(fn* ([x] (try (/ 1 0) (catch :default e e)))) [] []]
 
-  (foreign-electrified-unsited-js (consuming '[first point]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
-  := '((fn* [first] (set! (. (first [(new js/Object 0 2)]) -x) 2)) clojure.core/first)
+  (foreign-electrified-unsited-js (consuming '[]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
+  := '[(set! (. (first [(new js/Object 0 2)]) -x) 2) [] []]
   )
 
 (prn :ok)

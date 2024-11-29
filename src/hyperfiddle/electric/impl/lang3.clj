@@ -644,20 +644,20 @@
                   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure, ::site (::current env)})
                     (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v form, ::site (::current env)})))
         (fn*) (let [current (get (::peers env) (::current env))
-                    [f & arg*] (wrap-foreign-for-electric (analyze-foreign form env))]
+                    [code arg* val*] (wrap-foreign-for-electric (analyze-foreign form env))]
                 (if (or (nil? current) (= (->env-type env) current))
-                  (if f
-                    (add-ap-literal f arg* pe (->id) env form ts)
-                    (add-literal ts form (->id) pe env))
+                  (if (seq arg*)
+                    (add-ap-literal `(fn* ~arg* ~code) val* pe (->id) env form ts)
+                    (add-literal ts code (->id) pe env))
                   (recur `[~@arg*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
                            [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
-                           [f & arg*] (wrap-foreign-for-electric (analyze-foreign lfn* env))
+                           [code arg* val*] (wrap-foreign-for-electric (analyze-foreign lfn* env))
                            ts (?add-source-map ts e form env)]
                        (if (or (nil? current) (= (->env-type env) current))
-                         (if f
-                           (add-ap-literal f arg* pe e env form ts)
-                           (add-literal ts lfn* e pe env))
+                         (if (seq arg*)
+                           (add-ap-literal `(fn* ~arg* ~code) val* pe e env form ts)
+                           (add-literal ts code e pe env))
                          (recur `[~@arg*] pe env ts)))
         (new) (let [[_ f & args] form]
                 (if (my-turn? env)
@@ -1032,7 +1032,10 @@
                                               {::t ::electric-var, ::sym form ::resolved (::node ret)
                                                ::meta (::meta ret)})
                             (::var) (addf ts (->u)
-                                      {::t ::var, ::sym form ::resolved (::sym ret), ::meta (::meta ret)})
+                                      {::t ::var, ::sym form, ::meta (::meta ret)
+                                       ::resolved (let [lang (::lang ret)]
+                                                    (if (or (nil? lang) (= lang (->env-type env)))
+                                                      (::sym ret) `r/cannot-resolve))})
                             #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
 
          :else (addf ts (->u) {::t ::literal, ::v form}))))
@@ -1099,7 +1102,8 @@
                  (::map) (apply hash-map (eduction (map emit) (find ::p u)))
                  (::set) (set (eduction (map emit) (find ::p u)))
                  (::vector) (vec (eduction (map emit) (find ::p u)))
-                 (::electric-local ::local ::static ::electric-var ::var) (::sym nd))))]
+                 (::var) (if (= `r/cannot-resolve (::resolved nd)) `(r/cannot-resolve-fn '~(::sym nd))  (::sym nd))
+                 (::electric-local ::local ::static ::electric-var) (::sym nd))))]
      (emit u))))
 
 (defn wrap-foreign-for-electric
@@ -1108,7 +1112,7 @@
    (letfn [(->node [u] (ts/->node ts (ts/find1 ts ::u u)))
            (e->u [e] (::u (ts/->node ts e)))
            (order [u*] (sort-by (comp ::i ->node) u*))
-           (find [& kvs] (order (eduction (map e->u) (apply ts/find ts kvs))))
+           (find [& kvs] (when-some [found (apply ts/find ts kvs)] (order (eduction (map e->u) found))))
            (? [u k] (get (->node u) k))
            (?cannot-resolve [r s] (if (= `r/cannot-resolve r) `(r/cannot-resolve-fn '~s) r))]
      (let [<arg*> (->box []), <val*> (->box []), <dyn*> (->box []), <seen> (->box {})
@@ -1133,8 +1137,7 @@
            arg* (<arg*>), val* (<val*>), dyn* (<dyn*>)
            code (cond->> (emit-foreign ts) (seq dyn*) (list 'binding dyn*))
            e-local* (into [] (comp (map #(? % ::sym)) (distinct)) (find ::t ::electric-local))]
-       (when (or (seq arg*) (seq e-local*) (seq dyn*))
-         (list* (list 'fn* (into arg* e-local*) code) (into val* e-local*)))))))
+       [code (into arg* e-local*) (into val* e-local*)]))))
 
 (defn find-ctor-uid [ts e]
   (let [nd (ts/->node ts e)]
@@ -1333,6 +1336,7 @@
               (::mklocal) (write (::k nd))
               (::site) (write (::site nd))
               (::comp) (write (or (::comp-fn nd) 'thunk))
+              (::lookup) (write (::sym nd))
               (::ctor) (do (run! #(write (str " " (ts/? ts % ::closed-ref))) (ts/find ts ::ctor-free (::uid nd)))
                            (write "\n")
                            (run! #(go % (inc depth)) (ts/find ts ::type ::mklocal, ::ctor-local (::uid nd))))
@@ -1341,11 +1345,12 @@
           (go [e depth]
               (indent depth) (describe (ts/->node ts e) depth)
               (run! #(go % (inc depth)) (get-children-e ts e)))]
-    (run! #(go % 0) (get-ordered-ctors-e ts))
+    (run! #(go % 0) (or (not-empty (get-ordered-ctors-e ts))
+                      (ts/find ts ::type ::ctor)))
     ts))
 
 (defn analyze-electric [env {{::keys [->id]} :o :as ts}]
-  (when (::print-analysis env) (prn :analysis) (run! prn (->> (:eav ts) vals)) (pprint-db ts print))
+  (when (::print-analysis env) (run! prn (->> (:eav ts) vals)) (pprint-db ts print))
   (let [->sym (or (::->sym env) gensym)
         pure-fn? (fn pure-fn? [nd] (and (= ::literal (::type nd)) (symbol? (::v nd)) (pure-fns (qualify-sym (::v nd) env))))
         ap-of-pures (fn ap-of-pures [ts _go {ap-e :db/id, site ::site}]
@@ -1597,7 +1602,6 @@
   (let [expanded (expand-all env efn)
         _ (when (::print-expansion env) (fipp.edn/pprint expanded))
         ts (analyze expanded '_ env (->ts))
-        _  (when (::print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))
         ts (analyze-electric env ts)
         ctors (mapv #(emit-ctor ts % env root-key) (get-ordered-ctors-e ts))
         deps-set (emit-deps ts)
