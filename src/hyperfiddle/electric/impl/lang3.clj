@@ -1390,7 +1390,7 @@
                                                  (-> (<call>) (conj s) (<call>))
                                                  ts)))   ts ce)
                                 ctor-uid (find-ctor-uid ts ap-e)
-                                e (-> ap-e (+ (first ce)) (/ 2))]
+                                e (- (->id))]
                             (-> ts (ts/add {:db/id init-e, ::ctor-let-init ctor-uid,
                                             ::init-fn (fn [ts ctor-e env nm]
                                                         `[~fsym (fn ~fsym ~(<arg*>)
