@@ -10,21 +10,40 @@
 (e/defn Input [v & {:keys [maxlength type parse] :as props
                     :or {maxlength 100 type "text" parse identity}}]
   (e/client
-    (e/with-cycle [v (str v)] ; emits signal of current state
-      (dom/input (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
-        (when-not (dom/Focused?) (set! (.-value dom/node) v))
-        (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) v))))) ; emit on boot, rebuild on reset
+    (dom/input (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
+      (e/Reconcile ; don't reveal :grow/:shrink when the `if` switches
+        ; (Note: Reconcile is discrete, so it will not even emit :change on switch)
+        (if (dom/Focused?)
+          (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (str v))
+          (set! (.-value dom/node) (str v)))))))
 
 (e/defn Checkbox [checked & {:keys [id label parse] :as props
                              :or {id (random-uuid) parse identity}}]
   (e/client
     (e/amb
-      (e/with-cycle [checked checked]
-        (dom/input (dom/props {:type "checkbox", :id id})
-          (dom/props (dissoc props :id :label :parse))
-          (when-not (dom/Focused?) (set! (.-checked dom/node) checked))
-          (dom/On "change" #(-> % .-target .-checked parse) checked)))
+      (dom/input (dom/props {:type "checkbox", :id id})
+        (dom/props (dissoc props :id :label :parse))
+        (e/Reconcile
+          (if (dom/Focused?)
+            (dom/On "change" #(-> % .-target .-checked parse) checked)
+            (set! (.-checked dom/node) checked))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
+
+;; Simple uncontrolled inputs (sugar for the unvarying literal case)
+
+(e/defn Input* "
+Simple uncontrolled input, e.g.
+
+    (parse-long (Input 42 :maxlength 100))"
+  [init-v & {:as props}]
+  (e/client (e/with-cycle [v init-v] (Input v props))))
+
+(e/defn Checkbox* "
+Simple uncontrolled checkbox, e.g.
+
+    (Checkbox false :label \"debug\")"
+  [init-v & {:as props}]
+  (e/client (e/with-cycle [v init-v] (Checkbox v props))))
 
 ;; Transactional inputs
 ; Errors are forwarded in via token callback
