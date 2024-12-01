@@ -414,11 +414,15 @@ input's value, use `EventListener`."
 #?(:cljs (def listen-some events/listen-some))
 
 (e/defn On
-  ([event-type]                    ($ On      event-type identity))
-  ([event-type f]                  ($ On      event-type f        nil))
-  ([event-type f init-v]           ($ On      event-type f        init-v {}))
-  ([event-type f init-v opts]      ($ On node event-type f        init-v opts))
-  ([node event-type f init-v opts] (e/client (e/input (m/reductions {} init-v (events/listen node event-type ((e/capture-fn) f) opts))))))
+  ([event-type]               ($ On      event-type identity))
+  ([event-type f]             ($ On      event-type f nil))
+  ([event-type f v]           ($ On      event-type f v {}))
+  ([event-type f v opts]      ($ On node event-type f v opts))
+  ([node event-type f v opts]
+   (e/client
+     (e/input (let [!v (m/mbx)] (!v v) ; not just init-v, can be controlled v e.g. from db
+                (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
+                  (events/listen node event-type ((e/capture-fn) f) opts)))))))
 
 (defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
   ([event-type]               `($ On ~event-type (e/client identity)))
