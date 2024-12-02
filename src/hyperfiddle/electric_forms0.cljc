@@ -111,6 +111,7 @@ Simple uncontrolled checkbox, e.g.
         (dom/props {({:submit :aria-disabled} type :disabled) (some? btn-t)}))
       (dom/props {:aria-busy (some? btn-t)})
       (dom/props {:aria-invalid (some? err)})
+      (dom/props {:class [(when (and (some? x) (nil? btn-t) (nil? err)) "hf-success")]})
       (if btn-t
         (let [[form-t form-v] form]
           [(fn token
@@ -294,10 +295,13 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
 (defn call [f] (f))
 
 (defn debug-cleanup-form-edit [[_cmd & _args :as form-edit]]
-  (update form-edit 0 (fn [cmd]
-                        (try (contrib.data/unqualify cmd)
-                             (catch #?(:clj Throwable, :cljs :default) _
-                               cmd)))))
+  (when form-edit
+    (update form-edit 0 (fn [cmd]
+                          (try (contrib.data/unqualify cmd)
+                               (catch #?(:clj Throwable, :cljs :default) _
+                                 cmd))))))
+
+(e/defn InspectFormCommit [_commit]) ; to be rebound in dynamic scope
 
 (e/defn Form!*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
@@ -354,15 +358,16 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                          (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms
                          guess])))
 
-         (e/When debug
-           (dom/span (dom/text " " dirty-count " dirty"))
-           (dom/pre #_(dom/props {:style {:min-height "4em"}})
-             (dom/text (let [commit-edit (if commit (mapv debug-cleanup-form-edit (commit form-v "-1")) form-v)
-                             form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
-                         (pprint-str (if (= :verbose debug)
-                                       {:fields form-v, :expected-commit form-v-edit}
-                                       form-v-edit)
-                           :margin 80))))))))))
+         (let [commit-edit (if commit (mapv debug-cleanup-form-edit (commit form-v "-1")) form-v)
+               form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
+           (InspectFormCommit form-v-edit)
+           (e/When debug
+             (dom/span (dom/text " " dirty-count " dirty"))
+             (dom/pre #_(dom/props {:style {:min-height "4em"}})
+                      (dom/text (pprint-str (if (= :verbose debug)
+                                              {:fields form-v, :expected-commit form-v-edit}
+                                              form-v-edit)
+                                  :margin 80))))))))))
 
 (defmacro Form! [fields1 & kwargs] ; note - the fields must be nested under this form - which is fragile and unobvious
   `(dom/form ; for form "reset" event
