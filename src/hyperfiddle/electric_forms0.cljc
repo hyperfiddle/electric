@@ -265,8 +265,9 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
     & {:as props}]
    (e/client
      (let [{::keys [debug commit ; :commit fn must be side-effect free, :debug true will call :commit on every edit and present the result to the user
-                    discard show-buttons auto-submit edit-merge genesis name edit-monoid]}
-           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map})
+                    discard show-buttons auto-submit edit-merge genesis name edit-monoid
+                    InspectState]}
+           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map, ::InspectState (e/fn [_])})
            dirty-count (e/Count edits)
            clean? (zero? dirty-count)
            show-buttons (cond
@@ -279,6 +280,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
            [_ _ :as ?d] (FormDiscard! ::discard :form form :disabled clean? :label "discard" :show-button show-buttons)]
+       (InspectState form-v)
        (e/amb
          (e/for [[btn-q [cmd form-v]] (e/amb ?cs ?d)]
            (case cmd ; does order of burning matter?
