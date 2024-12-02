@@ -1,18 +1,20 @@
-# Electric Clojure – a reactive DSL for full-stack web development, with compiler-managed frontend/backend network sync
+# Electric Clojure – full-stack differential dataflow for UI
 
-`com.hyperfiddle/electric {:mvn/version "v2-alpha-540-ga4699532"}` · 2024 Jan 10 · [Changelog](CHANGELOG.md)
+`com.hyperfiddle/electric {:mvn/version "v3-alpha-SNAPSHOT"}` · 2024 Oct 22
 
-> [!NOTE]  
-> Electric v3 is nearly here! Request early access here: https://www.hyperfiddle.net/early-access.html
-
-Electric is a **reactive and network-aware Clojure/Script DSL** that fully abstracts over client/server state sync at the programming language layer, in order to achieve **strong composition** across the frontend/backend boundary in dynamic web apps. With Electric, backend expressions (i.e. queries) and frontend expressions (i.e. views) compose directly. There is no incidental network divide. The Electric macros will, at compile time, perform deep graph analysis of your hollistic program's data flow in order to transparently partition and distribute it across the client/server distributed system. There is no client/server dichotomy from the programmer's perspective. All IO and effects are managed.
-
-![](docs/electric-explainer-5.png)
-
-*Figure: This is not RPC or client-side ORM. The Electric compiler performs deep graph analysis of your unified frontend/backend program to automatically determine the optimal network cut, and then compile it into separate client and server target programs that cooperate and anticipate each other's needs.*
+> [!NOTE]
+> Electric v3 is now in private beta! Request beta access here: https://www.hyperfiddle.net/early-access.html
 
 
-- **Fully reactive:** unlike javascript frameworks, in Electric, reactivity is built directly into the programming language itself. Reactive-if, reactive-for, reactive try/catch. When everything is reactive, it feels like nothing is reactive. No observables! No async types! De-load your mind and relax.
+Electric is a new way to build rich, interactive web products that simply have too much interactivity, realtime streaming, and too rich network connections to be able to write all the frontend/backend network plumbing by hand. With Electric, you can compose your client and server expressions directly (i.e. in the same function), and the Electric compiler macros will **infer at compile time the implied frontend/backend boundary** and generate the corresponding full-stack app.
+
+![](docs/electric3-explainer.png)
+
+*Figure: In Electric, client and server expressions compose directly, and the Electric compiler transparently solves the network boundary through a straightforward dataflow graph analysis.*
+
+**How it works:** Unlike request/response frameworks, frontend ORMs, and client-side databases that suffer from request waterfalls, over/under fetching, large payload deserialization and other performance issues that get worse as your codebase and database grows, Electric uses a **custom Clojure/Script compiler to perform deep graph analysis** of your unified frontend/backend program and automatically determine the implied network cut, and then compile your program into separate reactive client and server target programs that cooperate and anticipate each other's needs. See [UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991) for a quick 10 minute video explainer of how this works and why it **actually doesn't result in the request waterfalls you might expect,** even in the presence of deep nesting, loops and control flow.
+
+- **Fully reactive:** unlike javascript frameworks, in Electric, reactivity is built directly into the programming language itself. Reactive-if, reactive-for, reactive lambda. When everything is reactive, it feels like nothing is reactive. No observables! No async types! De-load your mind and relax.
 
 
 - **Multi-tier**: frontend and backend are defined in the same expression, same function, same file. It's not code sharing, it's code *splitting*. Let the compiler infer the boundary from your code, instead of contorting your code — nay, your entire architecture — to fit the boundary.
@@ -21,7 +23,7 @@ Electric is a **reactive and network-aware Clojure/Script DSL** that fully abstr
 - **Network-transparent**: Electric closures close over server and client scope bindings, all in the same expression. The Electric compiler uses compile-time static knowledge of your source code to slice your expressions into client and server portions. Right through closures, loops and deeply nested function calls.
 
 
-- **Strong composition:** Network-transparent Electric functions are true functions. You have lambda, recursion, HOFs, closures, dynamic scope, macros, etc: the full undamaged composition power of Lisp. Goodbye "functional core imperative shell"; with Electric the *entire system is a function*.
+- **Strong composition:** Network-transparent Electric functions are true functions. You have lambda, recursion, HOFs, closures, dynamic scope, macros, etc: the full undamaged composition power of Lisp. Goodbye "functional core imperative shell"; with Electric the **entire system is a function**.
 
 Our mission is to raise the abstraction ceiling in web development in the same way that managed memory did in the 90s, paving the way for something new.
 
@@ -43,27 +45,29 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 # Tutorial and live examples
 
-- Live Tutorial: https://electric.hyperfiddle.net/
-- [electric starter app](https://github.com/hyperfiddle/electric-starter-app) – minimalist entrypoint
+- v3 live tutorial: https://electric.hyperfiddle.net/
+- v3 starter app: not yet generally available, [request early access here](https://www.hyperfiddle.net/early-access.html)
+
+**Electric v2** readme, docs, tutorial links: https://github.com/hyperfiddle/electric/tree/v2
+
 
 # Documentation
-- [Talk: Electric Clojure — London Clojurians (2023)](https://www.youtube.com/watch?v=v-GE_P1JSOQ)
-- [UIs are streaming DAGs (2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
-- [You don't need a web framework, you need a web language (2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+- [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
+- [Talk: Electric Clojure: compiler managed datasync for rich web apps (Getz 2023)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-compiler-managed-datasync-for-rich-web-apps-Getz-2023-e089a8c0caeb456daaf2f9675e3ac4e7)
+- [Talk: UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
+- [Talk: Missionary: a functional approach to massively concurrent application design (Noel 2023)](https://hyperfiddle-docs.notion.site/Talk-Missionary-a-functional-approach-to-massively-concurrent-application-design-Noel-2023-a74748f610c044328d19d038a6daffa1)
+- [You don't need a web framework, you need a web language (Getz 2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
+- [Talk: Functional effects and streaming systems in Clojure (Noel 2021)](https://hyperfiddle-docs.notion.site/Talk-Functional-effects-and-streaming-systems-in-Clojure-Noel-2021-f3f907e5e9b04d08a3be33d53a3cd18e)
 - https://clojureverse.org/t/electric-clojure-a-signals-dsl-for-fullstack-web-ui/9788
 - https://clojureverse.org/t/signals-vs-streams/9840/1
 
 # Community
 
-* Support chatroom: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
+* Slack: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
 * follow https://twitter.com/dustingetz for progress updates
 * Contributing: PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack. No typo fixes please.
 
-# References
+# License
 
-Electric Clojure implements a form of arrowized continuous time dataflow programming with extensions for network-transparent function composition.
-
-* [The Essence of Dataflow Programming (2006)](http://cs.ioc.ee/~tarmo/papers/essence.pdf) – great category theory overview of dataflow programming
-* [Push-pull functional reactive programming, Elliot (2009)](http://conal.net/papers/push-pull-frp/)
-* [Breaking down FRP, Jane Street (2014)](https://blog.janestreet.com/breaking-down-frp/)
-* [Seven Implementations of Incremental (video), Jane Street, 2016](https://www.youtube.com/watch?v=G6a5G5i4gQU)
+* Electric v3 is free for bootstrappers and non-commercial use via a business source available license.
+* See [license change announcement](https://tana.pub/lQwRvGRaQ7hM/electric-v3-license-change).
