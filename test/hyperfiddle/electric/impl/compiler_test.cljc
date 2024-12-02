@@ -501,7 +501,15 @@
            (e/server (java.time.Instant/ofEpochMilli 11)))
     `[(r/cdef 0 [] [] :server
         (fn [~'frame]
-          (r/ap '{} (r/pure (fn* [] (r/cannot-resolve 11))))))]))
+          (r/ap '{} (r/pure (fn* [] (r/cannot-resolve 11))))))])
+
+  (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
+           (e/server #(inc e/Count)))
+    `[(r/cdef 0 [] [] :server
+        (fn [~'frame]
+          (r/ap '{} (r/pure r/cannot-resolve)
+            (r/lookup ~'frame :hyperfiddle.electric3/Count
+              (r/pure (r/resolve ~'frame :hyperfiddle.electric3/Count))))))]))
 
 (tests "::lang/tag"
   (match (l/test-compile ::Main [(::lang/tag)

@@ -650,7 +650,7 @@
                   (if (seq arg*)
                     (add-ap-literal `(fn* ~arg* ~code) val* pe (->id) env form ts)
                     (add-literal ts code (->id) pe env))
-                  (recur `[~@arg*] pe env ts)))
+                  (recur `[~@val*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
                            [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
                            [code arg* val*] (wrap-foreign-for-electric (analyze-foreign lfn* env))
