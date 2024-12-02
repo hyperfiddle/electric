@@ -310,9 +310,9 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            (dom/pre #_(dom/props {:style {:min-height "4em"}})
              (dom/text (let [commit-edit (if commit (commit form-v "-1") form-v)
                              form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
-                         (pprint-str (if commit
+                         (pprint-str (if (= :verbose debug)
                                        {:fields form-v, :expected-commit form-v-edit}
-                                       {:expected-commit [form-v-edit]})
+                                       form-v-edit)
                            :margin 80))))))))))
 
 (defmacro Form! [fields1 & kwargs] ; note - the fields must be nested under this form - which is fragile and unobvious
