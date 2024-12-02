@@ -253,6 +253,12 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
 
 (defn call [f] (f))
 
+(defn debug-cleanup-form-edit [[_cmd & _args :as form-edit]]
+  (update form-edit 0 (fn [cmd]
+                        (try (contrib.data/unqualify cmd)
+                             (catch #?(:clj Throwable, :cljs :default) _
+                               cmd)))))
+
 (e/defn Form!*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
     edits ; concurrent edits are what give us dirty tracking
@@ -308,7 +314,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
          (e/When debug
            (dom/span (dom/text " " dirty-count " dirty"))
            (dom/pre #_(dom/props {:style {:min-height "4em"}})
-             (dom/text (let [commit-edit (if commit (commit form-v "-1") form-v)
+             (dom/text (let [commit-edit (if commit (mapv debug-cleanup-form-edit (commit form-v "-1")) form-v)
                              form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
                          (pprint-str (if (= :verbose debug)
                                        {:fields form-v, :expected-commit form-v-edit}
