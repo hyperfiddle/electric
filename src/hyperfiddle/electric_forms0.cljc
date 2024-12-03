@@ -341,7 +341,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
         #_(drop (count bs!)) ; todo fix glitch
         (e/diff-by stable-kf)))))
 
-(declare Service)
+(e/declare Service)
 
 (e/defn PendingController [stable-kf sort-key forms xs]
   (let [!pending (atom {}) ; [id -> guess]
@@ -359,7 +359,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
         (e/amb)))
     (Reconcile-records stable-kf sort-key xs ps)))
 
-(def effects* {})
+(e/declare effects*)
 
 (defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel

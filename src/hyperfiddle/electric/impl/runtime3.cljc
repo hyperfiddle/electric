@@ -277,7 +277,7 @@ T T T -> (EXPR T)
        (catch #?(:clj Throwable :cljs :default) e
          (let [clean-ex (clean-ex mt (ex-message e))]
            (println `?swap-exception (ex-message clean-ex))
-           (throw clean-ex)))))
+           (throw e #_clean-ex)))))
 
 (defn invoke-with [mt]
   (fn
@@ -590,7 +590,9 @@ T T T -> (EXPR T)
 (defn resolve
   "Returns the root binding of electric var matching given keyword."
   [^Frame frame key]
-  ((peer-resolve (.-peer frame) key)))
+  (when-some [f (peer-resolve (.-peer frame) key)]
+    (f))
+  #_((peer-resolve (.-peer frame) key)))
 
 (defn frame-site
   "Returns the site of given frame."
@@ -1637,9 +1639,18 @@ entrypoint.
 (defn ->defs [mp]
   (loop [ret {}, left mp]
     (if-some [[k f] (first left)]
-      (if (ret k)
+      (cond (ret k)
+            (recur ret (dissoc left k))
+
+            #?(:clj (instance? clojure.lang.Var$Unbound f) :cljs (undefined? f))
+            (recur (assoc ret k nil) (dissoc left k))
+
+            :else
+            (recur (assoc ret k f) (merge (dissoc left k) (f :get :deps)))
+            )
+      #_(if (ret k)
         (recur ret (dissoc left k))
-        (recur (assoc ret k f) (merge (dissoc left k) (f :get :deps))))
+        (recur (assoc ret k f) (merge (dissoc left k) (when f (try (f :get :deps) (catch #?(:clj Throwable :cljs :default) _))))))
       ret)))
 
 (defn peer-sink [peer]

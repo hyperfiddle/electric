@@ -11,7 +11,7 @@
   #?(:clj (:import [hyperfiddle.electric.impl.runtime3 Failure]))
   #?(:cljs (:require-macros contrib.trace3)))
 
-(def current nil)
+(e/declare current)
 (declare !db db !measure measure !q q)
 (let [c (atom {})]
   (defn ->trace-id [nm]

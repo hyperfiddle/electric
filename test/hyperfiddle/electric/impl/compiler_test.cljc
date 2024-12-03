@@ -94,7 +94,7 @@
   (match (l/test-compile ::Main (name (e/server :foo)))
     `[(r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/ap '{} (r/pure (~'name :foo)))))])
+          (r/pure (~'name :foo))))])
 
   (match (l/test-compile ::Main (prn (e/client (::lang/call (e/server (e/ctor nil))))))
     `[(r/cdef 0 [:server :client] [:client] nil
@@ -425,22 +425,25 @@
             (r/node ~'frame 0)
             (r/node ~'frame 0))))]))
 
+(e/declare einc edec)
 (tests "test-binding"
   (match (l/test-compile ::Main
-           (binding [inc dec, dec inc]
-             (inc (dec 0))))
+           (binding [einc dec, edec inc]
+             (einc (edec 0))))
     `[(r/cdef 0 [nil nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure ~'dec))
           (r/define-node ~'frame 1 (r/pure ~'inc))
           (r/define-call ~'frame 0
             (r/pure (r/bind (r/ctor ::Main 1)
-                      :clojure.core/inc (r/node ~'frame 0)
-                      :clojure.core/dec (r/node ~'frame 1))))
+                      ::einc (r/node ~'frame 0)
+                      ::edec (r/node ~'frame 1))))
           (r/join (r/call ~'frame 0))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/pure (~'inc (~'dec 0)))))]))
+          (r/ap '{} (r/lookup ~'frame ::einc (r/pure (r/resolve ~'frame ::einc)))
+            (r/ap '{} (r/lookup ~'frame ::edec (r/pure (r/resolve ~'frame ::edec)))
+              (r/pure 0)))))]))
 
 (tests "test-ap-collapse"
   (match (l/test-compile ::Main [1 2])
@@ -829,5 +832,25 @@
   (foreign-electrified-unsited-js (consuming '[]) '(set! (.-x (-> [(java.awt.Point. 0 2)] first)) 2))
   := '[(set! (. (first [(new js/Object 0 2)]) -x) 2) [] []]
   )
+
+(tests
+  "binding requires an electric var"
+  (try (l/test-compile ::Main (binding [inc dec] (inc 1)))
+       (catch ExceptionInfo e (ex-message e)))
+  := "[inc] is not an electric var")
+
+#?(:clj
+   (tests
+     "(.foo x) regression, node count mismatch"
+     (let [code (l/test-compile ::Main (lang/->cljs-env)
+                  (let [h (inc 1), name_ (e/server (.getName h))]
+                    (e/client (prn name_))))]
+       (tm/test-match (l/test-compile ::Main (lang/->cljs-env)
+                        (let [h (inc 1), name_ (e/server (.getName h))]
+                          (e/client (prn name_))))
+         `(fn
+            tm/_
+            (tm/_ (case tm/_ 0 (r/cdef 0 [nil :server] tm/_&)))))
+       := code)))
 
 (prn :ok)

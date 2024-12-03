@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric3
-  (:refer-clojure :exclude [fn defn apply letfn for])
+  (:refer-clojure :exclude [fn defn apply letfn for declare])
   (:require [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             #?(:clj [hyperfiddle.electric.impl.entrypoint]) ; TODO rename server-entrypoint
@@ -112,6 +112,10 @@ Returns the successive states of items described by `incseq`.
                       `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))]
     (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
     `(def ~nm2 ~source)))
+
+(defmacro declare [& syms]
+  (let [syms (mapv #(vary-meta % assoc ::lang/node true) syms)]
+    `(cc/declare ~@syms)))
 
 (defmacro amb "
 Syntax :
@@ -474,7 +478,8 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
   ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
 
 
-(def http-request "Bound to the HTTP request of the page in which the current Electric program is running." nil)
+(hyperfiddle.electric3/declare ^{:doc "Bound to the HTTP request of the page in which the current Electric program is running."}
+  http-request)
 
 (cc/defn measure< [nm v] (cm/measure nm v))
 (defmacro Measure [nm v] `(->> ~v pure (measure< ~nm) join))

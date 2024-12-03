@@ -18,6 +18,14 @@
           (if (= st# :ok) v# (throw v#)))
         ~form))))
 
+(defmacro dbg-ok
+  ([form] `(dbg-ok '~form ~form))
+  ([label form]
+   (let [[label form] (if (keyword? form) [form label] [label form])]
+     `(let [v# ~form]
+        (prn ~label '~'==> v#)
+        v#))))
+
 (defmacro dbg-when [form & body] `(binding [*dbg* ~form] ~@body))
 
 (defmacro dbgv [form]

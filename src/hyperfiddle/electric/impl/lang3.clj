@@ -519,7 +519,8 @@
   (if (symbol? sym)
     (let [it (resolve-as-non-local sym env)]
       (case (::type it)
-        (::var) (keyword (::sym it))
+        (::electric-var) (keyword (::sym it))
+        (::var) (throw (ex-info (str "[" sym "] is not an electric var") {::form sym, ::resolved it}))
         (::node) (keyword (::node it))
         (::static) (throw (ex-info (str "`" sym "` did not resolve as a var") {::form sym}))
         #_else (keyword sym)))
