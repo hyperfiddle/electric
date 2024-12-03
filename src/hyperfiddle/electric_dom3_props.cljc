@@ -230,7 +230,7 @@ On unmount:
                [removes adds] (clojure.data/diff (set @!prev) next-classes)]
            (reset! !prev classes)
            (run! unset-class! removes) ; remove in any order
-           (run! set-class! (filter adds classes)) ; add in user-specified order
+           (run! set-class! (if adds (filter adds classes) ())) ; add in user-specified order
            )))))
 
 
