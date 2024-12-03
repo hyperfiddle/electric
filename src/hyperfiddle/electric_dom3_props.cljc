@@ -176,10 +176,8 @@ On unmount:
 
 (e/defn Clazz [node clazz] (e/client (e/input (get-class-signal node clazz))))
 
-;; TODO find a better name for MapCSeq
-;; TODO move MapCSeq to another ns
-;; how to run an e/fn over a clojure sequence
-(e/defn MapCSeq [Fn cseq] ; FIXME find the right name
+;; early v3 experiment - how to run an e/fn over a clojure sequence
+(e/defn ^:deprecated MapCSeq [Fn cseq]
   (e/cursor [[_ v] (e/diff-by first (map-indexed vector cseq))] ($ Fn v)))
 
 ;; Alternative style
@@ -188,16 +186,27 @@ On unmount:
 
 (e/defn ClassList [node classes]
   (e/client
-    ($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))))
+    #_($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))
+    (e/for [c (e/diff-by {} (parse-class classes))] ; positional diff
+      ($ Clazz node c))
+    (e/amb)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Inline Styles ;;
 ;;;;;;;;;;;;;;;;;;;
 
-(e/defn Styles [node kvs] ; TODO move to electric-css, blocked on MapCSeq
+(e/defn Styles [node kvs]
   (e/client
-    ($ MapCSeq (e/fn [[property value]] ($ css/Style node property value)) kvs)
-    kvs))
+    #_($ MapCSeq (e/fn [[property value]] ($ css/Style node property value)) kvs)
+    (e/for [[property value] (e/diff-by key kvs)]
+      ($ css/Style node property value))
+    (e/amb)))
+
+(defmacro -styles [node kvs]
+  (if (map? kvs)
+    `(do ~@(map (fn [[property value]] `($ css/Style ~node ~property ~value)) kvs)
+         (e/amb))
+    `($ Styles ~node ~kvs)))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Generic Props ;;
@@ -226,11 +235,20 @@ On unmount:
       (class? name) ($ ClassList node value)
       :else         ($ Attribute node name value))))
 
+(defmacro -property [node name value]
+  (cond
+    (style? name) `(-styles ~node ~value)
+    (class? name) `($ ClassList ~node ~value)
+    :else         `($ Attribute ~node ~name ~value)))
+
 (e/defn Properties ; NOTE Leo: this is an anti pattern, we already have e/amb or e/diff-by, no need for an implicit diff.
   "Take a map of attribute or property name to value and sets each onto `node`. Return nil."
   [node kvs]
   (e/client
-    ($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))))
+    #_($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))
+    (e/for [[name value] (e/diff-by first (ordered-props kvs))]
+      ($ Property node name value))
+    (e/amb)))
 
 (defmacro props
   "
@@ -260,10 +278,6 @@ object property. For instance:
   ([m] `(props hyperfiddle.electric-dom3/node ~m))
   ([node m]
    (if (map? m)
-     `(do ~@(map (fn [[k v]] (cond  ; static keyset + saves on a conditional
-                               (style? k) `($ Styles ~node ~v)
-                               (class? k) `($ ClassList ~node ~v)
-                               :else      `($ Property ~node ~k ~v)))
-              (ordered-props m))
-          nil)
+     `(do ~@(map (fn [[k v]] `(-property ~node ~k ~v)) (ordered-props m))
+          (e/amb))
      `($ Properties ~node ~m))))
