@@ -7,6 +7,7 @@
    [hyperfiddle.electric-css3 :as css]
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
+   [clojure.data]
    #?(:cljs [goog.object]))
   #?(:clj (:import [clojure.lang ExceptionInfo]))
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3-props])))
@@ -162,33 +163,83 @@ On unmount:
   (try (parse-class 42) (throw (ex-info "" {}))
        (catch ExceptionInfo ex (ex-data ex) := {:data 42})))
 
-#?(:cljs
-   (defn build-class-signal [node clazz]
-     (m/signal (m/observe (fn [!]
-                            (! nil)
-                            (.add (.-classList node) clazz)
-                            #(.remove (.-classList node) clazz))))))
+(comment
+  #?(:cljs
+     (defn build-class-signal [node clazz]
+       (m/signal (m/observe (fn [!]
+                              (! nil)
+                              (.add (.-classList node) clazz)
+                              #(.remove (.-classList node) clazz))))))
 
-#?(:cljs
-   (defn get-class-signal [node clazz]
-     (let [k (js/Symbol.for (str "hyperfiddle.dom3.class-signal-" clazz))]
-       (or (aget node k) (aset node k (build-class-signal node clazz))))))
+  #?(:cljs
+     (defn get-class-signal [node clazz]
+       (let [k (js/Symbol.for (str "hyperfiddle.dom3.class-signal-" clazz))]
+         (or (aget node k) (aset node k (build-class-signal node clazz))))))
 
-(e/defn Clazz [node clazz] (e/client (e/input (get-class-signal node clazz))))
+
+  (e/defn Clazz [node clazz] (e/client (e/input (get-class-signal node clazz)))))
 
 ;; early v3 experiment - how to run an e/fn over a clojure sequence
-(e/defn ^:deprecated MapCSeq [Fn cseq]
+(e/defn ^:deprecated MapCSeq [Fn cseq] ; TODO remove
   (e/cursor [[_ v] (e/diff-by first (map-indexed vector cseq))] ($ Fn v)))
 
 ;; Alternative style
 #_(defmacro for-cseq [[b cseq] & body] `(e/cursor [[i# ~b] (e/diff-by first (map-indexed vector ~cseq))] ~@body))
 #_(for-cseq [x xs] ($ Foo x))
 
+;; Alternative class ref counting impl, avoids an e/for for perfs
+
+#?(:cljs
+   (defn inc-ref-count [^js node clazz]
+     (set! (.-hf-electric-dom3-clazz-refs node) ; could use a js Symbol
+       (update (or (.-hf-electric-dom3-clazz-refs node) {}) clazz
+         (fn [cnt]
+           (case cnt
+             nil 1
+             (inc cnt)))))))
+
+#?(:cljs
+   (defn dec-ref-count [^js node clazz]
+     (let [refs-store (or (.-hf-electric-dom3-clazz-refs node) {}) ; could use a js Symbol
+           current-count (get refs-store clazz)
+           new-count (case current-count
+                       nil 0
+                       0   0
+                       (dec current-count))]
+       (set! (.-hf-electric-dom3-clazz-refs node) (assoc refs-store clazz new-count))
+       new-count)))
+
+#?(:cljs
+   (defn set-class! [node clazz]
+     (inc-ref-count node clazz)
+     (.add (.-classList node) clazz) ; idempotent
+     ))
+
+#?(:cljs
+   (defn unset-class! [node clazz]
+     (when (zero? (dec-ref-count node clazz))
+       (.remove (.-classList node) clazz))))
+
+#?(:cljs
+   (defn set-classes! [node]
+     (let [!prev (atom #{})
+           set-class! (partial set-class! node)
+           unset-class! (partial unset-class! node)]
+       (fn [classes]
+         (let [next-classes (set classes)
+               [removes adds] (clojure.data/diff (set @!prev) next-classes)]
+           (reset! !prev classes)
+           (run! unset-class! removes) ; remove in any order
+           (run! set-class! (filter adds classes)) ; add in user-specified order
+           )))))
+
+
 (e/defn ClassList [node classes]
   (e/client
     #_($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))
-    (e/for [c (e/diff-by {} (parse-class classes))] ; positional diff
+    #_(e/for [c (e/diff-by identity (parse-class classes))]
       ($ Clazz node c))
+    ((set-classes! node) (parse-class classes)) ; for perfs, manual diff, saves an e/for
     (e/amb)))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -198,6 +249,7 @@ On unmount:
 (e/defn Styles [node kvs]
   (e/client
     #_($ MapCSeq (e/fn [[property value]] ($ css/Style node property value)) kvs)
+    ;; (prn "Setting dynamic dom styles, potential slowdown" `Styles kvs)
     (e/for [[property value] (e/diff-by key kvs)]
       ($ css/Style node property value))
     (e/amb)))
@@ -246,6 +298,7 @@ On unmount:
   [node kvs]
   (e/client
     #_($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))
+    ;; (prn "Setting dynamic dom properties, potential slowdown" `Properties kvs)
     (e/for [[name value] (e/diff-by first (ordered-props kvs))]
       ($ Property node name value))
     (e/amb)))
