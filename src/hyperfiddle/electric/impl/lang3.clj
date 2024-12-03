@@ -709,7 +709,7 @@
                       (if (field-access? x)
                         (add-ap-literal `(fn [oo#] (. oo# ~x)) [o] pe (->id) env form ts)
                         (->obj-method-call o x [] pe env form ts))
-                      (recur nil pe env ts))))))
+                      (recur [o] pe env ts))))))
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
                                                   `(let* [~@(interleave gs (take-nth 2 (next bs)))]
