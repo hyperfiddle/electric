@@ -194,7 +194,7 @@ in an associated optimistic collection view!"
       )
     (if-let [t
           ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
-          (let [[btn-t btn-err :as btn] (e/When show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
+          (let [[btn-t btn-err :as btn] (when show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
                 submit-event (dom/On "submit" #(doto % (.preventDefault)) nil)
                 [t err] (e/Token submit-event)]
             btn ; force let branch
@@ -272,6 +272,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            clean? (zero? dirty-count)
            show-buttons (cond
                           (boolean? show-buttons) show-buttons
+                          (nil? show-buttons) false
                           (= ::smart (qualify show-buttons)) (not clean?))
            [form-t form-v :as form] (invert-fields-to-form edit-merge (e/as-vec edits))
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
