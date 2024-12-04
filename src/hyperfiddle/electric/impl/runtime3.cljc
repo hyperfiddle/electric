@@ -277,7 +277,7 @@ T T T -> (EXPR T)
        (catch #?(:clj Throwable :cljs :default) e
          (let [clean-ex (clean-ex mt (ex-message e))]
            (println `?swap-exception (ex-message clean-ex))
-           (throw e #_clean-ex)))))
+           (throw clean-ex)))))
 
 (defn invoke-with [mt]
   (fn
