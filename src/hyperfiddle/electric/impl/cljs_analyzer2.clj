@@ -288,9 +288,8 @@
 (def implicit-nses '#{goog goog.object goog.string goog.array Math String})
 
 (defn imported? [a sym ns$]
-  (let [imports (into implicit-nses (-> a ::nses (get ns$) ::imports))
-        dot-access (-> sym str (str/replace #"\.[^.]+$" "") symbol)]
-    (or (get imports dot-access)
-      (and (qualified-symbol? sym) (get imports (-> sym namespace symbol))))))
+  (let [imports (into implicit-nses (-> a ::nses (get ns$) ::imports))]
+    (cond (qualified-symbol? sym) (get imports (-> sym namespace symbol))
+          (str/includes? sym ".") (get imports (-> sym str (str/replace #"\.[^.]+$" "") symbol)))))
 
 (defn referred? [a sym ns$] (-> a ::nses (get ns$) ::refers (get sym)))

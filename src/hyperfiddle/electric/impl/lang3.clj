@@ -684,12 +684,12 @@
 
                 (and (symbol? (second form)) (class? (resolve env (second form))))
                 (if (seq? (nth form 2)) ; (. java.time.Instant (ofEpochMilli 1))
-                  (if me?
+                  (if (= :clj (->env-type env))
                     (let [[_ clazz [method & method-args]] form]
                       (->class-method-call clazz method method-args pe env form ts))
                     (recur `[~@(next (nth form 2))] pe env ts))
                   (let [[_ clazz x & xs] form] ; (. java.time.instant opEpochMilli 1)
-                    (if me?
+                    (if (= :clj (->env-type env))
                       (->class-method-call clazz x xs pe env form ts)
                       (recur `[~@xs] pe env ts))))
 
@@ -1584,9 +1584,11 @@
 (defn ->ts [] (ts/->ts {::->id (->->id), ::->uid (->->id)}))
 
 (defn compile [nm form env]
-  (compile* nm env
-    (analyze (expand-all env `(::ctor ~form))
-      '_ env (->ts))))
+  (let [expanded (expand-all env `(::ctor ~form))]
+    (when (::print-expansion env) (fipp.edn/pprint expanded))
+    (compile* nm env
+      (analyze expanded
+        '_ env (->ts)))))
 
 (defn ->source [env root-key efn]
   (let [expanded (expand-all env efn)

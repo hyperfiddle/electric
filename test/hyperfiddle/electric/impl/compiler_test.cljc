@@ -512,7 +512,19 @@
         (fn [~'frame]
           (r/ap '{} (r/pure r/cannot-resolve)
             (r/lookup ~'frame :hyperfiddle.electric3/Count
-              (r/pure (r/resolve ~'frame :hyperfiddle.electric3/Count))))))]))
+              (r/pure (r/resolve ~'frame :hyperfiddle.electric3/Count))))))])
+
+  (match (l/test-compile ::Main (lang/->cljs-env) (java.nio.file.Path/of "./src"))
+    `[(r/cdef 0 [] [] nil
+        (fn [~'frame]
+          (r/pure (vector "./src"))))])
+
+  (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
+           String)
+    `[(r/cdef 0 [] [] :server
+        (fn [~'frame]
+          (r/pure r/cannot-resolve)))])
+  )
 
 (tests "::lang/tag"
   (match (l/test-compile ::Main [(::lang/tag)
@@ -680,8 +692,6 @@
   (foreign-js '(fn ([x] 1) ([x y] 2))) := '(fn* ([x] 1) ([x y] 2))
   (foreign-js '(letfn [(foo [x] 1) (bar [y] 2)] 3)) := '(letfn* [foo (fn* foo ([x] 1)) bar (fn* bar ([y] 2))] 3)
   (foreign-js '(Math/abs -1)) := '(Math/abs -1)
-  (foreign-js '(. Math abs -1)) := '(Math/abs -1)
-  (foreign-js '(. Math (abs -1))) := '(Math/abs -1)
   (foreign-js '(binding [x 1 y 2] 3)) := '(binding [x 1 y 2] 3)
   (foreign-js '(def foo 1)) := '(def foo 1)
   (foreign-js '(do (def foo 1) 2)) := '(do (def foo 1) 2)
