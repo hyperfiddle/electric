@@ -240,7 +240,7 @@ On unmount:
     #_(e/for [c (e/diff-by identity (parse-class classes))]
       ($ Clazz node c))
     ((set-classes! node) (parse-class classes)) ; for perfs, manual diff, saves an e/for
-    (e/amb)))
+    ))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Inline Styles ;;
@@ -251,13 +251,11 @@ On unmount:
     #_($ MapCSeq (e/fn [[property value]] ($ css/Style node property value)) kvs)
     ;; (prn "Setting dynamic dom styles, potential slowdown" `Styles kvs)
     (e/for [[property value] (e/diff-by key kvs)]
-      ($ css/Style node property value))
-    (e/amb)))
+      ($ css/Style node property value))))
 
 (defmacro -styles [node kvs]
   (if (map? kvs)
-    `(do ~@(map (fn [[property value]] `($ css/Style ~node ~property ~value)) kvs)
-         (e/amb))
+    `(e/drain ~@(map (fn [[property value]] `($ css/Style ~node ~property ~value)) kvs))
     `($ Styles ~node ~kvs)))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -300,8 +298,7 @@ On unmount:
     #_($ MapCSeq (e/fn [[name value]] ($ Property node name value)) (ordered-props kvs))
     ;; (prn "Setting dynamic dom properties, potential slowdown" `Properties kvs)
     (e/for [[name value] (e/diff-by first (ordered-props kvs))]
-      ($ Property node name value))
-    (e/amb)))
+      ($ Property node name value))))
 
 (defmacro props
   "
@@ -331,6 +328,5 @@ object property. For instance:
   ([m] `(props hyperfiddle.electric-dom3/node ~m))
   ([node m]
    (if (map? m)
-     `(do ~@(map (fn [[k v]] `(-property ~node ~k ~v)) (ordered-props m))
-          (e/amb))
+     `(e/drain ~@(map (fn [[k v]] `(-property ~node ~k ~v)) (ordered-props m)))
      `($ Properties ~node ~m))))
