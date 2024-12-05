@@ -294,8 +294,11 @@
    (let [mp   (e/client (e/mount-point))
          elem (e/client (create-element ns tag mp))]
      (r/do!
-       (e/client (e/input (attach! node (e/tag) elem)))
-       (e/client (e/input (m/reductions mount-items elem mp)))
+       (e/client
+         (r/do!                         ; why e/drain doesn't work here?
+           (e/input (attach! node (e/tag) elem))
+           (e/input (m/reductions mount-items elem mp))
+           nil))
        (binding [node elem] (Body))))))
 
 ;; DONE what should `element*` return?
