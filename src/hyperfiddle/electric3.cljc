@@ -158,7 +158,7 @@ Syntax :
 ```
 Samples and discards `expr` synchronously with changes. Returns nothing.
 " ([expr] `(join (r/drain (pure ~expr))))
-  ([expr & exprs] `(e/amb ~@(clojure.core/for [arg (cons expr exprs)] `(drain ~arg)))))
+  ([expr & exprs] `(r/do! ~@(clojure.core/for [arg (cons expr exprs)] `(drain ~arg)))))
 
 (defmacro client [& body] `(check-electric client (::lang/site :client ~@body)))
 (defmacro server [& body] `(check-electric server (::lang/site :server ~@body)))
