@@ -762,11 +762,9 @@
         (::sitable) (let [e (->id)] (recur (second form) e env (ts/add ts {:db/id e, ::parent pe, ::type ::sitable, ::site (::current env)})))
         (::k) ((second form) pe env ts)
         #_else (let [current (get (::peers env) (::current env)), [f & args] form]
-                 (if (and (= :cljs (->env-type env)) (contains? #{nil :cljs} current) (symbol? f)
-                       (let [js-call? (cljs-ana/js-call? @!a f (get-ns env))]
-                         (when (::debug env) (prn :js-call? f '=> js-call?))
-                         js-call?))
-                   (add-ap-literal (bound-js-fn f) args pe (->id) env form ts)
+                 (if (and (contains? #{nil :cljs} current) (symbol? f) (cljs-ana/js-call? @!a f (get-ns env)))
+                   (add-ap-literal (case (->env-type env) :cljs (bound-js-fn f) :clj `r/cannot-resolve)
+                     args pe (->id) env form ts)
                    (let [e (->id), uid (->uid)]
                      (reduce (fn [ts nx] (analyze nx e env ts))
                        (-> (ts/add ts {:db/id e, ::parent pe, ::type ::ap, ::uid uid, ::site (::current env)})

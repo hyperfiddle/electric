@@ -855,4 +855,20 @@
             (tm/_ (case tm/_ 0 (r/cdef 0 [nil :server] tm/_&)))))
        := code)))
 
+#?(:clj
+   (tests
+     "graph misalignment bug"
+     (match (l/test-compile ::Main
+              (::lang/site nil (js/console.log :extra)))
+       `[(r/cdef 0 [] [] nil
+           (fn [~'frame]
+             (r/ap '{}
+               (r/pure (fn* [] (r/cannot-resolve :extra))))))])
+     (match (l/test-compile ::Main (lang/->cljs-env)
+              (::lang/site nil (js/console.log :extra)))
+       `[(r/cdef 0 [] [] nil
+           (fn [~'frame]
+             (r/ap '{}
+               (r/pure (fn* [] ((.bind js/console.log js/console) :extra))))))])))
+
 (prn :ok)
