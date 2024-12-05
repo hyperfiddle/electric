@@ -1513,6 +1513,7 @@
                             (-> ts (ts/upd mklocal-e ::in-call #(conj (or % #{}) (e->uid ts call-e)))
                               (ensure-node mklocal-uid))
                             ts)
+                       ts (ts/upd ts mklocal-e ::used-refs #(conj (or % #{}) (::uid nd)))
                        ctor (::ctor-local mklocal-nd)
                        ctor-uid* (loop [ctor-uid* '(), e e]
                                    (if-some [ctor-uid (find-ctor-uid ts e)]
@@ -1524,7 +1525,7 @@
                      (-> ts (ensure-node mklocal-uid)
                        (ensure-free-node mklocal-uid (first ctor-uid*) ctor)
                        (ensure-free-frees mklocal-uid ctor-uid*))
-                     (cond-> (ts/upd ts mklocal-e ::used-refs #(conj (or % #{}) (::uid nd)))
+                     (cond-> ts
                        (or (= 1 (count (::used-refs mklocal-nd))) ; before inc, now it's 2
                          (when-some [pt-e (find-sitable-point-e ts e)]
                            (not= (get-site ts pt-e) (get-local-site ts localv-e))))

@@ -2567,3 +2567,7 @@
   "pick branch on server, call on client"
   (with ((l/local {} (tap (e/call_ (e/server (e/case_ 1 0 :zero 1 :one #_else :none))))) {} {})
     % := :one))
+
+(tests "self referencing e/fn regression"
+  (with ((l/single {} (tap ({} (e/fn [] (e/fn Self [] Self)) :ok))) {} {})
+    % := :ok))
