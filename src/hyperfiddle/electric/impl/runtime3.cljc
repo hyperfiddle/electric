@@ -399,7 +399,7 @@ T T T -> (EXPR T)
 " [incseq]
   (m/latest (constantly (d/empty-diff 0)) incseq))
 
-(def void (invariant (d/empty-diff 0)))
+(def void (i/fixed))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
