@@ -12,13 +12,14 @@
 (defmacro bindx [[s expr & more :as bindings] & body]
   (pyramid 'binding bindings body))
 
-(tests
-  (macroexpand-1 '(bindx [a 1 b (inc a)] (println a) (+ a b)))
-  := '(binding [a 1]
-        (binding [b (inc a)]
-          (println a)
-          (+ a b)))
+#?(:clj
+   (tests
+     (macroexpand-1 '(bindx [a 1 b (inc a)] (println a) (+ a b)))
+     := '(binding [a 1]
+           (binding [b (inc a)]
+             (println a)
+             (+ a b)))
 
-  (def ^:dynamic a)
-  (def ^:dynamic b)
-  (bindx [a 1 b (inc a)] (+ a b)) := 3)
+     (def ^:dynamic a)
+     (def ^:dynamic b)
+     (bindx [a 1 b (inc a)] (+ a b)) := 3))
