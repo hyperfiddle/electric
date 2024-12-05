@@ -1661,3 +1661,14 @@ entrypoint.
     (m/ap
       (m/amb= (m/? (handler (peer-events peer)))
         (m/? (peer-sink peer))))))
+
+(defn do!
+  ([])
+  ([a] a)
+  ([_ b] b)
+  ([_ _ c] c)
+  ([_ _ _ d] d)
+  ([_ _ _ _ e] e)
+  ([_ _ _ _ _ f] f)
+  ([_ _ _ _ _ _ g] g)
+  ([_ _ _ _ _ _ _ & more] (last more)))

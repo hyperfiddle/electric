@@ -23,6 +23,7 @@
    ;; [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.electric-dom3-props :as props]
    [hyperfiddle.electric-dom3-events :as events]
+   [hyperfiddle.electric.impl.runtime3 :as r]
    [hyperfiddle.incseq :as i]
    [hyperfiddle.incseq.mount-impl :refer [mount]]
    #?(:cljs [hyperfiddle.kvs :as kvs])
@@ -47,7 +48,7 @@
 ;; General ;;
 ;;;;;;;;;;;;;
 
-(e/defn node [])
+(e/declare node)
 
 #?(:cljs
    (let [key (js/Symbol.for "hyperfiddle.dom3.mount-point")]
@@ -85,14 +86,15 @@
   [arg] ; ^::lang/print-clj-source
   (e/client
     (let [e (.createTextNode js/document "")]
-      (e/input (attach! node (e/tag) e))
-      (set! (.-textContent e) arg))))
+      (r/do!
+        (e/input (attach! node (e/tag) e))
+        (set! (.-textContent e) arg)))))
 
 (defmacro text
   "Mount a DOM TextNode in current `node` for each argument in `args`.
    Each TextNode will contain the stringified argument.
    Return last argument as in `do`."
-  [& args] `(do ~@(for [arg args] `($ Text ~arg)) (e/amb)))
+  [& args] `(e/drain ~@(for [arg args] `($ Text ~arg))))
 
 ;;;;;;;;;;;;;
 ;; Comment ;;
@@ -103,14 +105,15 @@
   [arg] ; ^::lang/print-clj-source
   (e/client
     (let [e (.createComment js/document "")]
-      (e/input (attach! node (e/tag) e))
-      (set! (.-textContent e) arg))))
+      (r/do!
+        (e/input (attach! node (e/tag) e))
+        (set! (.-textContent e) arg)))))
 
 (defmacro comment
   "Mount a DOM Comment in current `node` for each argument in `args`.
    Each Comment node will contain the stringified argument.
    Return last argument as in `do`."
-  [& args] `(do ~@(for [arg args] `($ Comment ~arg))))
+  [& args] `(e/drain ~@(for [arg args] `($ Comment ~arg))))
 
 ;;;;;;;;;;;;;
 ;; Element ;;
@@ -290,9 +293,10 @@
   ([ns tag Body]
    (let [mp   (e/client (e/mount-point))
          elem (e/client (create-element ns tag mp))]
-     (e/client (e/input (attach! node (e/tag) elem)))
-     (e/client (e/input (m/reductions mount-items elem mp)) (e/amb)) ; prevent :unserializable HTMLElement transfer
-     (binding [node elem] ($ Body)))))
+     (r/do!
+       (e/client (e/input (attach! node (e/tag) elem)))
+       (e/client (e/input (m/reductions mount-items elem mp)))
+       (binding [node elem] (Body))))))
 
 ;; DONE what should `element*` return?
 ;; - nil :: no because we want UI to produce values
@@ -420,9 +424,11 @@ input's value, use `EventListener`."
   ([event-type f v opts]      ($ On node event-type f v opts))
   ([node event-type f v opts]
    (e/client
-     (e/input (let [!v (m/mbx)] (!v v) ; not just init-v, can be controlled v e.g. from db
-                (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
-                  (events/listen node event-type ((e/capture-fn) f) opts)))))))
+     (e/input (let [!v (m/mbx)]
+                (r/do!
+                  (!v v)     ; not just init-v, can be controlled v e.g. from db
+                  (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
+                    (events/listen node event-type ((e/capture-fn) f) opts))))))))
 
 (defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
   ([event-type]               `($ On ~event-type (e/client identity)))
