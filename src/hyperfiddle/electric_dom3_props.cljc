@@ -8,7 +8,8 @@
    [hyperfiddle.rcf :refer [tests]]
    [missionary.core :as m]
    [clojure.data]
-   #?(:cljs [goog.object]))
+   #?(:cljs [goog.object])
+   [hyperfiddle.electric.impl.runtime3 :as r])
   #?(:clj (:import [clojure.lang ExceptionInfo]))
   #?(:cljs (:require-macros [hyperfiddle.electric-dom3-props])))
 
@@ -134,8 +135,9 @@ On unmount:
   ([node attribute] (get ($ Attributes node #{attribute}) (name attribute)))
   ([node attribute value]
    (e/client
-     (set-property! node attribute value)
-     (e/on-unmount #(set-property! node attribute nil)))))
+     (e/drain
+       (set-property! node attribute value)
+       (e/on-unmount #(set-property! node attribute nil))))))
 
 ;;;;;;;;;;;;;
 ;; Classes ;;
@@ -239,7 +241,7 @@ On unmount:
     #_($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))
     #_(e/for [c (e/diff-by identity (parse-class classes))]
       ($ Clazz node c))
-    ((set-classes! node) (parse-class classes)) ; for perfs, manual diff, saves an e/for
+    (e/drain ((set-classes! node) (parse-class classes))) ; for perfs, manual diff, saves an e/for
     ))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -255,7 +257,7 @@ On unmount:
 
 (defmacro -styles [node kvs]
   (if (map? kvs)
-    `(e/drain ~@(map (fn [[property value]] `($ css/Style ~node ~property ~value)) kvs))
+    `(r/do! ~@(map (fn [[property value]] `($ css/Style ~node ~property ~value)) kvs))
     `($ Styles ~node ~kvs)))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -328,5 +330,5 @@ object property. For instance:
   ([m] `(props hyperfiddle.electric-dom3/node ~m))
   ([node m]
    (if (map? m)
-     `(e/drain ~@(map (fn [[k v]] `(-property ~node ~k ~v)) (ordered-props m)))
+     `(r/do! ~@(map (fn [[k v]] `(-property ~node ~k ~v)) (ordered-props m)))
      `($ Properties ~node ~m))))

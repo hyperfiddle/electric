@@ -246,6 +246,6 @@
   ;; They won't stack or restore previous value.
   [styled property value]
   (e/client
-    (set-property styled property value)
-    (e/on-unmount (partial set-property styled property nil))
-    value))
+    (e/drain
+      (set-property styled property value)
+      (e/on-unmount (partial set-property styled property nil)))))
