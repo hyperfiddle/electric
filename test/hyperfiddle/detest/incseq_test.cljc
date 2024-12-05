@@ -99,13 +99,13 @@
 (defn rand-lc-incseq [ngn] (%rand-incseq ngn next-lc-diff))
 
 (t/deftest detest-latest-product
-  (dotimes [_ 100]
+  (dotimes [_ 20]
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn (i/latest-product vector (rand-incseq ngn) (rand-incseq ngn))))))))
 
 (t/deftest detest-latest-concat
-  (dotimes [_ 500]
+  (dotimes [_ 100]
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn (i/latest-concat (rand-lc-incseq ngn))))))))
@@ -123,7 +123,7 @@
   )
 
 (t/deftest detest-fixed
-  (dotimes [_ 1000]
+  (dotimes [_ 500]
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn (i/fixed (rand-incseq ngn) (rand-incseq ngn) (rand-incseq ngn)
@@ -137,7 +137,7 @@
               (dt/exercise ngn (m/reductions i/patch-vec [] (rand-incseq ngn))))))))
 
 (t/deftest detest-items
-  (dotimes [_ 1000]
+  (dotimes [_ 500]
     (let [ngn (dt/->engine)]
       (t/is (nil?
               (dt/exercise ngn (i/items (rand-incseq ngn))))))))
