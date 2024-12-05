@@ -241,8 +241,10 @@ On unmount:
     #_($ MapCSeq ($ e/Partial Clazz node) (parse-class classes))
     #_(e/for [c (e/diff-by identity (parse-class classes))]
       ($ Clazz node c))
-    (e/drain ((set-classes! node) (parse-class classes))) ; for perfs, manual diff, saves an e/for
-    ))
+    (let [setter (set-classes! node)]
+      (e/drain
+        (setter (parse-class classes)) ; for perfs, manual diff, saves an e/for
+        (e/on-unmount #(setter #{})))))) ; unmount classes
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Inline Styles ;;
