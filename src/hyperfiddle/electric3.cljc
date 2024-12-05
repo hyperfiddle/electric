@@ -16,7 +16,8 @@
             [missionary.core :as m]
             [contrib.missionary-contrib :as mx]
             [clojure.math :as math]
-            [contrib.debug :as dbg])
+            [contrib.debug :as dbg]
+            [contrib.assert :as ca])
   (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric3)))
 
@@ -114,6 +115,7 @@ Returns the successive states of items described by `incseq`.
     `(def ~nm2 ~source)))
 
 (defmacro declare [& syms]
+  (ca/is syms (partial every? symbol?) (str "declare takes one or more symbols to declare, got " (pr-str &form)))
   (let [syms (mapv #(vary-meta % assoc ::lang/node true) syms)]
     `(cc/declare ~@syms)))
 
