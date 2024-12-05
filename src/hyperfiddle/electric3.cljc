@@ -125,7 +125,9 @@ Syntax :
 (amb table1 table2 ,,, tableN)
 ```
 Returns the concatenation of `table1 table2 ,,, tableN`.
-" [& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `ctor %)) exprs)))))
+"
+  ([] `(join r/void))
+  ([& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `ctor %)) exprs))))))
 
 (defmacro input "
 Syntax :

@@ -399,6 +399,8 @@ T T T -> (EXPR T)
 " [incseq]
   (m/latest (constantly (d/empty-diff 0)) incseq))
 
+(def void (invariant (d/empty-diff 0)))
+
 (defn error [^String msg]
   #?(:clj (Error. msg)
      :cljs (js/Error. msg)))
