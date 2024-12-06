@@ -14,7 +14,7 @@
       (e/Reconcile ; don't reveal :grow/:shrink when the `if` switches
         ; (Note: Reconcile is discrete, so it will not even emit :change on switch)
         (if (dom/Focused?)
-          (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (str v))
+          (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (e/snapshot (str v)))
           (set! (.-value dom/node) (str v)))))))
 
 (e/defn Checkbox [checked & {:keys [id label parse] :as props
@@ -25,7 +25,7 @@
         (dom/props (dissoc props :id :label :parse))
         (e/Reconcile
           (if (dom/Focused?)
-            (dom/On "change" #(-> % .-target .-checked parse) checked)
+            (dom/On "change" #(-> % .-target .-checked parse) (e/snapshot checked))
             (set! (.-checked dom/node) checked))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
