@@ -136,6 +136,12 @@ Reconstructs the permutation defined by given set of disjoint cycles.
 Return the empty diff for `n`-item collection.
 " d/empty-diff)
 
+
+(def empty-diff? "
+Predicate for empty diffs.
+" d/empty-diff?)
+
+
 (defn ->seq-differ [kf]
   (let [state (doto (object-array 2) (aset 0 []) (aset 1 {}))]
     (fn

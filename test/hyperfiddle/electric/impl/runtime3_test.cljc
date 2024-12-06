@@ -192,12 +192,13 @@
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
      % := :step-c
      (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
-     % := :step-s
      (c->s @c-ps)
+     % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{:foo :step-c :step-s}
-     ;; TODO investigate why two consecutive messages
      (s->c @s-ps)
+     (c->s @c-ps)
+     % := :step-c
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)))
@@ -218,12 +219,13 @@
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
      % := :step-c
      (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
-     % := :step-s
      (c->s @c-ps)
+     % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{:foo :step-c :step-s}
-     ;; TODO investigate why two consecutive messages
      (s->c @s-ps)
+     (c->s @c-ps)
+     % := :step-c
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)))
@@ -244,18 +246,18 @@
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
      % := :step-c
      (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
-     % := :step-s
      (c->s @c-ps)
+     % := :step-s
      (s->c @s-ps)
      (hash-set % %) := #{:step-c :step-s}
-     ;; TODO investigate why two consecutive messages
      (s->c @s-ps)
      (c->s @c-ps)
-     % := :step-s
+     (hash-set % %) := #{:step-c :step-s}
      (s->c @s-ps)
-     (hash-set % % %) := #{:foo :step-s :step-c}
-     ;; TODO investigate why two consecutive messages
+     (hash-set % %) := #{:foo :step-s}
      (s->c @s-ps)
+     (c->s @c-ps)
+     % := :step-c
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)))
@@ -276,12 +278,13 @@
      (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(rcf/tap :done-c)))
      % := :step-c
      (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(rcf/tap :done-s)))
-     % := :step-s
      (c->s @c-ps)
+     % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{2 :step-c :step-s}
-     ;; TODO investigate why two consecutive messages
      (s->c @s-ps)
+     (c->s @c-ps)
+     % := :step-c
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)))
@@ -297,13 +300,12 @@
         client-writer-ps ((r/peer-events client-peer) #(rcf/tap :writer-step) #(rcf/tap :writer-done))
         client-root-ps ((r/peer-root client-peer) #(rcf/tap :root-step) #(rcf/tap :root-done))]
     % := :reader-spawn
+    % := :reader-dispose
     % := :writer-step
     % := :root-step
     @client-root-ps := (i/empty-diff 0)
     (try @client-writer-ps
          (catch #?(:clj Throwable :cljs :default) _
            (rcf/tap :error)))
-    % := :root-step
-    % := :reader-dispose
     % := :writer-done
     % := :error))

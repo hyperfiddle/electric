@@ -1158,6 +1158,7 @@ T T T -> (EXPR T)
         request (dec (aget output output-slot-request-remote))]
     (aset output output-slot-request-remote request)
     (when (zero? request)
+      ;; TODO check output-active? && zero pending
       (when (zero? (aget output output-slot-request-local))
         (when (even? (aget output output-slot-pending))
           (output-dispose output)))
@@ -1179,6 +1180,7 @@ T T T -> (EXPR T)
         request (dec (aget input input-slot-request-remote))]
     (aset input input-slot-request-remote request)
     (when (zero? request)
+      ;; TODO check input-active? && zero pending
       (when (zero? (aget input input-slot-request-local))
         (when (even? (aget input input-slot-pending))
           (input-reset input)))
@@ -1219,19 +1221,22 @@ T T T -> (EXPR T)
                            (do (aset channel channel-slot-alive
                                  (dec (aget channel channel-slot-alive)))
                                (recur change (conj! freeze slot)))
-                           (recur (assoc! change
-                                    slot (let [diff @ps]
-                                           (if-some [p (get change slot)]
-                                             (i/combine p diff) diff))) freeze)))
+                           (recur (let [diff @ps]
+                                    (if (i/empty-diff? diff)
+                                      change (assoc! change
+                                               slot (if-some [p (get change slot)]
+                                                      (i/combine p diff) diff)))) freeze)))
                        (do (try @ps (catch #?(:clj Throwable :cljs :default) _))
                            (recur change freeze)))))
                (let [change (persistent! change)
                      freeze (persistent! freeze)
                      acks (aget remote remote-slot-acks)
-                     request (persistent! (aget remote remote-slot-request))]
+                     request (persistent! (aget remote remote-slot-request))
+                     changeset (-> (unchecked-add (count change) (count freeze))
+                                 (unchecked-add (count request)))]
                  (aset remote remote-slot-acks (identity 0))
                  (aset remote remote-slot-request (transient {}))
-                 (when (pos? (+ (count request) (count change) (count freeze)))
+                 (when (pos? changeset)
                    (let [^objects event (aget remote remote-slot-current-event)
                          ^objects head (aget event event-slot-next)
                          ^objects tail (object-array event-slots)]
@@ -1246,8 +1251,9 @@ T T T -> (EXPR T)
                      (aset tail event-slot-prev event)
                      (aset tail event-slot-inputs (transient #{}))
                      (aset tail event-slot-outputs (transient #{}))))
-                 (encode [acks request change freeze]
-                   (aget channel channel-slot-writer-opts)))))
+                 (when (pos? (unchecked-add acks changeset))
+                   (encode [acks request change freeze]
+                     (aget channel channel-slot-writer-opts))))))
            (let [e (aget channel channel-slot-shared)]
              (aset channel channel-slot-shared nil)
              (throw e)))
@@ -1530,36 +1536,37 @@ entrypoint.
         (apply dispatch "<root>" ((defs main)))
         (make-frame peer nil 0 :client)))
     (aset remote remote-slot-events
-      (m/stream
-        (fn [step done]
-          (let [busy (enter peer)
-                ^objects remote (aget peer peer-slot-remote)]
-            (if (nil? (aget remote remote-slot-channel))
-              (let [channel (object-array channel-slots)]
-                (aset remote remote-slot-channel channel)
-                (aset channel channel-slot-remote remote)
-                (aset channel channel-slot-step step)
-                (aset channel channel-slot-done done)
-                (aset channel channel-slot-busy true)
-                (aset channel channel-slot-over false)
-                (aset channel channel-slot-alive (identity 1))
-                (aset channel channel-slot-shared {})
-                (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
-                (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
-                (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
-                (aset peer peer-slot-channel-ready channel)
-                (aset channel channel-slot-process
-                  (events
-                    #(let [^objects remote (aget channel channel-slot-remote)]
-                       (channel-ready channel (enter (aget remote remote-slot-peer))))
-                    #(let [^objects remote (aget channel channel-slot-remote)]
-                       (aset channel channel-slot-over true)
-                       (channel-ready channel (enter (aget remote remote-slot-peer))))))
-                (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
-                (channel-ready channel busy)
-                (->Channel channel))
-              (do (exit peer busy) (step)
-                  (->Failer done (error "Can't connect - remote already up."))))))))
+      (m/eduction (remove nil?)
+        (m/stream
+          (fn [step done]
+            (let [busy (enter peer)
+                  ^objects remote (aget peer peer-slot-remote)]
+              (if (nil? (aget remote remote-slot-channel))
+                (let [channel (object-array channel-slots)]
+                  (aset remote remote-slot-channel channel)
+                  (aset channel channel-slot-remote remote)
+                  (aset channel channel-slot-step step)
+                  (aset channel channel-slot-done done)
+                  (aset channel channel-slot-busy true)
+                  (aset channel channel-slot-over false)
+                  (aset channel channel-slot-alive (identity 1))
+                  (aset channel channel-slot-shared {})
+                  (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
+                  (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
+                  (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
+                  (aset peer peer-slot-channel-ready channel)
+                  (aset channel channel-slot-process
+                    (events
+                      #(let [^objects remote (aget channel channel-slot-remote)]
+                         (channel-ready channel (enter (aget remote remote-slot-peer))))
+                      #(let [^objects remote (aget channel channel-slot-remote)]
+                         (aset channel channel-slot-over true)
+                         (channel-ready channel (enter (aget remote remote-slot-peer))))))
+                  (reduce channel-output-sub channel (vals (aget remote remote-slot-outputs)))
+                  (channel-ready channel busy)
+                  (->Channel channel))
+                (do (exit peer busy) (step)
+                    (->Failer done (error "Can't connect - remote already up.")))))))))
     peer))
 
 (defn subject-at [^objects arr slot]

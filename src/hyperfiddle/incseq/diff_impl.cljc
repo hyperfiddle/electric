@@ -5,6 +5,13 @@
 (defn empty-diff [n]
   {:degree n :grow 0 :shrink 0 :permutation {} :change {} :freeze #{}})
 
+(defn empty-diff? [{:keys [grow shrink permutation change freeze]}]
+  (-> (unchecked-add grow shrink)
+    (unchecked-add (count permutation))
+    (unchecked-add (count change))
+    (unchecked-add (count freeze))
+    (zero?)))
+
 (def patch-vec
   (let [grow! (fn [v n]
                 (reduce conj! v (repeat n nil)))
