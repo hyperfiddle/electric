@@ -115,7 +115,7 @@
     `(doto (e/input (make-rule< ~styled-element ~selector))
        ~@(map (fn [[key value]] `(set-property ~key ~value)) declarations))))
 
-(def selector "")
+(e/declare selector) ; default ""
 
 (defn concat-selectors [selectorA selectorB]
   (if (empty? selectorA)
@@ -177,7 +177,8 @@
       (css/rule \".my-div:hover\" {:color :blue})))
   "
   [& body]
-  `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))]
+  `(binding [hyperfiddle.electric-dom3/node (e/input (identity stylesheet<))
+             selector ""]
      ~@body))
 
 (defn scoped-class [] (munge (gensym "class_")))
