@@ -30,7 +30,7 @@
                   :dustingetz/shirt-size {:db/ident :dustingetz/mens-large},
                   :db/id 10}]}))
 
-(defn ^:deprecated includes-str? [v needle]
+(defn includes-str? [v needle] ; ^:deprecated 
   ; perf - https://clojurians.slack.com/archives/C03RZMDSH/p1666290300539289
   ; want to reduce memory pressure moreso than optimzie the speed
   ; if you want a case-insensitive match I recommend using something which doesn’t force new string
