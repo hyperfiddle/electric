@@ -431,6 +431,7 @@ input's value, use `EventListener`."
                   (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
                     (events/listen node event-type ((e/capture-fn) f) opts))))))))
 
+#_
 (defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
   ([event-type f init-v]      `($ On ~event-type (e/client ~f) ~init-v {}))
   ([event-type f init-v opts] `($ On ~event-type (e/client ~f) ~init-v ~opts)))
