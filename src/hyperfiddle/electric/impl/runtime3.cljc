@@ -392,7 +392,7 @@ T T T -> (EXPR T)
 (CF T) -> (IS T)
 (CF T) (CF T) -> (IS T)
 (CF T) (CF T) (CF T) -> (IS T)
-" i/fixed)
+" (comp (partial m/signal i/combine) i/fixed))
 
 (defn drain "
 (IS T) -> (IS VOID)
