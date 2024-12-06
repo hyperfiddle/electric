@@ -75,7 +75,7 @@ Simple uncontrolled checkbox, e.g.
     (e/amb
       (let [[e t err input-node]
             (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse))
-                       (let [e (dom/On "change" identity) [t err] (e/Token e)] ; single txn, no concurrency
+                       (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
             editing? (dom/Focused? input-node)
             waiting? (some? t)

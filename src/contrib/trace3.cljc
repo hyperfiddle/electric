@@ -108,7 +108,7 @@
           (dom/props {:style {:position "absolute", :left (str offset "px")}
                       :title (e/server (contrib.str/pprint-str nd))})
           (dom/text (->pretty (e/server (::pretty-v nd))))
-          (when-some [spend! ($ TokenNofail ($ dom/On "click"))]
+          (when-some [spend! ($ TokenNofail ($ dom/On "click" identity nil))]
             (spend! (e/server (swap! !measure (fn [m] (conj (pop m) ve)))))))))))
 
 (e/defn RenderHistory [e origin]

@@ -421,10 +421,8 @@ input's value, use `EventListener`."
 #?(:cljs (def listen-some events/listen-some))
 
 (e/defn On
-  ([event-type]               ($ On      event-type identity))
-  ([event-type f]             ($ On      event-type f nil))
-  ([event-type f v]           ($ On      event-type f v {}))
-  ([event-type f v opts]      ($ On node event-type f v opts))
+  ([event-type f v] ($ On event-type f v {}))
+  ([event-type f v opts] ($ On node event-type f v opts))
   ([node event-type f v opts]
    (e/client
      (e/input (let [!v (m/mbx)]
@@ -434,8 +432,6 @@ input's value, use `EventListener`."
                     (events/listen node event-type ((e/capture-fn) f) opts))))))))
 
 (defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
-  ([event-type]               `($ On ~event-type (e/client identity)))
-  ([event-type f]             `($ On ~event-type (e/client ~f) nil))
   ([event-type f init-v]      `($ On ~event-type (e/client ~f) ~init-v {}))
   ([event-type f init-v opts] `($ On ~event-type (e/client ~f) ~init-v ~opts)))
 
