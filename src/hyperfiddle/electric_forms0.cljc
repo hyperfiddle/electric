@@ -176,31 +176,71 @@ in an associated optimistic collection view!"
            (if form-t [directive form-v] [directive])]) ; compat
         (e/amb)))))
 
+#?(:cljs
+   (defn event-submit-form! [^js e]
+     ;; (js/console.log "submit form" {:type (.-type e), :currentTarget (.-currentTarget e), :target (.-target e), :submitter (.-submitter e)}) ; debug why form got submitted
+     (some-> e .-target .-form .requestSubmit)))
+
+(defn event-is-from-this-form?
+  "State if an event intercepted by an event listener on a form (event's
+  currentTarget attribute is a form) originated from the same form or from an
+  input in this form. Allows detecting when a form-related event happened in a
+  nested form. Undefined behavior if event's `currentTarget` is not a form."
+  [e]
+  (let [currentTarget (.-currentTarget e)]
+    (or (= currentTarget (.-target e))        ; event happened on form itself
+      (= currentTarget (.-form (.-target e))) ; event happened on an input in a form
+      )))
+
+#?(:cljs (defn submitter [^js event] (.-submitter event))) ; sole purpose is to prevent inference warning on .-submitter
+
 (e/defn FormSubmit! ; dom/node must be a form
   [directive & {:keys [disabled show-button label auto-submit form] :as props}]
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (and (not show-button) (not disabled))
-      (dom/On "keypress" (fn [e] (let [target (.-target e)] ; submit form on enter
-                                   (when (and (= "Enter" (.-key e)) (= "INPUT" (.-nodeName target)))
-                                     (.stopPropagation e)
-                                     (.requestSubmit (.-form target)) ; fire submit event
-                                     nil))) nil))
-    ;; Simulate autosubmit
-    (when auto-submit
-      (dom/On "change" (fn [e] (some->  e .-target .-form .requestSubmit) e) nil) ; checkboxes
-      (dom/On "input"  (fn [e] (some->  e .-target .-form .requestSubmit) e) nil) ; text inputs
-      )
+      (dom/On "keypress" (fn [e]
+                           ;; (js/console.log "keypress" dom/node)
+                           (when (and (event-is-from-this-form? e) ; not from a nested form
+                                   (= "Enter" (.-key e))
+                                   (= "INPUT" (.-nodeName (.-target e))))
+                             (.preventDefault e) ; prevent native form submission
+                             (event-submit-form! e) ; fire submit event
+                             nil)) nil))
+    (when auto-submit ; Simulate autosubmit
+      ;; checkboxes only
+      (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
+                         (.preventDefault e)
+                         (js/console.log "change" dom/node)
+                         (when (and (event-is-from-this-form? e) ; not from a nested form
+                                 (instance? js/HTMLInputElement (.-target e))
+                                 (= "checkbox" (.. e -target -type)))
+                           ;; (js/console.log "change" (hash e) e)
+                           ;; (pause!)
+                           (event-submit-form! e)) e) nil)
+      ;; all inputs but checkboxes
+      (dom/On "input"  (fn [e]
+                         ;; (js/console.log "input" dom/node)
+                         (when (and (event-is-from-this-form? e) ; not from a nested form
+                                 (instance? js/HTMLInputElement (.-target e))
+                                 (not= "checkbox" (.. e -target -type)))
+                           ;; (js/console.log "input" e)
+                           (event-submit-form! e)) e) nil))
+
     (if-let [t
           ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
           (let [[btn-t btn-err :as btn] (when show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
-                submit-event (dom/On "submit" #(doto % (.preventDefault)) nil)
-                [t err] (e/Token submit-event)]
-            btn ; force let branch
+                ^js submit-event (dom/On "submit" #(do (.preventDefault %) ; always prevent browser native navigation
+                                                   ;; (js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e  %}))
+                                                   (when (event-is-from-this-form? %) %))
+                               nil)
+                [t err] (if auto-submit (e/Token form) (e/Token submit-event))]
+            btn submit-event ; force let branch
             (dom/props {:aria-invalid (some? err)})
-            (when t
-              (when btn-t (dom/props ((fn [^js e] (.-submitter e)) submit-event) {:disabled true})) ; hard-disable submitter button while form submits
+            (when (and t form)
+              (when (and btn-t (submitter submit-event))
+                (dom/props (submitter submit-event) {:disabled true})) ; hard-disable submitter button while form submits
               (fn
                 ([] (t) (when btn-t (btn-t)))
                 ([err] (t err) (when btn-t (btn-t err))))))]
