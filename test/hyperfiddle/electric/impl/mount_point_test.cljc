@@ -146,3 +146,39 @@
                 :change {1 :bar
                          0 :foo}
                 :freeze #{}}))))
+
+(deftest add-item-in-parent-frame
+  (let [q (queue)
+        _ ((m/reduce {} nil
+             (r/peer-root
+               (r/make-peer :client {} nil
+                 {:root (fn ([] {0 (r/ctor :root 0)})
+                          ([idx]
+                           (case idx
+                             0 (r/cdef 0 [] [nil nil] nil
+                                 (fn [frame]
+                                   (q frame)
+                                   (r/define-call frame 0
+                                     (r/effect (m/observe
+                                                 (fn [!]
+                                                   (! {:grow        1
+                                                       :degree      1
+                                                       :shrink      0
+                                                       :permutation {}
+                                                       :change      {0 (r/ctor :root 1)}
+                                                       :freeze      #{}})
+                                                   #(q :dispose)))))
+                                   (r/call frame 0)))
+                             1 (r/cdef 0 [] [nil] nil
+                                 (fn [frame]
+                                   (q frame)
+                                   (r/pure nil))))))}
+                 :root nil))) q q)
+        root (q)
+        child (q)
+        mp (doto (mp/create (r/frame-peer root))
+             (kvs/insert! (r/tag root 1) 3)
+             (kvs/insert! (r/tag child 0) 0))
+        ps (mp #(q :step) #(q :done))]
+    (is (= (q) :step))
+    (is (= @ps {:degree 2, :permutation {}, :grow 2, :shrink 0, :change {0 0, 1 3}, :freeze #{}}))))

@@ -454,7 +454,9 @@ Mounting a block generates a grow for each active item having this block's frame
       (if-some [block (get-block reader frame)]
         (do (when (nil? (aget block block-slot-prev))
               (block-attach-to-call block))
-            (item-attach-to-block item block id diff))
+            (->> diff
+              (root-up (aget block block-slot-parent))
+              (item-attach-to-block item block id)))
         (let [block (make-block reader frame)]
           (->> diff
             (block-attach-to-tree block reader)
