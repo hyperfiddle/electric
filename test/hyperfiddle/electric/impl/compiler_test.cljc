@@ -539,33 +539,35 @@
   (match (l/test-compile ::Main (let [x (binding [::foo (inc 1)] (::lang/lookup ::foo))]
                                   (prn x)
                                   (prn x)))
-    `[(r/cdef 0 [nil nil] [nil nil] nil
+    `[(r/cdef 0 [nil nil nil nil nil] [nil] nil
         (fn [~'frame]
           (r/define-node ~'frame 0 (r/pure (~'inc 1)))
           (r/define-call ~'frame 0
-            (r/pure (r/bind (r/ctor ::Main 2) ::foo (r/node ~'frame 0))))
+            (r/pure (r/bind (r/ctor ::Main 1) ::foo (r/node ~'frame 0))))
           (r/define-node ~'frame 1
             (r/join (r/call ~'frame 0)))
-          (r/define-call ~'frame 1
+          (r/define-node ~'frame 2
+            (r/ap '{}
+              (r/pure ~'prn)
+              (r/node ~'frame 1)))
+          (r/define-node ~'frame 3
+            (r/join
+              (r/pure
+                (r/drain
+                  (r/incseq ~'frame (r/node ~'frame 2))))))
+          (r/define-node ~'frame 4
+            (r/ap '{}
+              (r/pure ~'prn)
+              (r/node ~'frame 1)))
+          (r/join
             (r/join
               (r/pure
                 (i/fixed
-                  (r/invariant (r/ctor ::Main 1 (r/node ~'frame 1)))
-                  (r/invariant (r/ctor ::Main 3 (r/node ~'frame 1)))))))
-          (r/join (r/call ~'frame 1))))
-      (r/cdef 1 [nil] [] nil
-        (fn [~'frame]
-          (r/define-node ~'frame 0
-            (r/ap '{} (r/pure ~'prn)
-              (r/free ~'frame 0)))
-          (r/join (r/pure (r/drain (r/incseq ~'frame (r/node ~'frame 0)))))))
+                  (r/invariant (r/incseq ~'frame (r/node ~'frame 3)))
+                  (r/invariant (r/incseq ~'frame (r/node ~'frame 4)))))))))
       (r/cdef 0 [] [] nil
         (fn [~'frame]
-          (r/lookup ~'frame ::foo)))
-      (r/cdef 1 [] [] nil
-        (fn [~'frame]
-          (r/ap '{} (r/pure ~'prn)
-            (r/free ~'frame 0))))]))
+          (r/lookup ~'frame ::foo)))]))
 
 (declare #?(:clj clj-only :cljs cljs-only))
 (tests

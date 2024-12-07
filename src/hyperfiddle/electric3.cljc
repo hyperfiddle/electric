@@ -127,7 +127,7 @@ Syntax :
 Returns the concatenation of `table1 table2 ,,, tableN`.
 "
   ([] `(join r/void))
-  ([& exprs] `(::lang/call (join (i/fixed ~@(map #(list `r/invariant (list `ctor %)) exprs))))))
+  ([& exprs] `(join (join (i/fixed ~@(map (cc/fn [expr] `(r/invariant (pure ~expr))) exprs))))))
 
 (defmacro input "
 Syntax :
