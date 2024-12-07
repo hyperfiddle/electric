@@ -290,12 +290,12 @@
          {:client-version (pr-str client-version)
           :server-version (pr-str server-version)})
        {::ws/listener (reject-websocket-handler 1008 "stale client")}))) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-  ([next-handler {:keys [:hyperfiddle.electric/user-version]} on-missmatch]
+  ([next-handler {:keys [:build/electric-user-version]} on-missmatch]
    (fn [ring-request]
      (if (ws/upgrade-request? ring-request)
        (let [client-version (get-in ring-request [:query-params "ELECTRIC_USER_VERSION"])]
          (cond
-           (nil? user-version)             (next-handler ring-request)
-           (= client-version user-version) (next-handler ring-request)
-           :else                           (on-missmatch ring-request client-version user-version)))
+           (nil? electric-user-version)    (next-handler ring-request)
+           (= client-version electric-user-version) (next-handler ring-request)
+           :else                           (on-missmatch ring-request client-version electric-user-version)))
        (next-handler ring-request)))))
