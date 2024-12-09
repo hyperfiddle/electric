@@ -203,11 +203,11 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
      (Form!* ~fields1 ~@kwargs))) ; place fields inside dom/form
 
 ;; -----
-(def report-validity? false)
-(def valid? true)
-(def validation-message nil)
-(def !fields-validity (atom {}))
-(def fields-valid? true)
+(e/declare report-validity?) ; default false
+(e/declare valid?) ; default true
+(e/declare validation-message) ; default nil
+(e/declare !fields-validity) ; default (atom {})
+(e/declare fields-valid?) ; default true
 
 (e/defn RegisterFieldValidity [name valid?]
   (swap! !fields-validity assoc name valid?)
