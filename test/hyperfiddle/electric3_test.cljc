@@ -2567,3 +2567,20 @@
 (tests "self referencing e/fn regression"
   (with ((l/single {} (tap ({} (e/fn [] (e/fn Self [] Self)) :ok))) {} {})
     % := :ok))
+
+(tests "do not transfer output in state 101"
+  (let [!x (atom 1)]
+    (with ((l/local {}
+             (e/server
+               (let [x (e/watch !x)]
+                 (tap (if (zero? x)
+                        x (let [y (/ 1 x)]
+                            (e/$ (e/fn []
+                                   (e/client
+                                     (identity y))))))))))
+           tap tap)
+      % := 1
+      (swap! !x dec)
+      % := 0
+      (swap! !x inc)
+      % := 1)))
