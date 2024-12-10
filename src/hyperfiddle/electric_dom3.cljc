@@ -485,7 +485,7 @@ input's value, use `EventListener`."
 
 (e/defn Mouse-down?
   ([] (Mouse-down? node))
-  ([node] (e/client (e/input (squarewave node "mouseup" "mousedown" false)))))
+  ([node] (e/client (e/input (squarewave node "mousedown" "mouseup" false)))))
 
 ;;;;;;;;;;;
 ;; Sugar ;;
