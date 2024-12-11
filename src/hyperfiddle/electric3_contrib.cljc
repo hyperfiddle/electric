@@ -1,5 +1,7 @@
 (ns hyperfiddle.electric3-contrib
-  (:require [hyperfiddle.electric3 :as e]))
+  (:require [hyperfiddle.electric3 :as e]
+            [hyperfiddle.incseq :as i]
+            [missionary.core :as m]))
 
 (defmacro If [amb-test left right] `(if (e/Some? ~amb-test) ~left ~right))
 
@@ -10,3 +12,14 @@
 
 (e/defn None? [xs] (zero? (e/Count xs)))
 (e/defn Nothing [& args] (e/amb))
+
+(defn task-status "
+Task -> continuous flow. State is [] before task completion, [result] after.
+" [t] (m/reductions conj (m/ap (m/? t))))
+
+(defn offload "
+Continuous flow of thunks -> incseq of 1 item containing result of the latest thunk executed via m/blk, or the empty incseq if it's still pending.
+" [<f] (i/diff-by {} (m/cp (m/?< (task-status (m/via-call m/blk (m/?< <f)))))))
+
+(e/defn Offload [f]
+  (e/join (offload (e/join (i/items (e/pure f))))))
