@@ -45,6 +45,7 @@
 
 (defn wait-for-flush [ws]
   (m/sp
+    #_ ; todo tune perf
     (while (< 4096 (.-bufferedAmount ws))
       (m/? (m/sleep 50)))))
 
