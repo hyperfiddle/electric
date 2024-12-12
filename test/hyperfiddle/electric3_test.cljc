@@ -2557,6 +2557,73 @@
     (tap :done)
     % := :done))
 
+(tests "server-for-client-body"
+  (let [!x (atom 1)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
+                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+              (e/server
+                (e/for [x (e/diff-by {} (range (e/watch !x)))]
+                  (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
+            tap tap)]
+    (tick :client-writer)
+    (tick :server-writer)
+    (tick :client-reader)
+    (tick :server-reader)
+    % := 0
+    (swap! !x dec)
+    (tick :client-writer)
+    (tick :client-writer)
+    (tick :server-writer)
+    (tick :client-reader)
+    % := [:bye 0]
+    (tap :done), % := :done))
+
+(tests "server-for-client-body-2"
+  (let [!x (atom 1)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
+                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+              (e/server
+                (e/for [x (e/diff-by {} (range (e/watch !x)))]
+                  (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
+            tap tap)]
+    (tick :client-writer)
+    (tick :server-writer)
+    (tick :client-reader)
+    (tick :server-reader)
+    (tick :client-writer)
+    (tick :client-reader)
+    % := 0
+    (swap! !x dec)
+    (tick :server-reader)
+    (tick :client-writer)
+    (tick :server-reader)
+    (tick :server-writer)
+    (tick :client-writer)               ; dies, clock no longer present
+    % := [:bye 0]
+    (swap! !x inc)
+    (tick :client-reader)
+    (tick :server-writer)
+    (tick :client-reader)
+    (tick :server-writer)
+    (tick :server-writer)
+    (tick :client-reader)
+    % := 0
+    (tap :done), % := :done))
+
 (tests "unbundled case"
   (with ((l/single {} (tap (e/call_ (e/case_ 1 0 :zero 1 :one #_else :none)))) {} {})
     % := :one)
