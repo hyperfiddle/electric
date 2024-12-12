@@ -5,17 +5,26 @@
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.kvs :as kvs]
-            [missionary.core :as m])
+            [missionary.core :as m]
+            [hyperfiddle.electric.impl.runtime3 :as r])
   #?(:cljs (:require-macros [hyperfiddle.electric3-network-test :refer [with-electric]]))
   (:import [missionary Cancelled]))
 
 (declare tap step)
 (defmacro with-electric [[tap step] opts eform & body]
-  `(let [ngn# (l/->engine ~opts), ~tap #(l/tap ngn# %), ~step #(l/step ngn# %)]
-     (l/spawn ngn# (l/local-ngn ~opts ngn# ~eform))
-     ~@body
-     (l/cancel ngn#)
-     (t/is (~'thrown? Cancelled (l/step ngn# identity)))))
+  (let [ngn (gensym "engine")]
+    `(let [~ngn (l/->engine ~opts), ~tap #(l/tap ~ngn %), ~step #(l/step ~ngn %)]
+       (l/spawn ~ngn (l/local-ngn ~opts ~ngn ~eform))
+       ~@body
+       ~(when (= :full (:debug opts)) `(prn 'cancel-engine))
+       ~@(if (:skip-cancel opts)
+           `[(t/is (= 1 1))]
+           `[(l/cancel ~ngn)
+             (let [[t# ret#] (try [:ok (l/step ~ngn (constantly true))]
+                                  (catch ~(if (:js-globals &env) :default `Throwable) e# [:ex e#]))]
+               (t/is (= :ex t#))
+               (t/is (instance? Cancelled ret#)))])
+       #_(t/is (~'thrown? Cancelled (l/step ~ngn (constantly true)))))))
 
 (t/deftest simple-transfer
   (with-electric [tap step] {} (tap (e/server 1))
@@ -123,6 +132,51 @@
         (swap! !y not)
         (step nil?)
         ))))
+
+(t/deftest e-for-on-server-body-on-client-double-client-change
+  (dotimes [_ 10]
+    (let [!x (atom 0)]
+      (with-electric [tap step] {} (e/server (let [x (e/watch !x)] (e/for [x x] (e/client (tap x)))))
+        (step #{0})
+        (swap! !x inc)
+        (swap! !x inc)
+        (when (= 1 (step #{1 2}))
+          (swap! !x inc)
+          (when (= 2 (step #{2 3}))
+            (step #{3})))
+        ))))
+(t/deftest e-for-on-server-body-on-client
+  (dotimes [_ 10]
+    (let [!x (atom 1)]
+      (with-electric [tap step] {:skip-cancel true}
+          (e/server
+            (e/for [x (e/diff-by {} (range (e/watch !x)))]
+              (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x]))))))
+          (step #{0})
+          (swap! !x inc)
+          (swap! !x inc)
+          (step #{1 2})
+          (step #{1 2})
+          (reset! !x 0)
+          (step #{[:bye 0] [:bye 1] [:bye 2]})
+          (step #{[:bye 0] [:bye 1] [:bye 2]})
+          (step #{[:bye 0] [:bye 1] [:bye 2]})
+          (swap! !x inc)
+          (step #{0})
+          ))))
+(t/deftest e-for-on-server-body-on-client-shrink-to-0-debug
+  (dotimes [_ 10]
+    (let [!x (atom 1)]
+      (with-electric [tap step] {:skip-cancel true}
+          (e/server
+            (e/for [x (e/diff-by {} (range (e/watch !x)))]
+              (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x]))))))
+
+        (step #{0})
+        (swap! !x dec)
+        (step #{[:bye 0]})
+        (swap! !x inc)
+        (step #{0})))))
 
 (comment
   (let [<s> (->box)]

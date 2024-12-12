@@ -119,7 +119,7 @@
      (reify Engine
        (add-proc [_ proc] (swap! !proc* conj proc))
        (del-proc [_ proc] (swap! !proc* (fn [proc*] (filterv #(not= % proc) proc*))))
-       (tap [_ v] (swap! !q conj v))
+       (tap [_ v] (when (nil? v) (prn 'tap v)) (swap! !q conj v))
        (->rng [_] rng)
        (->opts [_] o)
        (->info [_] {:seed seed, :steps @!n})
@@ -133,27 +133,28 @@
        (step [_ pred]
          ;; (prn 'q-before-step (into [] @!q))
          (try
-           (loop [idle* #{}, proc* @!proc*]
-             (let [q @!q]
-               (if (seq q)
-                 (let [v (peek q)]
-                   (if (pred v)
-                     (swap! !q pop)
-                     (throw (ex-info (str "value " (pr-str v) " doesn't match predicate " pred) {:seed seed, :steps @!n, :value v, :predicate pred}))))
-                 (if (= :step @!s)
-                   (do (reset! !s nil) @@!root (recur #{} @!proc*))
-                   (if (and (not= :done @!s) (seq proc*))
-                     (let [n (rng (count proc*)), proc (nth proc* n)]
-                       (if (proc (rng))
-                         (recur #{} @!proc*)
-                         (recur (conj idle* proc) (into [] (remove #{proc}) proc*))))
-                     (throw (ex-info "predicate not reached" {:pred pred, :queue (into [] @!q)})))))))
-           ;; randomly forward some clocks
-           (doseq [proc @!proc*] (when (zero? (rng 4)) (proc (rng))))
+           (let [v (loop [idle* #{}, proc* @!proc*]
+                     (let [q @!q]
+                       (if (seq q)
+                         (let [v (peek q)]
+                           (if (pred v)
+                             (do (swap! !q pop) v)
+                             (throw (ex-info (str "value " (pr-str v) " doesn't match predicate " pred) {:seed seed, :steps @!n, :value v, :predicate pred}))))
+                         (if (= :step @!s)
+                           (do (reset! !s nil) @@!root (recur #{} @!proc*))
+                           (if (and (not= :done @!s) (seq proc*))
+                             (let [n (rng (count proc*)), proc (nth proc* n)]
+                               (if (proc (rng))
+                                 (recur #{} @!proc*)
+                                 (recur (conj idle* proc) (into [] (remove #{proc}) proc*))))
+                             (throw (ex-info "predicate not reached" {:pred pred, :queue (into [] @!q)})))))))]
+             ;; randomly forward some clocks
+             (doseq [proc @!proc*] (when (zero? (rng 4)) (proc (rng))))
+             v)
            (catch Cancelled e (throw e))
            (catch #?(:clj Throwable :cljs :default) e (throw (ex-info "step failed" {:seed seed, :steps @!n} e)))))))))
 
-(defn clock [ngn]
+(defn clock [ngn nm]
   (cond->> (fn [step done]
              (step)                     ; TODO should the clock be initialized?
              (let [!should-step? (atom false), !done? (atom false), !cancelled? (atom false)
@@ -184,13 +185,13 @@
                          :else (do (swap! !should-step? not) 'tick))))]
                (add-proc ngn proc)
                proc))
-    (-> ngn ->opts :debug) (instrument 'clock ngn)))
+    (-> ngn ->opts :debug) (instrument nm ngn)))
 
 (letfn [(subject [^objects state slot]
           (fn [cb] (aset state slot cb) #(aset state slot nil)))
         (reader [^objects state slot]
           (m/ap (m/? (m/?> (m/seed (repeat (aget state slot)))))))
-        (clocked [ngn flow] (m/zip {} (clock ngn) flow))
+        (clocked [ngn nm flow] (m/zip {} (clock ngn nm) flow))
         (drain [flow] (m/ap (m/amb nil (do (m/?> flow) (m/amb)))))
         (writer [^objects state slot events]
           (m/ap (let [cb (ca/is (aget state slot))] (cb (m/?> events)))))]
@@ -205,10 +206,10 @@
       (let [state (doto (object-array 4) (aset 0 (m/mbx)) (aset 1 (m/mbx)))
             c (r/make-peer :client {} (subject state 2) defs main nil)
             s (r/make-peer :server {} (subject state 3) defs main nil)
-            _ (m/?> (drain (writer state 0 (clocked ngn (r/peer-events c)))))
-            _ (m/?> (drain (writer state 1 (clocked ngn (r/peer-events s)))))
-            _ (m/?> (drain (writer state 2 (clocked ngn (reader state 1)))))
-            _ (m/?> (drain (writer state 3 (clocked ngn (reader state 0)))))]
+            _ (m/?> (drain (writer state 0 (clocked ngn 'client-writer (r/peer-events c)))))
+            _ (m/?> (drain (writer state 1 (clocked ngn 'server-writer (r/peer-events s)))))
+            _ (m/?> (drain (writer state 2 (clocked ngn 'client-reader (reader state 1)))))
+            _ (m/?> (drain (writer state 3 (clocked ngn 'server-reader (reader state 0)))))]
         (m/?> (r/peer-root c))))))
 
 (defmacro local-ngn {:style/indent 2} [conf ngn & body]
