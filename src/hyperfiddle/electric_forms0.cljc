@@ -405,7 +405,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
         (e/amb)))
     (Reconcile-records stable-kf sort-key xs ps)))
 
-(e/declare effects*)
+(e/declare effects* #_{})
 
 (defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel
@@ -416,7 +416,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
     (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
     (e/for [[t form guess] forms]
       (let [[effect & args] form
-            Effect (effects* effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
+            Effect ((or effects* {}) effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
             res (e/Apply Effect args)] ; effect handlers span client and server
         (prn 'final-res res)
         (case res
