@@ -2584,3 +2584,25 @@
       % := 0
       (swap! !x inc)
       % := 1)))
+
+(tests "input change and freeze are ignored in state x00"
+  (let [!x (atom 1)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-clock [(clock :client-reader) (m/seed (repeat nil))]
+                      ::lang/server-clock [(clock :server-reader) (m/seed (repeat nil))]}
+              (e/for [x (e/diff-by {} (range (e/watch !x)))]
+                (e/server (tap x)))) tap tap)]
+    (tick :server-reader)
+    % := 0
+    (swap! !x dec)
+    (tick :server-reader)
+    (tick :server-reader)
+    (swap! !x inc)
+    (tick :server-reader)
+    % := 0))

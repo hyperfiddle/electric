@@ -1021,37 +1021,35 @@ T T T -> (EXPR T)
     (reduce run output-ack (aget event event-slot-outputs))))
 
 (defn remote-change [^objects remote ^Slot slot diff]
-  (let [^objects input (get (aget remote remote-slot-inputs) slot)]
-    (case (input-state input)
-      2r100 (prn "Unexpected change.")
-      (do (aset input input-slot-diff (i/combine (aget input input-slot-diff) diff))
-          (when-some [^objects sub (aget input input-slot-subs)]
-            (loop [^objects s sub]
-              (if-some [prev (aget s input-sub-slot-diff)]
-                (aset s input-sub-slot-diff (i/combine prev diff))
-                (let [step (aget s input-sub-slot-step)]
-                  (aset s input-sub-slot-diff diff)
-                  ;; TODO this can nullify slot-next
-                  (step)))
-              (let [n (aget s input-sub-slot-next)]
-                (when-not (identical? n sub) (recur n))))))))
+  (when-some [^objects input (get (aget remote remote-slot-inputs) slot)]
+    (when-not (== 2r100 (input-state input))
+      (aset input input-slot-diff (i/combine (aget input input-slot-diff) diff))
+      (when-some [^objects sub (aget input input-slot-subs)]
+        (loop [^objects s sub]
+          (if-some [prev (aget s input-sub-slot-diff)]
+            (aset s input-sub-slot-diff (i/combine prev diff))
+            (let [step (aget s input-sub-slot-step)]
+              (aset s input-sub-slot-diff diff)
+              ;; TODO this can nullify slot-next
+              (step)))
+          (let [n (aget s input-sub-slot-next)]
+            (when-not (identical? n sub) (recur n)))))))
   remote)
 
 (defn remote-freeze [^objects remote ^Slot slot]
-  (let [^objects input (get (aget remote remote-slot-inputs) slot)]
-    (case (input-state input)
-      2r100 (prn "Unexpected freeze.")
-      (do (aset input input-slot-frozen true)
-          (when-some [^objects sub (aget input input-slot-subs)]
-            (aset input input-slot-subs nil)
-            (loop [^objects s sub]
-              (when (nil? (aget s input-sub-slot-diff))
-                (let [done (aget s input-sub-slot-done)]
-                  (aset s input-sub-slot-step nil) (done)))
-              (let [n (aget s input-sub-slot-next)]
-                (aset s input-sub-slot-next nil)
-                (aset s input-sub-slot-prev nil)
-                (when-not (identical? n sub) (recur n))))))))
+  (when-some [^objects input (get (aget remote remote-slot-inputs) slot)]
+    (when-not (== 2r100 (input-state input))
+      (aset input input-slot-frozen true)
+      (when-some [^objects sub (aget input input-slot-subs)]
+        (aset input input-slot-subs nil)
+        (loop [^objects s sub]
+          (when (nil? (aget s input-sub-slot-diff))
+            (let [done (aget s input-sub-slot-done)]
+              (aset s input-sub-slot-step nil) (done)))
+          (let [n (aget s input-sub-slot-next)]
+            (aset s input-sub-slot-next nil)
+            (aset s input-sub-slot-prev nil)
+            (when-not (identical? n sub) (recur n)))))))
   remote)
 
 (defn remote-update-request [^objects remote slot d]
