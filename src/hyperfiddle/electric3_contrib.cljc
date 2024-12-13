@@ -12,6 +12,7 @@
 
 (e/defn None? [xs] (zero? (e/Count xs)))
 (e/defn Nothing [& args] (e/amb))
+(e/defn Outputs [xs] (e/join (i/items (e/pure xs))))
 
 (defn task-status "
 Task -> continuous flow. State is [] before task completion, [result] after.
