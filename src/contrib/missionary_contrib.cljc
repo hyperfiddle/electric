@@ -58,6 +58,11 @@ constant) so we are left with not an entity but a document."
                     ::add (assoc m a v)
                     ::retract (dissoc m a))) {} >txs))
 
+(defn throttle [dur >in]
+  (m/ap
+    (let [x (m/?> (m/relieve {} >in))]
+      (m/amb x (do (m/? (m/sleep dur)) (m/amb))))))
+
 (defn delay-flow [>x]
   (->> (m/reductions (fn [[_ b] nx] [b nx]) [] >x)
     (m/eduction (map second))))
