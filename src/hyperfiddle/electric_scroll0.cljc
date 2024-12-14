@@ -3,6 +3,7 @@
             [contrib.data :refer [clamp window]]
             [contrib.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
+            [hyperfiddle.electric-dom3 :as dom]
             [missionary.core :as m]))
 
 #?(:cljs (defn scroll-state [scrollable]
@@ -61,3 +62,12 @@
 #_
 (e/defn Spool-scroll [record-count xs row-height node]
   (Spool record-count xs (Scroll-window row-height record-count node)))
+
+(e/defn TableScrollFixedCounted
+  [xs TableBody #_& {:keys [record-count row-height]}]
+  (dom/props {:style {:overflow-y "auto"}}) ; no wrapper div! attach to natural container
+  (let [[offset limit] (Scroll-window row-height record-count dom/node {:overquery-factor 1})
+        xs (second (Spool record-count xs offset limit))] ; site neutral, caller chooses
+    (dom/table (dom/props {:style {:position "relative" :top (str (* offset row-height) "px")}})
+      (TableBody xs)) ; no row markup/style requirement
+    (dom/div (dom/props {:style {:height (str (* row-height record-count) "px")}}))))
