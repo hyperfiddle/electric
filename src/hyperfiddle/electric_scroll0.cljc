@@ -54,8 +54,8 @@
 (e/defn Scroll-window [row-height record-count node #_& {:as props}]
   (e/client (e/input (scroll-window row-height record-count node props))))
 
-(e/defn Spool [cnt xs offset limit]
-  (->> (map-indexed vector xs)
+(e/defn Spool [cnt xs! offset limit]
+  (->> (map-indexed vector xs!)
     (window cnt offset limit)
     (e/diff-by #(mod (first %) limit))))
 
@@ -64,10 +64,12 @@
   (Spool record-count xs (Scroll-window row-height record-count node)))
 
 (e/defn TableScrollFixedCounted
-  [xs TableBody #_& {:keys [record-count row-height]}]
+  [xs! TableBody #_& {:keys [record-count row-height overquery-factor]
+                      :or {overquery-factor 1}}]
   (dom/props {:style {:overflow-y "auto"}}) ; no wrapper div! attach to natural container
-  (let [[offset limit] (Scroll-window row-height record-count dom/node {:overquery-factor 1})
-        xs (second (Spool record-count xs offset limit))] ; site neutral, caller chooses
+  (let [record-count (or record-count (count xs!))
+        [offset limit] (Scroll-window row-height record-count dom/node {:overquery-factor overquery-factor})
+        xs (second (Spool record-count xs! offset limit))] ; site neutral, caller chooses
     (dom/table (dom/props {:style {:position "relative" :top (str (* offset row-height) "px")}})
       (TableBody xs)) ; no row markup/style requirement
     (dom/div (dom/props {:style {:height (str (* row-height record-count) "px")}}))))
