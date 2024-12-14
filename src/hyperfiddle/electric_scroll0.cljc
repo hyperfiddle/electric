@@ -34,22 +34,24 @@
                  q-offset (clamp (- offset (math/floor (/ occluded overquery-factor))) 0 record-count)]
              [q-offset q-limit])))
 
-#?(:cljs (defn compute-scroll-window [row-height record-count clientHeight scrollTop]
+#?(:cljs (defn compute-scroll-window [row-height record-count clientHeight scrollTop overquery-factor]
            (let [padding-top 0 ; e.g. sticky header row
                  limit (math/ceil (/ (- clientHeight padding-top) row-height)) ; aka page-size
                  offset (int (/ (clamp scrollTop 0 (* record-count row-height)) ; prevent overscroll past the end
                                row-height))]
-             (compute-overquery 1 record-count offset limit))))
+             (compute-overquery overquery-factor record-count offset limit))))
 
 #?(:cljs (defn scroll-window ; returns [offset, limit]
-           [row-height record-count node]
+           [row-height record-count node
+            & {:keys [overquery-factor]
+               :or {overquery-factor 1}}]
            (m/cp
              (let [[clientHeight] (m/?< (resize-observer node))
                    [scrollTop] (m/?< (scroll-state node))] ; smooth scroll has already happened, cannot quantize
-               (compute-scroll-window row-height record-count clientHeight scrollTop)))))
+               (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor)))))
 
-(e/defn Scroll-window [row-height record-count node]
-  (e/client (e/input (scroll-window row-height record-count node))))
+(e/defn Scroll-window [row-height record-count node #_& {:as props}]
+  (e/client (e/input (scroll-window row-height record-count node props))))
 
 (e/defn Spool [cnt xs offset limit]
   (->> (map-indexed vector xs)
