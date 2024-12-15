@@ -74,7 +74,9 @@
         row-height (check row-height) ; todo measure, account for browser zoom level
         [offset limit] (Scroll-window row-height record-count viewport-node {:overquery-factor overquery-factor})]
     {::Spool (e/fn [] (Spool record-count xs! offset limit)) ; site neutral, caller chooses
-     ::offset offset ::limit limit ::record-count record-count ::row-height row-height}))
+     ::Offset (e/fn [] ; isolate animating value to not rebuild hashmap - micro optimization
+                (identity offset)) ; experimental: allow user to artificially delay offset if needed for UX
+     ::limit limit ::record-count record-count ::row-height row-height}))
 
 (e/defn TableScrollFixedCounted
   [xs! TableBody
