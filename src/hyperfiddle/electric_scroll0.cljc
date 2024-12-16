@@ -5,6 +5,7 @@
             [contrib.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
+            [hyperfiddle.incseq :as i]
             [missionary.core :as m]))
 
 #?(:cljs (defn scroll-state [scrollable]
@@ -56,11 +57,23 @@
   (e/client (doto (e/input (scroll-window row-height record-count node props))
               #_(prn 'Scroll-window))))
 
-(e/defn Spool [cnt xs! offset limit]
+(e/defn Spool2 [cnt xs! offset limit]
   (->> xs!
     (map vector (cycle (range limit)))
     (window cnt offset limit)
     (e/diff-by first)))
+
+(e/defn Spool [cnt xs! offset limit]
+  (->> (map-indexed vector xs!)
+    (window cnt offset limit)
+    (e/diff-by #(mod (first %) limit))))
+
+(e/defn Unrotate [limit xs]
+  (let [s (i/spine)]
+    (e/for [[i x] xs]
+      (s (mod i limit) {} [i x])
+      #_(e/amb)) ; undo permutations
+    (e/join s)))
 
 #_
 (e/defn Spool-scroll [record-count xs row-height node]
