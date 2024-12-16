@@ -57,9 +57,10 @@
               #_(prn 'Scroll-window))))
 
 (e/defn Spool [cnt xs! offset limit]
-  (->> (map-indexed vector xs!)
+  (->> xs!
+    (map vector (cycle (range limit)))
     (window cnt offset limit)
-    (e/diff-by #(mod (first %) limit))))
+    (e/diff-by first)))
 
 #_
 (e/defn Spool-scroll [record-count xs row-height node]
