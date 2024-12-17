@@ -5,8 +5,10 @@
             [contrib.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
+            [hyperfiddle.rcf :as rcf]
             [hyperfiddle.incseq :as i]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hyperfiddle.electric-local-def3 :as l]))
 
 #?(:cljs (defn scroll-state [scrollable]
            (->> (m/observe
@@ -96,3 +98,19 @@
   [xs! TableBody
    #_& {:keys [row-height]
         :as props}])
+
+(letfn [(index-ring [size offset]
+          (let [start (- size offset)]
+            (mapv #(+ offset (mod % size)) (range start (+ size start)))))]
+  (e/defn IndexRing [size offset]
+    (e/diff-by {} (index-ring size offset))))
+
+(rcf/tests
+  (let [!offset (atom 0)]
+    (rcf/with ((l/single {} (e/Tap-diffs rcf/tap (IndexRing 7 (e/watch !offset)))) {} {})
+      rcf/% := {:degree 7, :permutation {}, :grow 7, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
+      (swap! !offset inc)
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 7}, :freeze #{}}
+      (swap! !offset + 2)
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {1 8, 2 9}, :freeze #{}}
+      )))
