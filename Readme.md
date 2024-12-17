@@ -38,6 +38,7 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 - "Pretty new to Electric ... the low LOC for expressing ideas [in Electric] is mind-boggling"
 - "I'm on project three with Electric and have never had so much fun and productivity building web apps"
 - "I’ve gone from I can’t build that.. to building a large chunk of functionality in a day with Electric"
+- "The downside of using the Electric Clojure library is I don’t know if I can build any applications without it now"
 - "This is a paradigm shift similar to garbage collection"
 - "The approach is a breath of fresh air in what appears like a stagnating swamp"
 - "Truly 10x, 100x piece of tech"
