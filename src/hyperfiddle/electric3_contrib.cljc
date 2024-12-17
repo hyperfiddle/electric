@@ -13,6 +13,9 @@
 (e/defn None? [xs] (zero? (e/Count xs)))
 (e/defn Nothing [& args] (e/amb))
 (e/defn Outputs [xs] (e/join (i/items (e/pure xs))))
+#_(e/defn Seq [xs] (If xs xs nil))
+#_(e/defn Some "return first non-nothing in order"
+  [xs] (first (e/as-vec xs))) ; todo optimize
 
 (defn task-status "
 Task -> continuous flow. State is [] before task completion, [result] after.
