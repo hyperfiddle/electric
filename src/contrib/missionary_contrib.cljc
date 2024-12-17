@@ -66,3 +66,12 @@ constant) so we are left with not an entity but a document."
 (defn delay-flow [>x]
   (->> (m/reductions (fn [[_ b] nx] [b nx]) [] >x)
     (m/eduction (map second))))
+
+; When waiting for multiple tasks there is m/join and m/race which in terminology
+; of JS Promises are like Promise.all and Promise.race respectively. Is there an
+; equivalent to Promise.allSettled which would wait for all tasks to complete
+; (either success or failure) and does not cancel other tasks when some task fails?
+(defn all "
+the task result will be a vector of zero-argument functions that you can call
+with try/catch to check status"
+  [& tasks] (apply m/join vector (map m/attempt tasks)))
