@@ -99,18 +99,70 @@
    #_& {:keys [row-height]
         :as props}])
 
-(letfn [(index-ring [size offset]
-          (let [start (- size offset)]
-            (mapv #(+ offset (mod % size)) (range start (+ size start)))))]
-  (e/defn IndexRing [size offset]
-    (e/diff-by {} (index-ring size offset))))
+(defn index-ring
+  "Return a vector of numbers of size `size` containing numbers [0..size[ shifted by `offset`, in the direction of sgn(offset).
+  Contrary to usual \"sliding window\" shifting, where all slots shift one place left or right, this ring shifts as a tape. 
+  Values shift, not slots. Allowing for stable indexing of a sliding window.
+  e.g.: Usual : [1 2 3] -> [2 3 4] ; shift one right - all values changed, as if all slots shifted.
+        Tape:   [1 2 3] -> [4 2 3] ; 4 replaced 1 at slot 0. Slots 1 and 2 untouched.
+  Example: assuming size = 5, and offset in [0,1,2,3,4,5]
+  Offset
+  0 -> [0 1 2 3 4] ; 5 slots, initial state
+  1 -> [5 1 2 3 4] ; shift one right – 5 replaces 0 at slot 0, 1 2 3 4 untouched
+  2 -> [5 6 2 3 4] ; shift one right – 6 replaces 1 at slot 1, 5 and the rest untouched
+  3 -> [5 6 7 3 4]
+  4 -> [5 6 7 8 4]
+  5 -> [5 6 7 8 9] ; offset = size, full window slide, all values shifted, but no slot shifted.
+  "
+  [size offset]
+  (let [start (- size offset)]
+    (mapv #(+ offset (mod % size)) (range start (+ size start)))))
 
 (rcf/tests
-  (let [!offset (atom 0)]
-    (rcf/with ((l/single {} (e/Tap-diffs rcf/tap (IndexRing 7 (e/watch !offset)))) {} {})
+  (let [size 7]
+    (mapv #(index-ring size %) (range (inc size)))
+    := [[0  1  2  3  4  5  6]
+        [7  1  2  3  4  5  6]
+        [7  8  2  3  4  5  6]
+        [7  8  9  3  4  5  6]
+        [7  8  9  10 4  5  6]
+        [7  8  9  10 11 5  6]
+        [7  8  9  10 11 12 6]
+        [7  8  9  10 11 12 13]]
+
+    (mapv #(index-ring size %) (range size (dec 0) -1))
+    := [[7  8  9  10 11 12 13]
+        [7  8  9  10 11 12 6]
+        [7  8  9  10 11 5  6]
+        [7  8  9  10 4  5  6]
+        [7  8  9  3  4  5  6]
+        [7  8  2  3  4  5  6]
+        [7  1  2  3  4  5  6]
+        [0  1  2  3  4  5  6]]))
+
+
+(let [index-ring index-ring] ; FIXME without this let, below rcf test crashes at the repl
+  (e/defn IndexRing [size offset] (e/diff-by {} (index-ring size offset))))
+
+(rcf/tests
+  (let [size 7
+        !offset (atom 0)]
+    (rcf/with ((l/single {} (e/Tap-diffs rcf/tap (IndexRing size (e/watch !offset)))) {} {})
       rcf/% := {:degree 7, :permutation {}, :grow 7, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
       (swap! !offset inc)
       rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 7}, :freeze #{}}
       (swap! !offset + 2)
       rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {1 8, 2 9}, :freeze #{}}
+      (reset! !offset size) ; check offset = size
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {3 10, 4 11, 5 12, 6 13}, :freeze #{}}
+      (swap! !offset inc) ; check offset > size
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 14}, :freeze #{}}
+      ;; negative offset, no use case for now but check for correctness
+      (reset! !offset 0) ; reset to initial state
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
+      (swap! !offset dec) ; check offset < 0
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {6 -1}, :freeze #{}}
+      (reset! !offset -7)
+      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 -7, 1 -6, 2 -5, 3 -4, 4 -3, 5 -2}, :freeze #{}}
       )))
+
