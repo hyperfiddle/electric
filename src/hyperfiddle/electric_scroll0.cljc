@@ -130,16 +130,16 @@
         [7  8  9  10 11 12 6]
         [7  8  9  10 11 12 13]]
 
-    (mapv #(index-ring size %) (range size (dec 0) -1))
-    := [[7  8  9  10 11 12 13]
-        [7  8  9  10 11 12 6]
-        [7  8  9  10 11 5  6]
-        [7  8  9  10 4  5  6]
-        [7  8  9  3  4  5  6]
-        [7  8  2  3  4  5  6]
-        [7  1  2  3  4  5  6]
-        [0  1  2  3  4  5  6]]))
-
+    (range 0 (- (inc size)) -1) := '(0 -1 -2 -3 -4 -5 -6 -7) ; for reference
+    (mapv #(index-ring size %) (range 0 (- (inc size)) -1))
+    := [[ 0  1  2  3  4  5  6]
+        [ 0  1  2  3  4  5 -1]
+        [ 0  1  2  3  4 -2 -1]
+        [ 0  1  2  3 -3 -2 -1]
+        [ 0  1  2 -4 -3 -2 -1]
+        [ 0  1 -5 -4 -3 -2 -1]
+        [ 0 -6 -5 -4 -3 -2 -1]
+        [-7 -6 -5 -4 -3 -2 -1]]))
 
 (let [index-ring index-ring] ; FIXME without this let, below rcf test crashes at the repl
   (e/defn IndexRing [size offset] (e/diff-by {} (index-ring size offset))))
