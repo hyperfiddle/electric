@@ -79,6 +79,12 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
   (omit-keys-ns nil nil) :throws #?(:clj AssertionError :cljs js/Error)
   nil)
 
+(defn omit-keys [m ks] (apply dissoc m ks))
+
+(comment
+  (omit-keys {::a 1 :b 2 :c/c 3} [::a]) := {:b 2 :c/c 3}
+  )
+
 (defn has-ns?
   "State if a `named` value (keyword or symbol) has such namespace `ns`.
   `ns` can be be a string, or a non-namespaced keyword or symbol."
