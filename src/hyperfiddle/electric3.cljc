@@ -357,9 +357,9 @@ v3 to expose the full differential diff lifecycle)"
   (if (build-properly-configured? (deref cljs.env/*compiler*))
     (let [env (merge (lang/normalize-env &env) web-config opts )
           source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-      `(let [[subject# handler#] (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)]
-         (r/peer-boot (r/make-peer :client ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-                        subject# (r/->defs {::Main ~source}) ::Main nil) handler#)))
+      `(cc/apply ~(if (::hot-swap opts) `r/boot-client-hot `r/boot-client-cold) (r/->defs {::Main ~source}) ::Main
+         ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+         (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)))
     (let [message "Electric compilation error: a required shadow build hook is missing. Please add `hyperfiddle.electric.shadow-cljs.hooks3/reload-clj under :build-hooks in shadow-cljs.edn"]
       (println message)
       `(cc/fn [] (println ~message)))))

@@ -1682,6 +1682,17 @@ entrypoint.
       (m/amb= (m/? (handler (peer-events peer)))
         (m/? (peer-sink peer))))))
 
+(defn boot-client-hot [defs main opts subject handler]
+  (peer-boot (make-peer :client opts subject defs main nil) handler))
+
+(defn boot-client-cold [defs main opts subject handler]
+  (handler
+    (m/ap
+      (let [peer (make-peer :client opts subject defs main nil)]
+        (m/amb= (m/?> (peer-events peer))
+          (do (m/? (peer-sink peer))
+              (m/amb)))))))
+
 (defn do!
   ([])
   ([a] a)
