@@ -70,7 +70,7 @@ Simple uncontrolled checkbox, e.g.
             error? (some? err)
             dirty? (or editing? waiting? error?)]
         (when-not dirty? (set! (.-value dom/node) v)) ; todo - submit must reset input while focused
-        (when error? (dom/props {:aria-invalid true}))
+        (when error? (dom/props {:aria-invalid true})) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
         (when waiting? (dom/props {:aria-busy true}))
         (e/When waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
           (let [v' ((fn [] (-> e .-target .-value (subs 0 maxlength) parse)))
@@ -79,6 +79,15 @@ Simple uncontrolled checkbox, e.g.
             (InputValidity validation-message)
             [t edit validation-message]) ; edit request, bubbles upward to service
           )))))
+
+(defn unify-t ; unify-token ; WIP
+  ([]  (constantly nil))
+  ([t] (or t (constantly nil)))
+  ([t1 t2] (comp first (juxt (unify-t t1) (unify-t t2))))
+  ([t1 t2 & ts] (unify-t (unify-t t1 t2) (apply unify-t ts))))
+
+(defn after-ack [t1 f] (unify-t t1 (fn [& [_err]] (f))))
+;; chaining f after t or t after f is just `comp`
 
 (e/defn Checkbox! [k checked & {:keys [id type label parse edit-monoid Validate] :as props
                                 :or {id (random-uuid) type :checkbox parse identity edit-monoid hash-map
@@ -97,7 +106,7 @@ Simple uncontrolled checkbox, e.g.
             v (if waiting? ((fn [] (-> e .-target .-checked parse))) checked)
             validation-message (Validate v)]
         (when-not dirty? (set! (.-checked input-node) checked))
-        (when error? (dom/props input-node {:aria-invalid true}))
+        (when error? (dom/props input-node {:aria-invalid true}))  ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
         (InputValidity input-node validation-message)
         (e/When waiting?
           (dom/props input-node {:aria-busy true})
@@ -115,7 +124,7 @@ Simple uncontrolled checkbox, e.g.
 (defn -checked? [v x]
   (when v (= v x)))
 
-(e/defn Radio! [k authoritative-v & {:keys [id label Options type Validate edit-monoid]
+(e/defn Radio! [k authoritative-v & {:keys [id option-label Options type Validate edit-monoid]
                        :or {type :radio, Validate (e/fn [_]), edit-monoid hash-map}
                        :as props}]
   (let [!selected (atom [nil authoritative-v nil])
@@ -132,14 +141,13 @@ Simple uncontrolled checkbox, e.g.
               (let [id (random-uuid)]
                 (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
                 (dom/dd
-                  (Checkbox! x (-checked? v x) :id id :type type :label (label x)
+                  (Checkbox! x (-checked? v x) :id id :type type :label option-label
                     :edit-monoid (fn [x _checked?] x)
                     (dissoc props :id :type :option-label :Options :Validate)))))))))
     (e/When t
       (let [!authoritative-v (atom (e/snapshot authoritative-v))]
         (reset! !authoritative-v authoritative-v)
-        [(fn ([] (t) (reset! !selected [nil @!authoritative-v nil]))
-           ([err] (t err) (reset! !selected [nil @!authoritative-v nil])))
+        [(after-ack t (fn [& _] (reset! !selected [nil @!authoritative-v nil])))
          (edit-monoid k v)
          errors]))))
 
@@ -148,6 +156,7 @@ Simple uncontrolled checkbox, e.g.
   [directive & {:keys [label disabled type form] :as props
                 :or {type :button}}] ; default type in form is submit
   (dom/button (dom/text label) ; (if err "retry" label)
+              (e/on-unmount #(prn "button unmount" label))
     (dom/props (-> props (dissoc :label :disabled) (assoc :type type)))
     (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
           [btn-t err] (e/Token x)] ; genesis
@@ -155,13 +164,14 @@ Simple uncontrolled checkbox, e.g.
         (dom/props {:disabled disabled})
         (dom/props {({:submit :aria-disabled} type :disabled) (some? btn-t)}))
       (dom/props {:aria-busy (some? btn-t)})
-      (dom/props {:aria-invalid (some? err), :data-error (str err)})
-      (dom/props {:class [(when (and (some? x) (nil? btn-t) (nil? err)) "hf-success")]})
+      (dom/props {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
+      (dom/props {:data-tx-status (when (and (some? x) (nil? btn-t) (nil? err)) "accepted")})
+      (prn "button x t err" [x btn-t err])
       (if btn-t
         (let [[form-t form-v] form]
-          [(fn token
-             ([] (btn-t) (when form-t (form-t))) ; reset controlled form and both buttons, cancelling any in-flight commit
-             ([err] (btn-t err) #_(form-t err))) ; redirect error to button ("retry"), leave uncommitted form dirty
+          [(after-ack btn-t ; reset controlled form and both buttons, cancelling any in-flight commit
+             (fn [& _] (when form-t ; redirect error to button ("retry"), drop error, leave uncommitted form dirty
+                         (form-t))))
            (if form-t [directive form-v] directive)]) ; compat
         (e/amb))))) ; None or Single
 
@@ -215,10 +225,7 @@ in an associated optimistic collection view!"
                                                      (blur-active-form-input! (.-target %)) %) nil))]
       (if t ; TODO unify with FormSubmit! and Button!
         (let [[form-t form-v] form]
-          (prn "click discard" form)
-          [(fn token
-             ([] (t) (when form-t (form-t))) ; reset controlled form and both buttons, cancelling any in-flight commit
-             ([err] (t err) #_(form-t err))) ; redirect error to button ("retry"), leave uncommitted form dirty
+          [(unify-t t form-t) ; reset controlled form and both buttons, cancelling any in-flight commit
            (if form-t [directive form-v] [directive])]) ; compat
         (e/amb)))))
 
@@ -243,6 +250,8 @@ in an associated optimistic collection view!"
 (e/defn FormSubmit! ; dom/node must be a form
   [directive & {:keys [disabled show-button label auto-submit form] :as props}]
   (e/client
+    (prn "formSubmit" props)
+    (e/on-unmount #(prn "formsubmit unmount"))
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (and (not show-button) (not disabled))
@@ -278,25 +287,21 @@ in an associated optimistic collection view!"
 
     (if-let [t
           ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
-          (let [[btn-t btn-err :as btn] (when show-button (e/apply Button! directive (mapcat identity (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
+             (let [[btn-t btn-err :as btn] (when show-button (do (prn "formSubmit button mount") (Button! directive (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
                 ^js submit-event (dom/On "submit" #(do (.preventDefault %) ; always prevent browser native navigation
                                                        ;; (js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e  %}))
                                                        (when (event-is-from-this-form? %) %))
                                    nil)
                 [t err] (if auto-submit (e/Token form) (e/Token submit-event))]
             btn submit-event ; force let branch
-            (dom/props {:aria-invalid (some? err)})
             (when (and t form)
               (when (and btn-t (submitter submit-event))
                 (dom/props (submitter submit-event) {:disabled true})) ; hard-disable submitter button while form submits
-              (fn
-                ([] (t) (when btn-t (btn-t)))
-                ([err] (t err) (when btn-t (btn-t err))))))]
+              (unify-t t btn-t)))]
       ; TODO unify with FormSubmit! and Button!
       (let [[form-t form-v] form]
-        [(fn token
-           ([] (t) (when form-t (form-t))) ; reset controlled form and both buttons, cancelling any in-flight commit
-           ([err] (t err) #_(form-t err))) ; redirect error to button ("retry"), leave uncommitted form dirty
+        [(fn ([] (t) (form-t)) ; reset controlled form and both buttons, cancelling any in-flight commit
+           ([err] (t err))) ; redirect tx-error only to button ("retry"), leave uncommitted form dirty
          (if form-t [directive form-v] [directive nil])]) ; compat
       (e/amb))))
 
@@ -329,7 +334,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
           #_#_dirty-form-guess (apply merge (e/as-vec guess)) ; todo collisions
           form-t (fn token ; fresh if ts changes (should fields be disabled when commit pending?)
                    ([] (doseq [t ts] (t)))
-                   #_([err] (doseq [t ts] (t err ::keep)))) ; we could route errors to dirty fields, but it clears dirty state
+                   ([err] #_(doseq [t ts] (t err ::keep)))) ; we could route errors to dirty fields, but it clears dirty state
           ]
       [form-t dirty-form validations])))
 
@@ -352,8 +357,6 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                                (catch #?(:clj Throwable, :cljs :default) _
                                  cmd))))))
 
-(e/defn InspectFormCommit [_commit]) ; to be rebound in dynamic scope
-
 (e/defn Form!*
   ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
     edits ; concurrent edits are what give us dirty tracking
@@ -374,23 +377,22 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            [form-t form-v field-validation :as form]
            (invert-fields-to-form edit-merge (e/as-vec edits))
 
-           !form-validation (atom nil)
+           !form-validation (atom ::nil)
            form-validation (e/watch !form-validation)
 
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit :label "commit"  :disabled clean?
+                                 ::commit :label "commit"  :disabled (or clean? field-validation)
                                  :form form
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
-           [_ _ :as ?d] (FormDiscard! ::discard :form form :disabled clean? :label "discard" :show-button show-buttons)
-       #_(InspectState form-v)
-       #_(when (not-empty field-validation) (dom/props {:aria-invalid true}))]
-       (dom/p (dom/props {:data-role "errormessage"}) (dom/text form-validation))
+           [_ _ :as ?d] (FormDiscard! ::discard :form form :disabled clean? :label "discard" :show-button show-buttons)]
+       (dom/p (dom/props {:data-role "errormessage"}) (when (not= form-validation ::nil) (dom/text form-validation)))
        (e/amb
          (e/for [[btn-q [cmd form-v]] (e/amb ?cs ?d)]
            (case cmd ; does order of burning matter?
              ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
-                             (partial #(run! call %) (e/as-vec tempids))] ; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
+                             (partial #(run! call %) (e/as-vec tempids)) ; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
+                             ]
                          (case genesis
                            true (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
                                   (case (btn-q) (e/amb)) ; discard now and swallow cmd, we're done
@@ -399,30 +401,33 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                                    (nth discard 1)]) ; prediction
 
                                         ; reset form and BOTH buttons, cancelling any in-flight commit
-                           false (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                                   (case (do (btn-q) (clear-commits)) (e/amb)) ; discard now and swallow cmd, we're done
-                                   [(fn token
-                                      ([] (btn-q) (clear-commits))
-                                      ([err] (btn-q err)))
-                                    (nth discard 0) ; command
-                                    (nth discard 1)])))
+                           false
+                           (let [t (after-ack btn-q #(do (clear-commits) (reset! !form-validation ::nil)))]
+                             (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
+                               (case (t) (e/amb)) ; discard now and swallow cmd, we're done
+                               [t
+                                (nth discard 0) ; command
+                                (nth discard 1)]))))
              ::commit (let [form-v form-v ; dirty subset
                             tempid btn-q
                             [form-v guess] (if commit
                                              [(commit form-v tempid #_dirty-form-guess)] ; guess and form would be =
                                              [form-v #_{e dirty-form}])] ; no entity id, only user can guess
-                        (reset! !form-validation (Validate form-v))
-                        (e/When (nil? form-validation)
-                          (let [t (case genesis
-                                    true (do (reset-active-form-input! dom/node) btn-q) ; this is a q, transfer to list item
-                                    false btn-q)] ; this is a t
-                            [t
-                             (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms
-                             guess])))))
+                        (let [validation-message (Validate form-v)]
+                          (reset! !form-validation validation-message)
+                          (if validation-message
+                            (do (btn-q  ; err value gets dropped, but form won't reset.
+                                  ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
+                                (e/amb))
+                            (let [t (case genesis
+                                      true (do (reset-active-form-input! dom/node) btn-q) ; this is a q, transfer to list item
+                                      false btn-q)] ; this is a t
+                              [t
+                               (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms
+                               guess]))))))
 
          (let [commit-edit (if commit (mapv debug-cleanup-form-edit [(commit form-v "-1")]) form-v)
                form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
-           (InspectFormCommit form-v-edit)
            (e/When debug
              (dom/span (dom/text " " dirty-count " dirty"))
              (dom/pre #_(dom/props {:style {:min-height "4em"}})
