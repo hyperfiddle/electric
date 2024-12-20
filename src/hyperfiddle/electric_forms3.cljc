@@ -86,7 +86,10 @@ Simple uncontrolled checkbox, e.g.
   ([t1 t2] (comp first (juxt (unify-t t1) (unify-t t2))))
   ([t1 t2 & ts] (unify-t (unify-t t1 t2) (apply unify-t ts))))
 
-(defn after-ack [t1 f] (unify-t t1 (fn [& [_err]] (f))))
+(defn after-ack "
+proxy token t such that callback f! will run once the token is ack'ed. E.g. to ack many tokens at once."
+  [t1 f!]
+  (unify-t t1 (fn proxy-token [& [_err]] (f!))))
 ;; chaining f after t or t after f is just `comp`
 
 (e/defn Checkbox! [k checked & {:keys [id type label parse edit-monoid Validate] :as props
@@ -113,7 +116,12 @@ Simple uncontrolled checkbox, e.g.
           [t (edit-monoid k v) validation-message]))
       (e/When label (dom/label (dom/props {:for id}) (dom/text (label k)))))))
 
-(e/defn LatestEdit [edits]
+(e/defn LatestEdit "
+Implement radio single-select behavior by retaining only the token from the most recently touched
+input[type=radio], unselecting/clearing all other input[type=radio] by accepting their tokens.
+The pattern is general, i.e. not specific to just radios: every time a new concurrent token arrives,
+accept the previous token and retain the new one."
+  [edits]
   (let [!latest (atom nil)
         latest (e/watch !latest)]
     (case (e/Count edits)
@@ -147,7 +155,7 @@ Simple uncontrolled checkbox, e.g.
     (e/When t
       (let [!authoritative-v (atom (e/snapshot authoritative-v))]
         (reset! !authoritative-v authoritative-v)
-        [(after-ack t (fn [& _] (reset! !selected [nil @!authoritative-v nil])))
+        [(after-ack t (fn after [] (reset! !selected [nil @!authoritative-v nil])))
          (edit-monoid k v)
          errors]))))
 
