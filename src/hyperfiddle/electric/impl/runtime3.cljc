@@ -4,10 +4,12 @@
             [missionary.core :as m]
             [clojure.pprint]
             [contrib.debug :as dbg]
+            [contrib.data :as cd]
             [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [cognitect.transit :as t]
             [hyperfiddle.incseq.diff-impl :as d]
-            [contrib.assert :as ca])
+            [contrib.assert :as ca]
+            [clojure.string :as str])
   (:import missionary.Cancelled
            #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))
@@ -84,8 +86,9 @@
 (def port-slot-slot 0)
 (def port-slot-site 1)
 (def port-slot-deps 2)
-(def port-slot-flow 3)
-(def port-slots 4)
+(def port-slot-meta 3)
+(def port-slot-flow 4)
+(def port-slots 5)
 
 (def input-slot-remote 0)                                   ;; this is only required for peer access
 (def input-slot-port 1)
@@ -266,9 +269,12 @@ T T T -> (EXPR T)
 
 (defn ->cf-thunk [thunk] (->CFThunk thunk nil))
 
+(defn clean-msg [mt]
+  (str (::lang/ns mt) (let [d (::lang/def mt)] (when d (str "/" d)))
+    ", line " (::lang/line mt) ", column " (::lang/column mt)))
+
 (defn clean-ex [mt msg]
-  (let [msg (str "in " (::lang/ns mt) (let [d (::lang/def mt)] (when d (str "/" d)))
-              ", line " (::lang/line mt) ", column " (::lang/column mt) "\n" msg)]
+  (let [msg (str "exception in " (clean-msg mt) "\n" msg)]
     #?(:clj (proxy [Exception] [msg nil false false])
        :cljs (js/Error msg))))
 
@@ -276,7 +282,7 @@ T T T -> (EXPR T)
   (try (f)
        (catch #?(:clj Throwable :cljs :default) e
          (let [clean-ex (clean-ex mt (ex-message e))]
-           (println `?swap-exception (ex-message clean-ex))
+           (println (ex-message clean-ex))
            (throw clean-ex)))))
 
 (defn invoke-with [mt]
@@ -798,12 +804,13 @@ T T T -> (EXPR T)
               (aset sub input-sub-slot-next sub))))
       (exit peer busy) (step) (->InputSub sub))))
 
-(defn make-port [^Slot slot site deps flow]
+(defn make-port [^Slot slot site mt deps flow]
   (let [port (object-array port-slots)
         peer (frame-peer (.-frame slot))]
     (aset port port-slot-slot slot)
     (aset port port-slot-site site)
     (aset port port-slot-deps deps)
+    (aset port port-slot-meta mt)
     (aset port port-slot-flow
       (if (= site (peer-site peer))
         (m/signal i/combine flow)
@@ -813,7 +820,7 @@ T T T -> (EXPR T)
 (defn update-inc [m k]
   (assoc m k (inc (m k 0))))
 
-(defn define-slot [^Slot slot expr]
+(defn define-slot [^Slot slot mt expr]
   (let [^Frame frame (.-frame slot)
         id (.-id slot)
         site (if-some [site (let [cdef (frame-cdef frame)
@@ -826,7 +833,7 @@ T T T -> (EXPR T)
                (slot-port expr)
                (let [pexpr (peephole expr)
                      iexpr (->is pexpr)]
-                 (make-port slot site
+                 (make-port slot site mt
                    (deps iexpr update-inc {} site)
                    (->flow iexpr))))]
     (aset ^objects (.-nodes frame) (- -1 id) port) nil))
@@ -845,8 +852,8 @@ T T T -> (EXPR T)
 
 (defn define-node
   "Defines signals node id for given frame."
-  [^Frame frame id expr]
-  (define-slot (node frame id) expr))
+  [^Frame frame id mt expr]
+  (define-slot (node frame id) mt expr))
 
 (defn slot-id
   "Returns the id of given slot."
@@ -864,7 +871,7 @@ T T T -> (EXPR T)
         frame (->Frame peer slot rank site ctor
                 (object-array (inc nodec)) (object-array callc) nil)
         built ((.-build cdef) frame)]
-    (define-slot (->Slot frame (- -1 nodec)) built) frame))
+    (define-slot (->Slot frame (- -1 nodec)) {} built) frame))
 
 (defn decode [^String s opts]
   #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts))
@@ -1212,33 +1219,48 @@ T T T -> (EXPR T)
     (dotimes [_ diff]
       (output-remote-up (slot-port slot)))))
 
+(def ^:dynamic *unserializable*)
+
+(defn ->unserializable-msg [port* d]
+  (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
+        has-mt* (filterv ::lang/line mt*)
+        msg (str "Unserializable value(s): " (str/join ", " d)
+              (when (seq has-mt*)
+                (str "\nPossible values (if let-bound search for their usage):\n"
+                  (str/join "\n" (mapv clean-msg has-mt*))
+                  (when (not= (count mt*) (count has-mt*))
+                    (str "\nThe value list is incomplete.")))))]
+    msg))
+
 (defn channel-transfer [^objects channel]
   (let [^objects remote (aget channel channel-slot-remote)
         ^objects peer (aget remote remote-slot-peer)
         busy (enter peer)]
     (try (if (identical? channel (aget remote remote-slot-channel))
-           (loop [change (transient {})
+           (loop [port* (transient #{})
+                  change (transient {})
                   freeze (transient #{})]
              (if-some [^objects output (aget remote remote-slot-ready)]
                (let [ps (aget output output-slot-process)]
                  (aset remote remote-slot-ready (aget output output-slot-ready))
                  (case (output-state output)
                    2r101 (do (aset output output-slot-ready output)
-                             (recur change freeze))
+                             (recur port* change freeze))
                    (do (aset output output-slot-ready nil)
                        (if-some [port (aget output output-slot-port)]
                          (let [slot (port-slot port)]
                            (if (aget output output-slot-frozen)
                              (do (aset channel channel-slot-alive
                                    (dec (aget channel channel-slot-alive)))
-                                 (recur change (conj! freeze slot)))
-                             (recur (let [diff @ps]
-                                      (if (i/empty-diff? diff)
-                                        change (assoc! change
-                                                 slot (if-some [p (get change slot)]
-                                                        (i/combine p diff) diff)))) freeze)))
+                                 (recur port* change (conj! freeze slot)))
+                             (recur (conj! port* port)
+                               (let [diff @ps]
+                                 (if (i/empty-diff? diff)
+                                   change (assoc! change
+                                            slot (if-some [p (get change slot)]
+                                                   (i/combine p diff) diff)))) freeze)))
                          (do (try @ps (catch #?(:clj Throwable :cljs :default) _))
-                             (recur change freeze))))))
+                             (recur port* change freeze))))))
                (let [change (persistent! change)
                      freeze (persistent! freeze)
                      acks (aget remote remote-slot-acks)
@@ -1263,8 +1285,12 @@ T T T -> (EXPR T)
                      (aset tail event-slot-inputs (transient #{}))
                      (aset tail event-slot-outputs (transient #{}))))
                  (when (pos? (unchecked-add acks changeset))
-                   (encode [acks request change freeze]
-                     (aget channel channel-slot-writer-opts))))))
+                   (binding [*unserializable* (atom #{})]
+                     (let [ret (encode [acks request change freeze]
+                                 (aget channel channel-slot-writer-opts))]
+                       (when-some [d (not-empty @*unserializable*)]
+                         (println (->unserializable-msg port* d)))
+                       ret))))))
            (let [e (aget channel channel-slot-shared)]
              (aset channel channel-slot-shared nil)
              (throw e)))
@@ -1355,8 +1381,8 @@ T T T -> (EXPR T)
                               (fn [^Unbound unbound]
                                 [(.-key unbound)]))})
         default (t/write-handler
-                  (fn [v] (prn :unserializable v) "unserializable")
-                  (fn [_]))]
+                  (fn [v] (swap! *unserializable* conj v) "unserializable")
+                  (fn [v]))]
     #?(:clj  {:handlers handlers :default-handler default}
        :cljs {:handlers (assoc handlers :default default)})))
 
@@ -1475,7 +1501,7 @@ T T T -> (EXPR T)
         (prn 'call-after) (clojure.pprint/pprint (as-stats pexpr)))
       (do (prn 'call) (clojure.pprint/pprint (as-stats pexpr))))
     (aset call call-slot-port
-      (make-port slot site
+      (make-port slot site {}
         (deps pexpr update-inc {} site)
         (->flow pexpr)
         #_(i/latest-product

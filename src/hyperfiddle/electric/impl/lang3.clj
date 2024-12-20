@@ -403,6 +403,11 @@
                                    ::line (:line mt), ::column (:column mt)
                                    ::def (::def env), ::ns (get-ns env)}))))
 
+(defn ?reroute-source-map [ts from-e to-e]
+  (if-some [sm-e* (ts/find ts ::source-map-of from-e)]
+    (ts/asc ts (first sm-e*) ::source-map-of to-e)
+    ts))
+
 (defn untwin [s]
   (if (= "cljs.core" (namespace s))
     (let [clj (symbol "clojure.core" (name s))]
@@ -530,7 +535,8 @@
 
 (defn add-literal [{{::keys [->id]} :o :as ts} v e pe env]
   (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure, ::site (::current env)})
-    (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v v, ::site (::current env)})))
+    (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v v, ::site (::current env)})
+    (?add-source-map e v env)))
 
 (defn add-ap-literal [f args pe e env form {{::keys [->id ->uid]} :o :as ts}]
   (let [ce (->id)]
@@ -594,7 +600,8 @@
   ([{{::keys [->id]} :o :as ts} from-e pe] (copy-point-recursively ts from-e pe (->id)))
   ([{{::keys [->uid]} :o :as ts} from-e pe to-e]
    (reduce (fn [ts e] (copy-point-recursively ts e to-e))
-     (ts/add ts (assoc (ts/->node ts from-e) :db/id to-e, ::parent pe, ::uid (->uid)))
+     (-> ts (ts/add (assoc (ts/->node ts from-e) :db/id to-e, ::parent pe, ::uid (->uid)))
+       (?reroute-source-map from-e to-e))
      (get-children-e ts from-e))))
 
 (defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
@@ -619,7 +626,8 @@
                  (recur (?meta form
                           (reduce (fn [ac [k v]]
                                     (let [g (with-meta (gensym k) (meta k))]
-                                      `(::mklocal ~g (::bindlocal ~g ~v (::mklocal ~k (::bindlocal ~k ~g ~ac))))))
+                                      (?meta k
+                                        `(::mklocal ~g (::bindlocal ~g ~v ~(?meta k `(::mklocal ~k (::bindlocal ~k ~g ~ac))))))))
                             bform (->> bs (partition 2) reverse)))
                    pe env ts))
         (::mklocal) (let [[_ k bform] form, e (->id), uid (->uid)
@@ -752,7 +760,7 @@
                      ;; Since any site change can result in a new node we wrap these sites in an implicit local.
                      ;; Electric aggressively inlines locals, so the generated code size will stay the same.
                      (let [g (gensym "site-local")]
-                       (recur `(::mklocal ~g (::bindlocal ~g ~form ~g)) pe env2 ts))))
+                       (recur (?meta form `(::mklocal ~g (::bindlocal ~g ~form ~g))) pe env2 ts))))
         (::frame) (let [e (->id)] (-> ts
                                     (ts/add {:db/id e, ::parent pe, ::type ::pure, ::site (::current env)})
                                     (ts/add {:db/id (->id), ::parent e, ::type ::frame, ::site (::current env)})))
@@ -1213,9 +1221,10 @@
      e)))
 
 (defn emit-node-init [ts ctor-e node-e env nm]
-  (let [nd (get (:eav ts) node-e)]
-    (list `r/define-node 'frame (::node-idx nd)
-      (emit ts (->> (::ctor-ref nd) (->localv-e ts) (get-ret-e ts)) ctor-e env nm))))
+  (let [nd (get (:eav ts) node-e)
+        ret-e (->> (::ctor-ref nd) (->localv-e ts) (get-ret-e ts))]
+    (list `r/define-node 'frame (::node-idx nd) (list 'quote (->code-meta ts ret-e))
+      (emit ts ret-e ctor-e env nm))))
 
 (defn emit-call-init [ts ctor-e e env nm]
   (list `r/define-call 'frame (::call-idx (ts/->node ts e))
@@ -1370,7 +1379,8 @@
                                             (delete-point-recursively e))))
                                 (-> ts
                                   (ts/add {:db/id pure-e, ::parent ap-e, ::type ::pure, ::site site})
-                                  (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp, ::site site}))
+                                  (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp, ::site site})
+                                  (?reroute-source-map ap-e pure-e))
                                 ce)))
 
                           (> pure-cnt 1)
@@ -1538,6 +1548,7 @@
                                    pe (ts/? ts ret-e ::parent)]
                                (-> ts (ts/del ret-e) (ts/del v-e)
                                  (ts/add (assoc v-nd :db/id ret-e, ::parent pe))
+                                 (?reroute-source-map v-e ret-e)
                                  (reparent-children v-e ret-e)
                                  (delete-point-recursively (uid->e ts mklocal-uid))
                                  (delete-ctor-nodes mklocal-uid)
