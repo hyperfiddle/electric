@@ -156,7 +156,6 @@ Simple uncontrolled checkbox, e.g.
   [directive & {:keys [label disabled type form] :as props
                 :or {type :button}}] ; default type in form is submit
   (dom/button (dom/text label) ; (if err "retry" label)
-              (e/on-unmount #(prn "button unmount" label))
     (dom/props (-> props (dissoc :label :disabled) (assoc :type type)))
     (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
           [btn-t err] (e/Token x)] ; genesis
@@ -166,7 +165,6 @@ Simple uncontrolled checkbox, e.g.
       (dom/props {:aria-busy (some? btn-t)})
       (dom/props {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
       (dom/props {:data-tx-status (when (and (some? x) (nil? btn-t) (nil? err)) "accepted")})
-      (prn "button x t err" [x btn-t err])
       (if btn-t
         (let [[form-t form-v] form]
           [(after-ack btn-t ; reset controlled form and both buttons, cancelling any in-flight commit
@@ -250,8 +248,6 @@ in an associated optimistic collection view!"
 (e/defn FormSubmit! ; dom/node must be a form
   [directive & {:keys [disabled show-button label auto-submit form] :as props}]
   (e/client
-    (prn "formSubmit" props)
-    (e/on-unmount #(prn "formsubmit unmount"))
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (and (not show-button) (not disabled))
@@ -287,7 +283,7 @@ in an associated optimistic collection view!"
 
     (if-let [t
           ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
-             (let [[btn-t btn-err :as btn] (when show-button (do (prn "formSubmit button mount") (Button! directive (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit))))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
+             (let [[btn-t btn-err :as btn] (when show-button (Button! directive (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit)))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
                 ^js submit-event (dom/On "submit" #(do (.preventDefault %) ; always prevent browser native navigation
                                                        ;; (js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e  %}))
                                                        (when (event-is-from-this-form? %) %))
@@ -315,7 +311,6 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
     ; But, button may hidden, so no default submit, so we need to explicitly handle this also
     (e/for [[btn-q _e] (dom/On-all "submit" #(do (.preventDefault %) (.stopPropagation %)
                                                  (when-not disabled (doto % (js/console.log 'FormSubmitGenesis!-submit)))))]
-      (e/on-unmount #(prn "unmount genesis branch"))
       ;; TODO logic duplicated in ButtonGenesis!
       (let [[form-t form-v] (e/snapshot form)] ; snapshot to detach form before any reference to form, or spending the form token would loop into this branch and cause a crash.
         (form-t) ; immediately detach form
@@ -381,7 +376,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            form-validation (e/watch !form-validation)
 
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit :label "commit"  :disabled (or clean? field-validation)
+                                 ::commit :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME e/Reconcile necessary to prevent Button! trashing
                                  :form form
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
