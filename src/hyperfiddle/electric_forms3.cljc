@@ -375,13 +375,18 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            !form-validation (atom ::nil)
            form-validation (e/watch !form-validation)
 
+           !tx-rejected-error (atom nil)
+           tx-rejected-error (e/watch !tx-rejected-error)
+
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
                                  ::commit :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME e/Reconcile necessary to prevent Button! trashing
                                  :form form
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
            [_ _ :as ?d] (FormDiscard! ::discard :form form :disabled clean? :label "discard" :show-button show-buttons)]
-       (dom/p (dom/props {:data-role "errormessage"}) (when (not= form-validation ::nil) (dom/text form-validation)))
+       (dom/p (dom/props {:data-role "errormessage"})
+              (when (not= form-validation ::nil) (dom/text form-validation))
+              (when tx-rejected-error (dom/text tx-rejected-error)))
        (e/amb
          (e/for [[btn-q [cmd form-v]] (e/amb ?cs ?d)]
            (case cmd ; does order of burning matter?
@@ -417,7 +422,8 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                             (let [t (case genesis
                                       true (do (reset-active-form-input! dom/node) btn-q) ; this is a q, transfer to list item
                                       false btn-q)] ; this is a t
-                              [t
+                              [(unify-t t (fn ([] (reset! !tx-rejected-error nil))
+                                            ([err] (reset! !tx-rejected-error err))))
                                (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms
                                guess]))))))
 
@@ -431,57 +437,81 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                                               form-v-edit)
                                   :margin 80))))))))))
 
-(defmacro Form! [fields1 & kwargs] ; note - the fields must be nested under this form - which is fragile and unobvious
-  `(dom/form ; for form "reset" event
+(defmacro Form! [fields1 & {:as props}] ; note - the fields must be nested under this form - which is fragile and unobvious
+  `(dom/form ; for form events. e.g. submit, reset, invalid, etc…
      #_(dom/props kwargs) ; todo select dom props vs stage props
-     (Form!* ~fields1 ~@kwargs))) ; place fields inside dom/form
+     (let [props# ~props]
+       (FormStatus
+         (Form!* ~fields1 (dissoc props# :Accepted :Rejected :Busy)) ; place fields inside dom/form
+         (select-keys props# :Accepted :Rejected :Busy)))))
 
-(e/defn Reconcile-records [stable-kf sort-key as bs]
-  (e/client
-    (let [as! (e/as-vec as) ; todo differential reconciliation
-          bs! (e/as-vec bs)]
-      (js/console.log "Reconcile" {:as as! :bs bs!})
-      (->> (merge-with (fn [a b] (or a b)) ; FIXME WIP this is only valid for create-new ; todo deep merge partial prediction (incl. edits)
-             (index-by stable-kf as!)
-             (index-by stable-kf bs!))
-        vals
-        (sort-by sort-key)
-        #_(drop (count bs!)) ; todo fix glitch
-        (e/diff-by stable-kf)))))
 
-(e/declare Service)
+(e/defn FormStatus [edits & {:keys [Busy Accepted Rejected]
+                             :or {Busy (e/fn [])
+                                  Accepted (e/fn [])
+                                  Rejected (e/fn [err])}}]
+  (let [busy? (pos? (e/Count edits))
+        !last-state (atom nil)]
+    (when busy? (Busy)) ; Busy can happen in parallel in case of re-submit
+    (let [[state message] (e/watch !last-state)]
+      (case state
+        ::accepted (Accepted)
+        ::rejected (Rejected message)
+        ()))
+    (e/for [[t & args] edits]
+      (into [(unify-t t
+               (fn ([] (reset! !last-state [::accepted]))
+                 ([err] (reset! !last-state [::rejected err]))))]
+        args))))
 
-(e/defn PendingController [stable-kf sort-key forms xs]
-  (let [!pending (atom {}) ; [id -> guess]
-        ps (val (e/diff-by key (e/watch !pending)))]
-    (e/for [[t cmd guess :as form] forms #_(Service forms)]
-      (prn 'PendingController cmd guess)
-      ((fn [] (assert (<= (count guess) 1))))
-      (let [[tempid guess] (first guess)]
-        (case guess
-          nil nil ; guess is optional
-          ::retract nil ; todo
-          (do (swap! !pending assoc tempid (assoc guess ::pending form))
-              (e/on-unmount #(swap! !pending dissoc tempid)) ; FIXME hangs tab with infinite loop
-              ))
-        (e/amb)))
-    (Reconcile-records stable-kf sort-key xs ps)))
+;; Experiments
 
-(e/declare effects*)
+#_(e/defn Reconcile-records [stable-kf sort-key as bs]
+    (e/client
+      (let [as! (e/as-vec as) ; todo differential reconciliation
+            bs! (e/as-vec bs)]
+        (js/console.log "Reconcile" {:as as! :bs bs!})
+        (->> (merge-with (fn [a b] (or a b)) ; FIXME WIP this is only valid for create-new ; todo deep merge partial prediction (incl. edits)
+               (index-by stable-kf as!)
+               (index-by stable-kf bs!))
+          vals
+          (sort-by sort-key)
+          #_(drop (count bs!)) ; todo fix glitch
+          (e/diff-by stable-kf)))))
 
-(defmacro try-ok [& body] ; fixme inject sentinel
-  `(try ~@body ::ok ; sentinel
-     (catch Exception e# (doto ::fail (prn e#)))))
+#_(e/declare Service)
 
-(e/defn Service [forms]
-  (e/client ; client bias, t doesn't transfer
-    (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
-    (e/for [[t form guess] forms]
-      (let [[effect & args] form
-            Effect (effects* effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
-            res (e/Apply Effect args)] ; effect handlers span client and server
-        (prn 'final-res res)
-        (case res
-          nil (prn `res-was-nil-stop!)
-          ::ok (t) ; sentinel, any other value is an error
-          (t ::rejected)))))) ; feed error back into control to prompt for retry
+#_(e/defn PendingController [stable-kf sort-key forms xs]
+    (let [!pending (atom {}) ; [id -> guess]
+          ps (val (e/diff-by key (e/watch !pending)))]
+      (e/for [[t cmd guess :as form] forms #_(Service forms)]
+        (prn 'PendingController cmd guess)
+        ((fn [] (assert (<= (count guess) 1))))
+        (let [[tempid guess] (first guess)]
+          (case guess
+            nil nil ; guess is optional
+            ::retract nil ; todo
+            (do (swap! !pending assoc tempid (assoc guess ::pending form))
+                (e/on-unmount #(swap! !pending dissoc tempid)) ; FIXME hangs tab with infinite loop
+                ))
+          (e/amb)))
+      (Reconcile-records stable-kf sort-key xs ps)))
+
+#_(e/declare effects*)
+
+#_(defmacro try-ok [& body] ; fixme inject sentinel
+    `(try ~@body ::ok ; sentinel
+          (catch Exception e# (doto ::fail (prn e#)))))
+
+#_(e/defn Service [forms]
+    (e/client ; client bias, t doesn't transfer
+      (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
+      (e/for [[t form guess] forms]
+        (let [[effect & args] form
+              Effect (effects* effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
+              res (e/Apply Effect args)] ; effect handlers span client and server
+          (prn 'final-res res)
+          (case res
+            nil (prn `res-was-nil-stop!)
+            ::ok (t) ; sentinel, any other value is an error
+            (t ::rejected)))))) ; feed error back into control to prompt for retry
