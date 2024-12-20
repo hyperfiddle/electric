@@ -443,7 +443,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
      (let [props# ~props]
        (FormStatus
          (Form!* ~fields1 (dissoc props# :Accepted :Rejected :Busy)) ; place fields inside dom/form
-         (select-keys props# :Accepted :Rejected :Busy)))))
+         (select-keys props# [:Accepted :Rejected :Busy])))))
 
 
 (e/defn FormStatus [edits & {:keys [Busy Accepted Rejected]
