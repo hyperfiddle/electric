@@ -23,3 +23,10 @@
      (def ^:dynamic a)
      (def ^:dynamic b)
      (bindx [a 1 b (inc a)] (+ a b)) := 3))
+
+(defmacro try-nil [& body]
+  `(try ~@body
+     (catch #?(:clj Exception :cljs :default) e#
+       nil)))
+
+#?(:clj (defn slurp-safe [filename] (try-nil (slurp filename))))
