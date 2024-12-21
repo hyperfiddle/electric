@@ -338,7 +338,9 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
 ; org.apache.commons.lang3.StringUtils.containsIgnoreCase()
 ;(defn str-contains-ignore-case [])
 
-(defn clamp [n left right] (min (max n left) right))
+(defn clamp-left [n left] (max n left)) ; when under limit, clamp up to larger
+(defn clamp-right [n right] (min n right)) ; when exceeding limit, clamp down to smaller
+(defn clamp [n left right] (clamp-right (clamp-left n left) right))
 
 (tests
   (clamp 51 10 50) := 50
