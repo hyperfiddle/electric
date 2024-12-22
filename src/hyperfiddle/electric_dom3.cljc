@@ -592,30 +592,35 @@ input's value, use `EventListener`."
 (defmacro video [& body] (element* :video body))
 (defmacro wbr [& body] (element* :wbr body))
 
-#?(:cljs (defn await-element [node selector]
+#?(:cljs (defn await-element-first-match-only [node selector]
            (fn [s f]
              (let [o (js/MutationObserver.
                        (fn [ms o]
-                         (try (when-let [x (.querySelector js/document selector)] ; todo optimize
-                                #(.disconnect o) (s x)) (catch :default e (f e)))))]
+                         (try
+                           (when-let [x (.querySelector node selector)]
+                             #(.disconnect o) ; stop listening after first detection
+                             (s x))
+                           (catch :default e (f e)))))]
                (try (.observe o node #js{:subtree true :childList true})
-                 (catch :default e (f e)))))))
+                 (catch :default e (f e)))
+               #(.disconnect o)))))
 
-(e/defn Await-element [node selector]
-  ; this is expensive, so don't provide the js/document.body default
-  (e/Task (await-element node selector)))
-
-#?(:cljs (defn await-elements [node selector]
+#?(:cljs (defn await-element "
+return flow of elements matching selector over time, i.e. as the target element comes and goes
+we need to keep listening for when it comes back"
+           [node selector]
            (m/observe
              (fn [!]
                (let [o (js/MutationObserver.
                          (fn [ms o]
-                           (doseq [x (array-seq (.querySelectorAll js/document selector))]
-                             #_(prn 'mut selector x)
-                             (! x))
-                           #_(try (catch :default e (f e)))))]
-                 (.observe o node #js{:subtree true :childList true})
-                 #_(try (catch :default e (f e))))))))
+                           (when-let [x (.querySelector node selector)]
+                             #_(prn 'mut selector x) (! x))
+                           ; todo use querySelectorAll and return simultaneous matches as table
+                           #_(doseq [x (array-seq (.querySelectorAll node selector))] (! x))))]
+                 (try (.observe o node #js{:subtree true :childList true})
+                   (catch :default e (js/error "MutationObserver failed, invalid call? e: " e)))
+                 #(.disconnect o))))))
 
-(e/defn Await-elements [node selector]
-  (e/client (e/join (e/flow->incseq (await-elements node selector)))))
+(e/defn Await-element [node selector] ; reactive to elements coming and going
+  ; this is expensive, so don't provide the js/document.body default node
+  (e/client (e/input (await-element node selector))))
