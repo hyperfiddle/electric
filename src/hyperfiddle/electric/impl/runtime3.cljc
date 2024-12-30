@@ -1224,10 +1224,10 @@ T T T -> (EXPR T)
 (defn ->unserializable-msg [port* d]
   (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
         has-mt* (filterv ::lang/line mt*)
-        msg (str "Unserializable value(s): " (str/join ", " d)
+        msg (str "Unserializable value(s): " (str/join ", " (into [] (distinct) d))
               (when (seq has-mt*)
                 (str "\nPossible values (if let-bound search for their usage):\n"
-                  (str/join "\n" (mapv clean-msg has-mt*))
+                  (str/join "\n" (eduction (map clean-msg) (distinct) has-mt*))
                   (when (not= (count mt*) (count has-mt*))
                     (str "\nThe value list is incomplete.")))))]
     msg))
