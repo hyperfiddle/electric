@@ -391,6 +391,7 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
 
 (defn treelister
   ([xs] (treelister (fn [_]) any-matches? xs))
+  ([children-fn xs] (treelister children-fn any-matches? xs)) ; don't make user :refer any-matches
   ([children-fn keep? xs] (fn [input] (-tree-list 0 xs children-fn keep? input))))
 
 (tests
