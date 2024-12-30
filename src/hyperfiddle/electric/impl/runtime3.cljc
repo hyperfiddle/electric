@@ -274,14 +274,21 @@ T T T -> (EXPR T)
     ", line " (::lang/line mt) ", column " (::lang/column mt)))
 
 (defn clean-ex [mt msg]
-  (let [msg (str "exception in " (clean-msg mt) "\n" msg)]
+  (let [msg (str "EXCEPTION in " (clean-msg mt) "\n" msg)]
     #?(:clj (proxy [Exception] [msg nil false false])
        :cljs (js/Error msg))))
+
+(defn ->class-name [o] #?(:clj (.getCanonicalName ^Class o) :cljs (str o)))
+
+(defn ex-messages [e]
+  (into [] (comp (take-while some?)
+             (map #(str (->class-name (type %)) (when-some [msg (ex-message %)] (str ": " msg)))))
+    (iterate ex-cause e)))
 
 (defn ?swap-exception [f mt]
   (try (f)
        (catch #?(:clj Throwable :cljs :default) e
-         (let [clean-ex (clean-ex mt (ex-message e))]
+         (let [clean-ex (clean-ex mt (str/join "\nvia: " (ex-messages e)))]
            (println (ex-message clean-ex))
            (throw clean-ex)))))
 
@@ -1224,7 +1231,7 @@ T T T -> (EXPR T)
 (defn ->unserializable-msg [port* d]
   (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
         has-mt* (filterv ::lang/line mt*)
-        msg (str "Unserializable value(s): " (str/join ", " (into [] (distinct) d))
+        msg (str "Unserializable value(s): " (str/join ", " (into [] (comp (distinct) (map pr-str)) d))
               (when (seq has-mt*)
                 (str "\nPossible values (if let-bound search for their usage):\n"
                   (str/join "\n" (eduction (map clean-msg) (distinct) has-mt*))
