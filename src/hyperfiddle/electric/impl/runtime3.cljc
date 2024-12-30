@@ -270,11 +270,11 @@ T T T -> (EXPR T)
 (defn ->cf-thunk [thunk] (->CFThunk thunk nil))
 
 (defn clean-msg [mt]
-  (str (::lang/ns mt) (let [d (::lang/def mt)] (when d (str "/" d)))
-    ", line " (::lang/line mt) ", column " (::lang/column mt)))
+  (str "L" (::lang/line mt) ":" (::lang/column mt)
+    " " (::lang/ns mt) (when-some [d (::lang/def mt)] (str "/" d))))
 
 (defn clean-ex [mt msg]
-  (let [msg (str "EXCEPTION in " (clean-msg mt) "\n" msg)]
+  (let [msg (str "EXCEPTION\n" (clean-msg mt) "\n" msg)]
     #?(:clj (proxy [Exception] [msg nil false false])
        :cljs (js/Error msg))))
 
@@ -1231,12 +1231,13 @@ T T T -> (EXPR T)
 (defn ->unserializable-msg [port* d]
   (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
         has-mt* (filterv ::lang/line mt*)
-        msg (str "Unserializable value(s): " (str/join ", " (into [] (comp (distinct) (map pr-str)) d))
-              (when (seq has-mt*)
-                (str "\nPossible values (if let-bound search for their usage):\n"
-                  (str/join "\n" (eduction (map clean-msg) (distinct) has-mt*))
-                  (when (not= (count mt*) (count has-mt*))
-                    (str "\nThe value list is incomplete.")))))]
+        msg (str (when (seq has-mt*)
+                   (str "Possible values (if let-bound search for their usage):\n"
+                     (str/join "\n" (eduction (map clean-msg) (distinct) has-mt*))
+                     (when (not= (count mt*) (count has-mt*))
+                       (str "\nThe value list is incomplete."))
+                     "\n"))
+              "Unserializable value(s): " (str/join ", " (into [] (comp (distinct) (map pr-str)) d)))]
     msg))
 
 (defn channel-transfer [^objects channel]
