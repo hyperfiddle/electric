@@ -11,10 +11,10 @@
 #?(:cljs (defn scroll-state [scrollable]
            (->> (m/observe
                   (fn [!]
-                    (! [0 0 0])
                     (let [sample (fn [] (! [(.. scrollable -scrollTop) ; optimization - detect changes (pointless)
                                             (.. scrollable -scrollHeight) ; snapshot height to detect layout shifts in flipped mode
                                             (.. scrollable -clientHeight)]))] ; measured viewport height (scrollbar length)
+                      (sample) #_(! [0 0 0]) ; don't emit 0 when flow is rebuilt
                       (.addEventListener scrollable "scroll" sample #js {"passive" true})
                       #(.removeEventListener scrollable "scroll" sample))))
              (mx/throttle 16) ; RAF interval
@@ -44,18 +44,16 @@
                                row-height))]
              (compute-overquery overquery-factor record-count offset limit))))
 
-#?(:cljs (defn scroll-window ; returns [offset, limit]
-           [row-height record-count node
-            & {:keys [overquery-factor]
-               :or {overquery-factor 1}}]
-           (m/cp
-             (let [[clientHeight] (m/?< (resize-observer node))
-                   [scrollTop] (m/?< (scroll-state node))] ; smooth scroll has already happened, cannot quantize
-               (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor)))))
-
-(e/defn Scroll-window [row-height record-count node #_& {:as props}]
-  (e/client (doto (e/input (scroll-window row-height record-count node props))
-              #_(prn 'Scroll-window))))
+(e/defn Scroll-window ; returns [offset, limit]
+  [row-height record-count node
+   #_& {:keys [overquery-factor]
+        :or {overquery-factor 1}}]
+  (e/client
+    ((fn [_] (set! (.-scrollTop dom/node) 0)) record-count) ; scroll to top on search or navigate
+    ; backlog: don't touch scrollTop when records are inserted (e.g., live chat view)
+    (let [[clientHeight] (e/input (resize-observer node))
+          [scrollTop] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
+      (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor))))
 
 (e/defn Spool2 [cnt xs! offset limit] ; legacy
   (->> xs!
