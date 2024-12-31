@@ -64,11 +64,10 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 
 # Community
 
-* Slack: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
+* slack support chatroom: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
 * follow https://twitter.com/dustingetz for progress updates
-* Contributing: PRs require a signed contributors agreement (like Clojure), DM dustingetz on slack. No typo fixes please.
+* **Contributing:** we do not currently accept PRs against Electric itself as this has historically not been productive for us. However, **we'd love for you to contribute demos!** Many of our coolest demos were started by early users, this is an amazing and productive way for you to get involved and collaborate with us. This will require a signed contributors agreement (like Clojure), DM dustingetz on slack.
 
 # License
 
-* Electric v3 is free for bootstrappers and non-commercial use via a business source available license.
-* See [license change announcement](https://tana.pub/lQwRvGRaQ7hM/electric-v3-license-change).
+Electric v3 is free for bootstrappers and non-commercial use, but is otherwise a commercial project, which helps us continue to invest and maintain payroll for a team of 4. See [license change announcement](https://tana.pub/lQwRvGRaQ7hM/electric-v3-license-change).
