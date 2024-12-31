@@ -29,7 +29,7 @@
                                         (let [content-box-size (-> entries (aget 0) .-contentBoxSize (aget 0))]
                                           (! [(.-blockSize content-box-size)
                                               (.-inlineSize content-box-size)]))))]
-                            (.observe obs node) #(.unobserve obs)))))))
+                            (.observe obs node) #(.unobserve obs node)))))))
 
 #?(:cljs (defn compute-overquery [overquery-factor record-count offset limit]
            (let [q-limit (* limit overquery-factor)
