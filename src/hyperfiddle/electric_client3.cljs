@@ -127,7 +127,7 @@
                          (when-some [{:keys [code] :as info}
                                      (try
                                        (aset state 0 ws)
-                                       (m/? (m/race (send-all ws events) (wait-for-close ws)))
+                                       (m/? (m/join {} (send-all ws events) (wait-for-close ws)))
                                        (finally
                                          (aset state 0 nil)
                                          (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
