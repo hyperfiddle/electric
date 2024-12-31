@@ -4,7 +4,7 @@
             [contrib.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
-            [hyperfiddle.rcf :as rcf]
+            [hyperfiddle.rcf :as rcf :refer [tests with tap %]]
             [missionary.core :as m]
             [hyperfiddle.electric-local-def3 :as l]))
 
@@ -85,7 +85,7 @@
   (let [start (- size offset)]
     (mapv #(+ offset (mod % size)) (range start (+ size start)))))
 
-(rcf/tests
+(tests
   (let [size 7]
     (mapv #(index-ring size %) (range (inc size)))
     := [[0  1  2  3  4  5  6]
@@ -111,25 +111,25 @@
 (let [index-ring index-ring] ; FIXME without this let, below rcf test crashes at the repl
   (e/defn IndexRing [size offset] (e/diff-by {} (index-ring size offset))))
 
-(rcf/tests
+(tests
   (let [size 7
         !offset (atom 0)]
-    (rcf/with ((l/single {} (e/Tap-diffs rcf/tap (IndexRing size (e/watch !offset)))) {} {})
-      rcf/% := {:degree 7, :permutation {}, :grow 7, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
+    (with ((l/single {} (e/Tap-diffs tap (IndexRing size (e/watch !offset)))) {} {})
+      % := {:degree 7, :permutation {}, :grow 7, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
       (swap! !offset inc)
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 7}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 7}, :freeze #{}}
       (swap! !offset + 2)
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {1 8, 2 9}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {1 8, 2 9}, :freeze #{}}
       (reset! !offset size) ; check offset = size
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {3 10, 4 11, 5 12, 6 13}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {3 10, 4 11, 5 12, 6 13}, :freeze #{}}
       (swap! !offset inc) ; check offset > size
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 14}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 14}, :freeze #{}}
       ;; negative offset, no use case for now but check for correctness
       (reset! !offset 0) ; reset to initial state
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6}, :freeze #{}}
       (swap! !offset dec) ; check offset < 0
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {6 -1}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {6 -1}, :freeze #{}}
       (reset! !offset -7)
-      rcf/% := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 -7, 1 -6, 2 -5, 3 -4, 4 -3, 5 -2}, :freeze #{}}
+      % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 -7, 1 -6, 2 -5, 3 -4, 4 -3, 5 -2}, :freeze #{}}
       )))
 
