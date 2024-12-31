@@ -6,14 +6,14 @@
   <url>https://github.com/hyperfiddle/electric</url>
   <licenses>
     <license>
-      <name>Eclipse Public License v2.0</name>
-      <url>https://www.eclipse.org/legal/epl-v20.html</url>
+      <name>Hyperfiddle Business Source License</name>
+      <url>http://www.hyperfiddle.net/</url>
     </license>
   </licenses>
   <developers>
     <developer>
       <organization>Hyperfiddle, Inc.</organization>
-      <organizationUrl>http://www.hyperfiddle.net</organizationUrl>
+      <organizationUrl>http://www.hyperfiddle.net/</organizationUrl>
     </developer>
   </developers>
   <scm>

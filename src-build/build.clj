@@ -42,7 +42,7 @@
                 :jar-file   jar-file
                 :class-dir  class-dir})))
 
-(defn deploy [opts]
+(defn deploy [opts] ; clojars
   (let [{:keys [lib version class-dir installer jar-file] :as opts} (merge defaults opts)]
     (assert version ":version is required to deploy")
     (when (and installer (not= :remote installer))

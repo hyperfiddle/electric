@@ -1,4 +1,4 @@
-# Build clojars maven artifact
+# Build clojars maven artifact — Electric
 
 * versioning scheme is: `v3-alpha-0-g9aae7b1b`
 * `v3`: brand/marketing major version, prefixed by the literal 'v'
