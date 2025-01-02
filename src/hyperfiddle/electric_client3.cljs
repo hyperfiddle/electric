@@ -67,7 +67,12 @@
   (doto ws (.send msg)))
 
 (defn send-all [ws msgs]
-  (m/reduce {} nil (m/ap (m/? (wait-for-flush (send! ws (m/?> msgs)))))))
+  (m/reduce (comp reduced {}) nil
+    (m/ap (m/amb=
+            (let [flush (wait-for-flush ws)]
+              (send! ws (m/?> msgs))
+              (m/? flush) (m/amb))
+            (m/? (wait-for-close ws))))))
 
 (defn handle-hf-heartbeat [ws cb]
   (fn [msg]
@@ -127,7 +132,7 @@
                          (when-some [{:keys [code] :as info}
                                      (try
                                        (aset state 0 ws)
-                                       (m/? (m/join {} (send-all ws events) (wait-for-close ws)))
+                                       (m/? (send-all ws events))
                                        (finally
                                          (aset state 0 nil)
                                          (when-not (= (.-CLOSED js/WebSocket) (.-readyState ws))
