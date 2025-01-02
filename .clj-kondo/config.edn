@@ -1,7 +1,8 @@
 {:lint-as {hyperfiddle.electric3/defn    clojure.core/defn
-           hyperfiddle.electric3/for     clojure.core/let
+           hyperfiddle.electric3/for     clojure.core/for
            hyperfiddle.electric3/cursor  clojure.core/let
            hyperfiddle.electric3/with-cycle clojure.core/let
            hyperfiddle.electric3/fn      clojure.core/fn
+           hyperfiddle.electric3/declare clojure.core/declare
            hyperfiddle.electric.impl.array-fields/deffields clojure.core/declare}
  :linters {:redundant-expression {:level :off}}}
