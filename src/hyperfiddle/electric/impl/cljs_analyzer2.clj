@@ -40,7 +40,18 @@
 
 (let [parse-opts
       (ed/normalize-opts {:all true, :row-key :line, :col-key :column, :end-location false
-                          :readers cljs.tagged-literals/*cljs-data-readers* :auto-resolve name
+                          :readers cljs.tagged-literals/*cljs-data-readers*
+                          ;; We don't care about ::keywords and ::str/keywords.
+                          ;; We also don't care about `syntax-quoted and `str/syntax-quoted
+                          ;; since those won't affect the global environment (defs and defns).
+                          ;; Still, we need a safe way to resolve these because code like
+                          ;;   #{'foo `foo}
+                          ;; will fail to parse if we just naively take the name of each symbol.
+                          ;; The handlers here use safe ns prefixes to avoid these clashes
+                          :auto-resolve (let [ns$ (ns-name *ns*)]
+                                          #(keyword (str ns$ "_" (namespace %)) (name %)))
+                          :syntax-quote {:resolve-symbol (let [ns$ (ns-name *ns*)]
+                                                           #(symbol (str ns$ "_" (namespace %)) (name %)))}
                           :features #{:cljs}, :read-cond :allow, :read-eval true, :quote true, :eof ::done})]
   (defn resource-forms [rs]
     (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs))]
