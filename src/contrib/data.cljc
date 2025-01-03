@@ -227,6 +227,43 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
       [:user/email
        :db/id]])
 
+(defn subgroup-by [path-fn xs]
+  (reduce (fn [acc x]
+            (update-in acc (path-fn x) (fnil conj []) x))
+    {} xs))
+
+(tests
+  (subgroup-by (juxt :category :type :brand) []) := {}
+  (def xs [{:category "Electronics" :type "Laptop" :brand "Apple" :price 1200}
+           {:category "Electronics" :type "Laptop" :brand "Dell" :price 900}
+           {:category "Electronics" :type "Phone" :brand "Apple" :price 800}
+           {:category "Books" :type "Fiction" :brand "Penguin" :price 15}
+           {:category "Books" :type "NonFiction" :brand "O'Reilly" :price 40}
+           {:category "Electronics" :type "Phone"}                   ; partial - 2 levels
+           {:category "Books"}                                       ; partial - 1 level
+           {:foo "bar"}])
+  (subgroup-by (juxt :category :type :brand) xs)
+  := {"Electronics" {"Laptop" {"Apple" [{:category "Electronics",
+                                         :type "Laptop",
+                                         :brand "Apple",
+                                         :price 1200}],
+                               "Dell" [{:category "Electronics",
+                                        :type "Laptop",
+                                        :brand "Dell",
+                                        :price 900}]},
+                     "Phone" {"Apple" [{:category "Electronics",
+                                        :type "Phone",
+                                        :brand "Apple",
+                                        :price 800}],
+                              nil [{:category "Electronics", :type "Phone"}]}},
+      "Books" {"Fiction" {"Penguin" [{:category "Books", :type "Fiction", :brand "Penguin", :price 15}]},
+               "NonFiction" {"O'Reilly" [{:category "Books",
+                                          :type "NonFiction",
+                                          :brand "O'Reilly",
+                                          :price 40}]},
+               nil {nil [{:category "Books"}]}},
+      nil {nil {nil [{:foo "bar"}]}}})
+
 (defn update-existing [m k f & args]
   (if (get m k)
     (apply update m k f args)
