@@ -1,6 +1,7 @@
 #!/bin/sh
+set -eux -o pipefail
 
 clojure -T:build clean
-HYPERFIDDLE_ELECTRIC_BUILD=`git describe --tags --long --always --dirty`
+HYPERFIDDLE_ELECTRIC_BUILD="v3-alpha-SNAPSHOT"
 clojure -T:build jar :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
 clojure -T:build install :version '"'$HYPERFIDDLE_ELECTRIC_BUILD'"'
