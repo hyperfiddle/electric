@@ -181,6 +181,22 @@ accept the previous token and retain the new one."
            (if form-t [directive form-v] directive)]) ; compat
         (e/amb))))) ; None or Single
 
+(e/defn DiscardButton! ; TODO - this a simpler version of `Button!` – indicating a common pattern
+  "Transactional button with busy state. Disables when busy."
+  [directive & {:keys [label disabled type form] :as props
+                :or {type :reset}}] ; default type in form is submit
+  (dom/button (dom/text label) ; (if err "retry" label)
+    (dom/props (-> props (dissoc :label) (assoc :type type)))
+    (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
+          [btn-t err] (e/Token x)] ; genesis
+      (if btn-t
+        (let [[form-t form-v] form]
+          [(after-ack btn-t ; reset controlled form and both buttons, cancelling any in-flight commit
+             (fn [& _] (when form-t ; redirect error to button ("retry"), drop error, leave uncommitted form dirty
+                         (form-t))))
+           (if form-t [directive form-v] directive)]) ; compat
+        (e/amb)))))
+
 (e/defn ButtonGenesis!
   "Spawns a new tempid/token for each click. You must monitor the spawned tempid
 in an associated optimistic collection view!"
@@ -224,8 +240,7 @@ in an associated optimistic collection view!"
   (e/client
     (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
     (e/When show-button
-      (let [[t err] (e/apply Button! directive (mapcat identity (-> props (dissoc :form) ; if we don't dissoc form, both the button and FormDiscard will try to burn the token and we get an NPE - seems like the `when true` bug.
-                                                                  (assoc :type :reset))))]
+      (let [[t err] (DiscardButton! directive (-> props (dissoc :form)))] ; if we don't dissoc form, both the button and FormDiscard will try to burn the token and we get an NPE - seems like the `when true` bug.
         (t))) ; always safe to call, Button returns [t err] or (e/amb)
     (let [[t err] (e/Token (dom/On "reset" #(do #_(.log js/console %) (.preventDefault %)(.stopPropagation %)
                                                      (blur-active-form-input! (.-target %)) %) nil))]
