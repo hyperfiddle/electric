@@ -108,7 +108,8 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
             dirty? (or editing? waiting? error?)
             v (if waiting? ((fn [] (-> e .-target .-checked parse))) checked)
             validation-message (Validate v)]
-        (when-not dirty? (set! (.-checked input-node) checked))
+        (when (or (not dirty?) (#{"radio" :radio} type)) ; Radio's "don't damage user input" behavior handled at radiogroup level.
+          (set! (.-checked input-node) checked))
         (when error? (dom/props input-node {:aria-invalid true}))  ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
         (InputValidity input-node validation-message)
         (e/When waiting?
@@ -135,7 +136,7 @@ accept the previous token and retain the new one."
 (e/defn Radio! [k authoritative-v & {:keys [id option-label Options type Validate edit-monoid]
                        :or {type :radio, Validate (e/fn [_]), edit-monoid hash-map}
                        :as props}]
-  (let [!selected (atom [nil authoritative-v nil])
+  (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – value will be set in absence of a token – see below
         [t v errors :as edit] (e/watch !selected)
         validation-message (not-empty (str (Validate v)))
         options (Options)]
@@ -152,12 +153,11 @@ accept the previous token and retain the new one."
                   (Checkbox! x (-checked? v x) :id id :type type :label option-label
                     :edit-monoid (fn [x _checked?] x)
                     (dissoc props :id :type :option-label :Options :Validate)))))))))
-    (e/When t
-      (let [!authoritative-v (atom (e/snapshot authoritative-v))]
-        (reset! !authoritative-v authoritative-v)
-        [(after-ack t (fn after [] (reset! !selected [nil @!authoritative-v nil])))
-         (edit-monoid k v)
-         errors]))))
+    (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
+      [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
+       (edit-monoid k v)
+       errors]
+      (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
 
 (e/defn Button!
   "Transactional button with busy state. Disables when busy."
