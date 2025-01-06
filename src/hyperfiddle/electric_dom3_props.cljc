@@ -38,7 +38,8 @@
       (let [[ns attr] (resolve-attr-alias attr)]
         (set-attribute-ns node ns attr v)))
      ([^js node ns attr v]
-      (.setAttributeNS node ns attr v))))
+      (when (some? v) ; never set `nil` as an attribute value - would cast to "null" string.
+        (.setAttributeNS node ns attr v)))))
 
 #?(:cljs
    (defn has-attribute-ns?
