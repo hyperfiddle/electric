@@ -6,7 +6,7 @@
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
-;; Simple controlled inputs (dataflow circuits)
+;;; Simple controlled inputs (dataflow circuits)
 
 (e/defn Input [v & {:keys [maxlength type parse] :as props
                     :or {maxlength 100 type "text" parse identity}}]
@@ -25,12 +25,12 @@
       (dom/input (dom/props {:type "checkbox", :id id})
         (dom/props (dissoc props :id :label :parse))
         (e/Reconcile
-          (if (dom/Focused?)
+          (if (dom/Focused?) ; TODO port safari fix from forms0
             (dom/On "change" #(-> % .-target .-checked parse) (e/snapshot checked))
             (set! (.-checked dom/node) checked))))
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
-;; Simple uncontrolled inputs (sugar for the unvarying literal case)
+;;; Simple uncontrolled inputs (sugar for the unvarying literal case)
 
 (e/defn Input* "
 Simple uncontrolled input, e.g.
@@ -55,7 +55,7 @@ Simple uncontrolled checkbox, e.g.
    (.setCustomValidity node (str validation-message))
    (e/on-unmount #(.setCustomValidity node "")))) ; empty string required, not nil
 
-;; Transactional inputs
+;;; Transactional inputs
 ; Errors are forwarded in via token callback
 ; Errors are never sent out via signal, because consumers already saw it when they forwarded it in
 
@@ -103,7 +103,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
             (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :edit-monoid :Validate))
                        (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
-            editing? (dom/Focused? input-node)
+            editing? (dom/Focused? input-node) ; TODO port safari fix from forms0
             waiting? (some? t)
             error? (some? err)
             dirty? (or editing? waiting? error?)
@@ -172,6 +172,7 @@ accept the previous token and retain the new one."
 
 (e/defn Directive! [directive edit token]
   (e/When token (directive->command directive edit token)))
+;;; Buttons
 
 (e/defn Button* [{:keys [label] :as props}]
   (dom/button (dom/text label)
@@ -227,7 +228,7 @@ in an associated optimistic collection view!"
           ; abandon entity and clear form, ready for next submit -- snapshot to avoid clearing concurrent edits
          [directive form-v]]))))
 
-;; Forms
+;;; Forms
 
 ; commit/discard with staging area
 ; inputs - emit as you type - with a token
@@ -487,7 +488,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                  ([err] (reset! !last-state [::rejected err]))))]
         args))))
 
-;; Experiments
+;;; Experiments
 
 #_(e/defn Reconcile-records [stable-kf sort-key as bs]
     (e/client
