@@ -2,6 +2,7 @@
   #?(:cljs (:require-macros hyperfiddle.electric-forms3))
   (:require [contrib.data :refer [index-by auto-props qualify]]
             [contrib.str :refer [pprint-str]]
+            [contrib.missionary-contrib :as mc]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
@@ -84,7 +85,7 @@ Simple uncontrolled checkbox, e.g.
   ([]  (constantly nil))
   ([t] (or t (constantly nil)))
   ([t1 t2] (comp first (juxt (unify-t t1) (unify-t t2))))
-  ([t1 t2 & ts] (unify-t (unify-t t1 t2) (apply unify-t ts))))
+  ([t1 t2 & ts] (reduce unify-t (unify-t t1 t2) ts)))
 
 (defn after-ack "
 proxy token t such that callback f! will run once the token is ack'ed. E.g. to ack many tokens at once."
@@ -159,43 +160,52 @@ accept the previous token and retain the new one."
        errors]
       (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
 
-(e/defn Button!
-  "Transactional button with busy state. Disables when busy."
-  [directive & {:keys [label disabled type form] :as props
-                :or {type :button}}] ; default type in form is submit
-  (dom/button (dom/text label) ; (if err "retry" label)
-    (dom/props (-> props (dissoc :label :disabled) (assoc :type type)))
-    (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
-          [btn-t err] (e/Token x)] ; genesis
-      (if disabled  ; don't set :disabled on <input type=submit> WHILE submit event bubbles, it prevents form submission
-        (dom/props {:disabled disabled})
-        (dom/props {({:submit :aria-disabled} type :disabled) (some? btn-t)}))
-      (dom/props {:aria-busy (some? btn-t)})
-      (dom/props {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
-      (dom/props {:data-tx-status (when (and (some? x) (nil? btn-t) (nil? err)) "accepted")})
-      (if btn-t
-        (let [[form-t form-v] form]
-          [(after-ack btn-t ; reset controlled form and both buttons, cancelling any in-flight commit
-             (fn [& _] (when form-t ; redirect error to button ("retry"), drop error, leave uncommitted form dirty
-                         (form-t))))
-           (if form-t [directive form-v] directive)]) ; compat
-        (e/amb))))) ; None or Single
+(defn stop-err-propagation [token]
+  (when token
+    (fn ([] (token)) ([_err]))))
 
-(e/defn DiscardButton! ; TODO - this a simpler version of `Button!` – indicating a common pattern
+(defn directive->command [directive edit token]
+  (when token
+    (let [[edit-t edit-v] edit]
+      [(unify-t token edit-t)
+       (if edit-t [directive edit-v] [directive nil])])))
+
+(e/defn Directive! [directive edit token]
+  (e/When token (directive->command directive edit token)))
+
+(e/defn Button* [{:keys [label] :as props}]
+  (dom/button (dom/text label)
+              (dom/props (dissoc props :label))
+              [(dom/On "click" identity nil) dom/node]))
+
+(e/defn Button "Simple button, return latest click event or nil."
+  [{:keys [label] :as props}]
+  (first (Button* props)))
+
+(e/defn Button!* [directive edit props] ; TODO extract directive and edit
+  (let [[event node] (Button* props)
+        [btn-t err] (e/Token event)]
+    [(directive->command directive edit btn-t) err event node]))
+
+(e/defn Button! ; TODO extract directive and edit.
+  "Transactional button, emits a token on click."
+  [directive edit {:keys [label] :as props}]
+  (let [[t _err _event _node] (Button!* directive edit props)]
+    (e/When t t)))
+
+(e/defn TxButton! ; Regular `Button!`, with extra markup.
   "Transactional button with busy state. Disables when busy."
-  [directive & {:keys [label disabled type form] :as props
-                :or {type :reset}}] ; default type in form is submit
-  (dom/button (dom/text label) ; (if err "retry" label)
-    (dom/props (-> props (dissoc :label) (assoc :type type)))
-    (let [x (dom/On "click" identity nil) ; (constantly directive) forbidden - would work skip subsequent clicks
-          [btn-t err] (e/Token x)] ; genesis
-      (if btn-t
-        (let [[form-t form-v] form]
-          [(after-ack btn-t ; reset controlled form and both buttons, cancelling any in-flight commit
-             (fn [& _] (when form-t ; redirect error to button ("retry"), drop error, leave uncommitted form dirty
-                         (form-t))))
-           (if form-t [directive form-v] directive)]) ; compat
-        (e/amb)))))
+  [directive & {:keys [disabled type] :or {type :submit} :as props}]
+  (let [[[btn-t _cmd] err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
+                                        (Button!* directive nil (-> props (assoc :type type) (dissoc :disabled))))]
+    ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
+    ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
+    ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
+    (dom/props node {:disabled (e/join (mc/throttle 0 (e/pure (or disabled (some? btn-t)))))})
+    (dom/props node {:aria-busy (some? btn-t)})
+    (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
+    (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")})
+    (e/When btn-t btn-t))) ; forward token to track tx-status
 
 (e/defn ButtonGenesis!
   "Spawns a new tempid/token for each click. You must monitor the spawned tempid
@@ -236,19 +246,17 @@ in an associated optimistic collection view!"
              (set! (.-value input) ""))))
 
 (e/defn FormDiscard! ; dom/node must be a form
-  [directive & {:keys [disabled show-button label form] :as props}]
+  [directive edits & {:keys [show-button] :as props}]
   (e/client
+    ;; reset form on <ESC>
     (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
-    (e/When show-button
-      (let [[t err] (DiscardButton! directive (-> props (dissoc :form)))] ; if we don't dissoc form, both the button and FormDiscard will try to burn the token and we get an NPE - seems like the `when true` bug.
-        (t))) ; always safe to call, Button returns [t err] or (e/amb)
-    (let [[t err] (e/Token (dom/On "reset" #(do #_(.log js/console %) (.preventDefault %)(.stopPropagation %)
-                                                     (blur-active-form-input! (.-target %)) %) nil))]
-      (if t ; TODO unify with FormSubmit! and Button!
-        (let [[form-t form-v] form]
-          [(unify-t t form-t) ; reset controlled form and both buttons, cancelling any in-flight commit
-           (if form-t [directive form-v] [directive])]) ; compat
-        (e/amb)))))
+    ;; Render an <input type=reset>, natively resetting form on click.
+    (e/When show-button (Button (-> props (assoc :type :reset) (dissoc :show-button))))
+    ;; Handle form reset
+    (->> (dom/On "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil)
+      (e/Token) ; TODO render error for failed custom :discard command, if any.
+      (first) ; drop err
+      (Directive! directive edits))))
 
 #?(:cljs
    (defn event-submit-form! [^js e]
@@ -266,16 +274,13 @@ in an associated optimistic collection view!"
       (= currentTarget (.-form (.-target e))) ; event happened on an input in a form
       )))
 
-#?(:cljs (defn submitter [^js event] (.-submitter event))) ; sole purpose is to prevent inference warning on .-submitter
-
 (e/defn FormSubmit! ; dom/node must be a form
-  [directive & {:keys [disabled show-button label auto-submit form] :as props}]
+  [directive edits & {:keys [disabled show-button label auto-submit] :as props}]
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (and (not show-button) (not disabled))
-      (dom/On "keypress" (fn [e]
-                           ;; (js/console.log "keypress" dom/node)
+      (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
                                    (= "Enter" (.-key e))
                                    (= "INPUT" (.-nodeName (.-target e))))
@@ -286,7 +291,7 @@ in an associated optimistic collection view!"
       ;; checkboxes only
       (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
                          (.preventDefault e)
-                         (js/console.log "change" dom/node)
+                         #_(js/console.log "change" dom/node)
                          (when (and (event-is-from-this-form? e) ; not from a nested form
                                  (instance? js/HTMLInputElement (.-target e))
                                  (= "checkbox" (.. e -target -type)))
@@ -302,32 +307,27 @@ in an associated optimistic collection view!"
                            ;; (js/console.log "input" e)
                            (event-submit-form! e)) e) nil))
 
+    ;; We handle form validation manually, disable native browser submit prevention on invalid form.
+    ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
-    (if-let [t
-          ;; FIXME pressing Enter while an autosubmit commit is running will trigger a double submit and hang the app
-             (let [[btn-t btn-err :as btn] (when show-button (Button! directive (-> props (dissoc :form :auto-submit :show-button) (assoc :type :submit)))) ; genesis ; (e/apply Button directive props) didn't work - props is a map
-                ^js submit-event (dom/On "submit" #(do (.preventDefault %) ; always prevent browser native navigation
-                                                       ;; (js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e  %}))
-                                                       (when (event-is-from-this-form? %) %))
-                                   nil)
-                [t err] (if auto-submit (e/Token form) (e/Token submit-event))]
-            btn submit-event ; force let branch
-            (when (and t form)
-              (when (and btn-t (submitter submit-event))
-                (dom/props (submitter submit-event) {:disabled true})) ; hard-disable submitter button while form submits
-              (unify-t t btn-t)))]
-      ; TODO unify with FormSubmit! and Button!
-      (let [[form-t form-v] form]
-        [(fn ([] (t) (form-t)) ; reset controlled form and both buttons, cancelling any in-flight commit
-           ([err] (t err))) ; redirect tx-error only to button ("retry"), leave uncommitted form dirty
-         (if form-t [directive form-v] [directive nil])]) ; compat
-      (e/amb))))
+    (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not enough.
+          ;; Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because we don't render success/failure (could be revisited).
+          btn-t (when show-button (TxButton! directive (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
+          ;; Only authoritative event
+          ;; Native browser navigation must always be prevented
+          submit-event (dom/On "submit" #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
+                                             (when (event-is-from-this-form? %) %)) nil)
+          [t err] (if auto-submit (e/Token edits) (e/Token submit-event))]
+      btn-t ; force let branch to force-mount button
+      submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
+      (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
+        (Directive! directive edits (unify-t t btn-t))))))
 
 (e/defn FormSubmitGenesis!
   "Spawns a new tempid/token for each submit. You must monitor the spawned entity's
 lifecycle (e.g. for errors) in an associated optimistic collection view!"
-  [directive & {:keys [disabled show-button label form #_auto-submit] :as props}] ; auto-submit unsupported
+  [directive form & {:keys [disabled show-button label #_auto-submit] :as props}] ; auto-submit unsupported
   (e/amb
     ;; TODO unify ButtonGenesis! and Button!
     (e/When show-button (ButtonGenesis! directive :disabled disabled :label label :form form)) ; button will intercept submit events to act as submit!
@@ -402,17 +402,17 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            tx-rejected-error (e/watch !tx-rejected-error)
 
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME e/Reconcile necessary to prevent Button! trashing
-                                 :form form
+                                 ::commit form :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME e/Reconcile necessary to prevent Button! trashing
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
-           [_ _ :as ?d] (FormDiscard! ::discard :form form :disabled clean? :label "discard" :show-button show-buttons)]
+           [_ _ :as ?d] (FormDiscard! ::discard form :disabled clean? :label "discard" :show-button show-buttons)]
        (dom/p (dom/props {:data-role "errormessage"})
               (when (not= form-validation ::nil) (dom/text form-validation))
               (when tx-rejected-error (dom/text tx-rejected-error)))
        (e/amb
          (e/for [[btn-q [cmd form-v]] (e/amb ?cs ?d)]
            (case cmd ; does order of burning matter?
+             ;; FIXME clicking discard while commit is busy turns submit button green
              ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
                              (partial #(run! call %) (e/as-vec tempids)) ; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
                              ]
