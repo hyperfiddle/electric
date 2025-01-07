@@ -169,23 +169,21 @@ accept the previous token and retain the new one."
               [(dom/On "click" identity nil) dom/node]))
 
 (e/defn Button "Simple button, return latest click event or nil."
-  [{:keys [label] :as props}]
+  [& {:keys [label] :as props}]
   (first (Button* props)))
 
-(e/defn Button!* [{:keys [label] :as props}]
+(e/defn Button!* [& {:keys [label] :as props}]
   (let [[event node] (Button* props)
         [btn-t err] (e/Token event)]
     [btn-t err event node]))
 
-(e/defn Button! ; no clear use case, it seems users always want TxButton! or a variant of TxButton!
-  "Transactional button. Emits a token on click. See `Button!*` for customization and `TxButton!` for a non-trivial impl example."
-  [{:keys [label] :as props}]
-  (let [[t _err _event _node] (Button!* props)]
-    (e/When t t))) ; should it return [t err]?
-
-(e/defn TxButton! ; Regular `Button!`, with extra markup.
-  "Transactional button with busy state. Disables when busy."
-  [{:keys [disabled type] :or {type :submit} :as props}]
+(e/defn Button! ; Like `Button!*` with extra semantic markup reflecting tx status.
+  "Transactional button with busy state. Disables when busy. To be styled with CSS:
+  - button[aria-busy=true]{...} : tx is comitting
+  - button[aria-invalid=true]{...} : tx failed
+  - button[data-tx-status=accepted] : tx success
+  - button:disabled{...} "
+  [& {:keys [disabled type] :or {type :submit} :as props}]
   (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
                                  (Button!* (-> props (assoc :type type) (dissoc :disabled))))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
@@ -195,7 +193,7 @@ accept the previous token and retain the new one."
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
-    (e/When btn-t btn-t))) ; forward token to track tx-status ; should it return [t err]?
+    (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
 
 (e/defn ButtonGenesis!
   "Spawns a new tempid/token for each click. You must monitor the spawned tempid
@@ -314,12 +312,12 @@ in an associated optimistic collection view!"
 
     (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not enough.
           ;; Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because we don't render success/failure (could be revisited).
-          btn-t (when show-button (TxButton! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
+          [btn-t _] (when show-button (Button! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
           ;; Only authoritative event
           ;; Native browser navigation must always be prevented
           submit-event (dom/On "submit" #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
                                              (when (event-is-from-this-form? %) %)) nil)
-          [t err] (if auto-submit (e/Token edits) (e/Token submit-event))]
+          [t _err] (if auto-submit (e/Token edits) (e/Token submit-event))]
       btn-t ; force let branch to force-mount button
       submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
       (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
@@ -348,7 +346,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
   (when (seq edits)
     (let [ts (map first edits)
           kvs (map second edits)
-          validations (not-empty (remove nil? (map #(nth % 2 nil) edits)))
+          validations (not-empty (remove nil? (map #(nth % 3 nil) edits)))
           dirty-form (not-empty (apply edit-merge kvs)) ; collect fields into form, retain until commit/discard
           #_#_dirty-form-guess (apply merge (e/as-vec guess)) ; todo collisions
           form-t (fn token ; fresh if ts changes (should fields be disabled when commit pending?)
@@ -401,7 +399,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            tx-rejected-error (e/watch !tx-rejected-error)
 
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit form :label "commit"  :disabled (or clean? field-validation)
+                                 ::commit form :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME reconcile shouldn't be necessary
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
            [_ _ :as ?d] (FormDiscard! ::discard form :disabled clean? :label "discard" :show-button show-buttons)]
@@ -435,7 +433,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
              ::commit (let [form-v form-v ; dirty subset
                             tempid btn-q
                             [form-v guess] (if commit
-                                             [(commit form-v tempid #_dirty-form-guess)] ; guess and form would be =
+                                             (commit form-v tempid #_dirty-form-guess) ; guess and form would be =
                                              [form-v #_{e dirty-form}])] ; no entity id, only user can guess
                         (let [validation-message (Validate form-v)]
                           (reset! !form-validation validation-message)
@@ -451,7 +449,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
                                (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms
                                guess]))))))
 
-         (let [commit-edit (if commit (mapv debug-cleanup-form-edit [(commit form-v "-1")]) form-v)
+         (let [commit-edit (if commit (mapv debug-cleanup-form-edit (commit form-v "-1")) form-v)
                form-v-edit (if name (edit-monoid name commit-edit) commit-edit)]
            (e/When debug
              (dom/span (dom/text " " dirty-count " dirty"))
