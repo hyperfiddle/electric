@@ -160,18 +160,7 @@ accept the previous token and retain the new one."
        errors]
       (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
 
-(defn stop-err-propagation [token]
-  (when token
-    (fn ([] (token)) ([_err]))))
 
-(defn directive->command [directive edit token]
-  (when token
-    (let [[edit-t edit-v] edit]
-      [(unify-t token edit-t)
-       (if edit-t [directive edit-v] [directive nil])])))
-
-(e/defn Directive! [directive edit token]
-  (e/When token (directive->command directive edit token)))
 ;;; Buttons
 
 (e/defn Button* [{:keys [label] :as props}]
@@ -183,22 +172,22 @@ accept the previous token and retain the new one."
   [{:keys [label] :as props}]
   (first (Button* props)))
 
-(e/defn Button!* [directive edit props] ; TODO extract directive and edit
+(e/defn Button!* [{:keys [label] :as props}]
   (let [[event node] (Button* props)
         [btn-t err] (e/Token event)]
-    [(directive->command directive edit btn-t) err event node]))
+    [btn-t err event node]))
 
-(e/defn Button! ; TODO extract directive and edit.
-  "Transactional button, emits a token on click."
-  [directive edit {:keys [label] :as props}]
-  (let [[t _err _event _node] (Button!* directive edit props)]
+(e/defn Button!
+  "Transactional button. Emits a token on click. See `Button!*` for customization and `TxButton!` for a non-trivial impl example."
+  [{:keys [label] :as props}]
+  (let [[t _err _event _node] (Button!* props)]
     (e/When t t)))
 
 (e/defn TxButton! ; Regular `Button!`, with extra markup.
   "Transactional button with busy state. Disables when busy."
-  [directive & {:keys [disabled type] :or {type :submit} :as props}]
-  (let [[[btn-t _cmd] err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
-                                        (Button!* directive nil (-> props (assoc :type type) (dissoc :disabled))))]
+  [{:keys [disabled type] :or {type :submit} :as props}]
+  (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
+                                 (Button!* (-> props (assoc :type type) (dissoc :disabled))))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
@@ -227,6 +216,17 @@ in an associated optimistic collection view!"
 
           ; abandon entity and clear form, ready for next submit -- snapshot to avoid clearing concurrent edits
          [directive form-v]]))))
+
+#_(defn stop-err-propagation [token] (when token (fn ([] (token)) ([_err])))) ; scratch
+
+(defn directive->command [directive edit token]
+  (when token
+    (let [[edit-t edit-v] edit]
+      [(unify-t token edit-t)
+       (if edit-t [directive edit-v] [directive nil])])))
+
+(e/defn Directive! [directive edit token]
+  (e/When token (directive->command directive edit token)))
 
 ;;; Forms
 
@@ -314,7 +314,7 @@ in an associated optimistic collection view!"
 
     (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not enough.
           ;; Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because we don't render success/failure (could be revisited).
-          btn-t (when show-button (TxButton! directive (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
+          btn-t (when show-button (TxButton! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
           ;; Only authoritative event
           ;; Native browser navigation must always be prevented
           submit-event (dom/On "submit" #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
