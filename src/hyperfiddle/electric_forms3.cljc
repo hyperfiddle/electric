@@ -177,11 +177,11 @@ accept the previous token and retain the new one."
         [btn-t err] (e/Token event)]
     [btn-t err event node]))
 
-(e/defn Button!
+(e/defn Button! ; no clear use case, it seems users always want TxButton! or a variant of TxButton!
   "Transactional button. Emits a token on click. See `Button!*` for customization and `TxButton!` for a non-trivial impl example."
   [{:keys [label] :as props}]
   (let [[t _err _event _node] (Button!* props)]
-    (e/When t t)))
+    (e/When t t))) ; should it return [t err]?
 
 (e/defn TxButton! ; Regular `Button!`, with extra markup.
   "Transactional button with busy state. Disables when busy."
@@ -194,8 +194,8 @@ accept the previous token and retain the new one."
     (dom/props node {:disabled (e/join (mc/throttle 0 (e/pure (or disabled (some? btn-t)))))})
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
-    (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")})
-    (e/When btn-t btn-t))) ; forward token to track tx-status
+    (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
+    (e/When btn-t btn-t))) ; forward token to track tx-status ; should it return [t err]?
 
 (e/defn ButtonGenesis!
   "Spawns a new tempid/token for each click. You must monitor the spawned tempid
@@ -367,8 +367,6 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
   := [_ {:a "a", :b "b"} ["invalid a" "invalid b"]]
   )
 
-(defn call [f] (f))
-
 (defn debug-cleanup-form-edit [[_cmd & _args :as form-edit]]
   (when form-edit
     (update form-edit 0 (fn [cmd]
@@ -415,7 +413,9 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            (case cmd ; does order of burning matter?
              ;; FIXME clicking discard while commit is busy turns submit button green
              ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
-                             (partial #(run! call %) (e/as-vec tempids)) ; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
+                             ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
+                             ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
+                             (partial (fn [ts] (doseq [t ts] (t))) (e/as-vec tempids))
                              ]
                          (case genesis
                            true (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
