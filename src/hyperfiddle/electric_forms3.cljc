@@ -2,7 +2,7 @@
   #?(:cljs (:require-macros hyperfiddle.electric-forms3))
   (:require [contrib.data :refer [index-by auto-props qualify]]
             [contrib.str :refer [pprint-str]]
-            [contrib.missionary-contrib :as mc]
+            [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
@@ -191,7 +191,7 @@ accept the previous token and retain the new one."
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
-    (dom/props node {:disabled (e/join (mc/throttle 0 (e/pure (or disabled (some? btn-t)))))})
+    (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (some? btn-t))))})
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
@@ -401,7 +401,7 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            tx-rejected-error (e/watch !tx-rejected-error)
 
            [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit form :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME e/Reconcile necessary to prevent Button! trashing
+                                 ::commit form :label "commit"  :disabled (or clean? field-validation)
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                                  :show-button show-buttons)
            [_ _ :as ?d] (FormDiscard! ::discard form :disabled clean? :label "discard" :show-button show-buttons)]
