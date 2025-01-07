@@ -31,8 +31,8 @@
         ;; Alternatives:
         ;;  - browser-specific behavior
         ;;  - ?
-        (e/amb (dom/On "change" #(-> % .-target .-checked parse) (e/snapshot checked))
-          (set! (.-checked dom/node) checked)))
+        (set! (.-checked dom/node) checked)
+        (dom/On "change" #(-> % .-target .-checked parse) checked)) ; checked passes through
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 ;; Simple uncontrolled inputs (sugar for the unvarying literal case)
