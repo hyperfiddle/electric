@@ -420,9 +420,9 @@ input's value, use `EventListener`."
 #?(:cljs (def listen events/listen))
 #?(:cljs (def listen-some events/listen-some))
 
-(e/defn On
-  ([event-type f v] ($ On event-type f v {}))
-  ([event-type f v opts] ($ On node event-type f v opts))
+(e/defn On*
+  #_([event-type f v]      (On* node event-type f v {}))
+  #_([event-type f v opts] (On* node event-type f v opts))
   ([node event-type f v opts]
    (e/client
      (e/input (let [!v (m/mbx)]
@@ -431,10 +431,16 @@ input's value, use `EventListener`."
                   (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
                     (events/listen node event-type ((e/capture-fn) f) opts))))))))
 
-#_
-(defmacro on ; experimental - auto-sites the client callback to prevent forgetting in neutral expressions
-  ([event-type f init-v]      `($ On ~event-type (e/client ~f) ~init-v {}))
-  ([event-type f init-v opts] `($ On ~event-type (e/client ~f) ~init-v ~opts)))
+(defmacro On
+  ([event-type f v]      `(On node ~event-type ~f ~v {}))
+  ([event-type f v opts] `(On node ~event-type ~f ~v ~opts))
+  ([node event-type f v opts]
+   `(let [v# ~v, opts# ~opts, e# ~event-type
+          f# (e/client ~f)] ; auto-site f, a common gotcha when calling dom/On from site-neutral code
+      ; f is unserializable, and called on client, so this is safe unless expr f is complex,
+      ; e.g. a server sited factory building a client sited callback
+      (e/client ; remove call latency when server sited
+        (On* ~node e# f# v# opts#)))))
 
 (defn fork
   ([flow] (fork ##Inf flow))
