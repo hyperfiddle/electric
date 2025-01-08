@@ -27,3 +27,15 @@ Continuous flow of thunks -> incseq of 1 item containing result of the latest th
 
 (e/defn Offload [f]
   (e/join (offload (e/join (i/items (e/pure f))))))
+
+#?(:clj (defonce *tap nil)) ; for repl & survive refresh
+#?(:clj (def >tap (m/signal
+                    (m/relieve {}
+                      (m/observe
+                        (fn [!]
+                          (! *tap)
+                          (let [! (fn [x] (def *tap x) (! x))]
+                            (clojure.core/add-tap !)
+                            #(clojure.core/remove-tap !))))))))
+
+(e/defn Tap [] (e/server (e/input >tap)))
