@@ -278,12 +278,12 @@ A mount point can be :
                   static (pop static)]
               (if (< fixed (count static))
                 (recur args static)
-                (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))
+                (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/as-varargs map?) args))) static))))
           (loop [args args ; if variadic arity has less positional args than provided: push to rest args
                  static static]
             (if (< (count static) fixed)
               (recur (next args) (conj static (::lang/pure (first args))))
-              (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/varargs map?) args))) static))))))))
+              (cc/apply r/bind-args (r/bind (r/bind-self ctor) fixed (::lang/pure (cc/apply (r/as-varargs map?) args))) static))))))))
 
 (hyperfiddle.electric3/defn Apply
   ([F a]

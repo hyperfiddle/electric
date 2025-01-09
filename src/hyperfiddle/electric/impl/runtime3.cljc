@@ -355,6 +355,57 @@ T T T -> (EXPR T)
   (flow [_] (let [in* (mapv ->is inputs)]
               (apply i/latest-product (invoke-with mt) (mapv ->flow in*)))))
 
+(defn error [^String msg]
+  #?(:clj (Error. msg)
+     :cljs (js/Error. msg)))
+
+(defn arity-mismatch [nm arity]
+  (throw (error (str nm ": wrong number of args (" arity ")"))))
+
+(defn get-variadic [nm F arity]
+  (if-some [[fixed map? ctor] (F -1)]
+    (if (< arity fixed)
+      (arity-mismatch nm arity)
+      [fixed map? ctor])
+    (arity-mismatch nm arity)))
+
+(defn as-varargs [map?]
+  (if map?
+    (fn [& args]
+      (loop [args args
+             m nil]
+        (if-some [[k & args] args]
+          (if-some [[v & args] args]
+            (recur args (assoc m k v))
+            (merge m k)) m)))
+    (fn [& args] args)))
+
+(deftype Varargs [map? inputs ^:unsynchronized-mutable ^:mutable hash-memo]
+  #?(:clj Object)
+  #?(:cljs IHash)
+  (#?(:clj hashCode :cljs -hash) [_]
+    (if-some [h hash-memo]
+      h (set! hash-memo
+          (hash-combine (hash-combine (hash Varargs) (hash map?))
+            (hash-ordered-coll inputs)))))
+  #?(:cljs IEquiv)
+  (#?(:clj equals :cljs -equiv) [_ other]
+    (and (instance? Varargs other)
+      (= map? (.-map? ^Varargs other))
+      (= inputs (.-inputs ^Varargs other))))
+  Expr
+  (deps [_ rf r site]
+    (reduce (fn [r x] (deps x rf r site)) r inputs))
+  (t [_] ::varargs)
+  (peephole [this] this)
+  (pp [_] (cons 'Varargs (eduction (map pp) inputs)))
+  (flow [_] (if (some? inputs)
+              (let [in* (mapv ->is inputs)]
+                (apply i/latest-product (as-varargs map?) (mapv ->flow in*)))
+              (i/fixed (invariant nil)))))
+
+(defn ->varargs [map? & inputs] (->Varargs map? inputs nil))
+
 (defn ap "
 (EXPR (-> T)) -> (EXPR T)
 (EXPR (A -> T)) (EXPR A) -> (EXPR T)
@@ -414,10 +465,6 @@ T T T -> (EXPR T)
 
 (def void (i/fixed))
 
-(defn error [^String msg]
-  #?(:clj (Error. msg)
-     :cljs (js/Error. msg)))
-
 (deftype Failer [done e]
   IFn
   (#?(:clj invoke :cljs -invoke) [_])
@@ -468,31 +515,10 @@ T T T -> (EXPR T)
 (defn bind-self [ctor]
   (bind ctor :recur (pure ctor)))
 
-(defn arity-mismatch [nm arity]
-  (throw (error (str nm ": wrong number of args (" arity ")"))))
-
-(defn get-variadic [nm F arity]
-  (if-some [[fixed map? ctor] (F -1)]
-    (if (< arity fixed)
-      (arity-mismatch nm arity)
-      [fixed map? ctor])
-    (arity-mismatch nm arity)))
-
-(defn varargs [map?]
-  (if map?
-    (fn [& args]
-      (loop [args args
-             m nil]
-        (if-some [[k & args] args]
-          (if-some [[v & args] args]
-            (recur args (assoc m k v))
-            (merge m k)) m)))
-    (fn [& args] args)))
-
 (defn dispatch-varargs [nm F arity args]
   (let [[fixed map? ctor] (get-variadic nm F arity)]
         (bind (apply bind-args (bind-self ctor) (take fixed args))
-          fixed (apply ap {} (pure (varargs map?)) (drop fixed args)))))
+          fixed (apply ->varargs map? (drop fixed args)))))
 
 (defn dispatch
   ([nm F] (if-some [ctor (F 0)] (bind-self ctor) (dispatch-varargs nm F 0 [])))
@@ -724,8 +750,9 @@ T T T -> (EXPR T)
 
 (defn ->is [x]
   (case (t x)
-    (::pure ::join ::ap ::slot ::id ::fixed ::unbound) x
-    (::cf-pure ::cf-ap ::cf-thunk ::cf-id) (->fixed x)))
+    (::pure ::join ::ap ::slot ::id ::fixed ::unbound ::varargs) x
+    (::cf-pure ::cf-ap ::cf-thunk ::cf-id) (->fixed x)
+    #_else (throw (ex-info (str "cannot create incseq on type " (t x)) {:is x}))))
 
 (defn ->cf [x]
   (let [how #(throw (ex-info "how to turn to CF?" {:x x}))]
@@ -1371,6 +1398,9 @@ T T T -> (EXPR T)
                               (fn [_] "ap")
                               (fn [^Ap ap]
                                 (.-inputs ap)))
+                    Varargs (t/write-handler
+                              (fn [_] "varargs")
+                              (fn [^Varargs va] [(.-map? va) (.-inputs va)]))
                     ;; must wrap payload in vector, cf https://github.com/cognitect/transit-cljs/issues/23
                     Pure    (t/write-handler
                               (fn [_] "pure")
@@ -1421,6 +1451,9 @@ T T T -> (EXPR T)
                 "ap"             (t/read-handler
                                    (fn [inputs]
                                      (->Ap {} inputs nil)))
+                "varargs"        (t/read-handler
+                                   (fn [[map? inputs]]
+                                     (apply ->varargs map? inputs)))
                 "pure"           (t/read-handler
                                    (fn [[value]]
                                      (->Pure value nil)))
