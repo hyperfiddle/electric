@@ -2673,3 +2673,13 @@
     (swap! !x inc)
     (tick :server-reader)
     % := 0))
+
+;; unserializable varargs example adapted from
+;; https://www.notion.so/hyperfiddle/ca755a67c2084860b5d4941e23a00f6a?v=abe5167c5de6441abec6a62f5216b5d6&p=a22d403fb7744bba95eca53adda4ecbf
+;; After fix should not cause unserializable warning
+;; No good way to test
+(tests
+  (with ((l/local {}
+           (let [Varargs (e/fn [& args] (e/server (identity args)))]
+             (tap (Varargs 1 2 3)))) {} {})
+    % := [1 2 3]))
