@@ -314,7 +314,7 @@ accept the previous token and retain the new one."
         (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not
               ;; enough. Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because
               ;; we don't render success/failure (could be revisited).
-              [btn-t _] (when show-button (TxButton! nil (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
+              [btn-t _] (when show-button (TxButton! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
               ;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
