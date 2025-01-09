@@ -183,7 +183,7 @@ accept the previous token and retain the new one."
   - button[aria-invalid=true]{...} : tx failed
   - button[data-tx-status=accepted] : tx success
   - button:disabled{...} "
-  [& {:keys [disabled type] :or {type :submit} :as props}]
+  [& {:keys [disabled type] :or {type :button} :as props}]
   (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
                                  (Button!* (-> props (assoc :type type) (dissoc :disabled))))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
@@ -194,28 +194,6 @@ accept the previous token and retain the new one."
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
     (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
-
-(e/defn ButtonGenesis!
-  "Spawns a new tempid/token for each click. You must monitor the spawned tempid
-in an associated optimistic collection view!"
-  [directive & {:keys [label disabled type form] :as props
-                :or {type :button}}] ; default type in form is submit
-  (dom/button (dom/text label) ; (if err "retry" label)
-    (dom/props (-> props (dissoc :label :disabled) (assoc :type type)))
-    (dom/props {:disabled (or disabled #_(some? t))})
-    #_(dom/props {:aria-busy (some? t)})
-    #_(dom/props {:aria-invalid (some? err)})
-    (e/for [[btn-q e] (dom/On-all "click" identity)]
-      (let [[form-t form-v] (e/snapshot form)] ; snapshot to detach form before any reference to form, or spending the form token would loop into this branch and cause a crash.
-        (form-t) ; immediately detach form
-        [(fn token ; proxy genesis
-           ([] (btn-q) #_(form-t))
-           ([err] '... #_(btn-q err)))
-
-          ; abandon entity and clear form, ready for next submit -- snapshot to avoid clearing concurrent edits
-         [directive form-v]]))))
-
-#_(defn stop-err-propagation [token] (when token (fn ([] (token)) ([_err])))) ; scratch
 
 (defn directive->command [directive edit token]
   (when token
@@ -273,11 +251,14 @@ in an associated optimistic collection view!"
       (= currentTarget (.-form (.-target e))) ; event happened on an input in a form
       )))
 
+(defn stop-err-propagation [token] (when token (fn ([] (token)) ([_err]))))
+
 (e/defn FormSubmit! ; dom/node must be a form
-  [directive edits & {:keys [disabled show-button label auto-submit] :as props}]
+  [directive edits & {:keys [disabled show-button auto-submit genesis] :as props}]
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
+    ;; TODO check for double submit and for double submits in genesis = true case
     (when (and (not show-button) (not disabled))
       (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
@@ -286,8 +267,13 @@ in an associated optimistic collection view!"
                              (.preventDefault e) ; prevent native form submission
                              (event-submit-form! e) ; fire submit event
                              nil)) nil))
-    (when auto-submit ; Simulate autosubmit
-      ;; checkboxes only
+    (when (and auto-submit (not genesis)) ; Simulate autosubmit
+      ;; G: auto-submit + genesis is not a thing. Only known use case is "Create new row" in a masterlist view.
+      ;;    "Create new row" is a Form with a single [+] Button. It cannot collect user input. It creates an empty entity with
+      ;;    generated id (imagine what auto-submit+genesis would imply for checkbox or text input). All candidate buttons are
+      ;;    therefore submit buttons, and get the "auto-submit" behavior for free, since they are themselves the submit
+      ;;    affordance. Therefore the only use case for auto-submit + genesis has no user input to "auto submit" and collapses to
+      ;;    just "genesis".
       (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
                          (.preventDefault e)
                          #_(js/console.log "change" dom/node)
@@ -310,37 +296,29 @@ in an associated optimistic collection view!"
     ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
-    (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not enough.
-          ;; Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because we don't render success/failure (could be revisited).
-          [btn-t _] (when show-button (Button! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button))))
-          ;; Only authoritative event
-          ;; Native browser navigation must always be prevented
-          submit-event (dom/On "submit" #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
-                                             (when (event-is-from-this-form? %) %)) nil)
-          [t _err] (if auto-submit (e/Token edits) (e/Token submit-event))]
-      btn-t ; force let branch to force-mount button
-      submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
-      (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-        (Directive! directive edits (unify-t t btn-t))))))
-
-(e/defn FormSubmitGenesis!
-  "Spawns a new tempid/token for each submit. You must monitor the spawned entity's
-lifecycle (e.g. for errors) in an associated optimistic collection view!"
-  [directive form & {:keys [disabled show-button label #_auto-submit] :as props}] ; auto-submit unsupported
-  (e/amb
-    ;; TODO unify ButtonGenesis! and Button!
-    (e/When show-button (ButtonGenesis! directive :disabled disabled :label label :form form)) ; button will intercept submit events to act as submit!
-    ; But, button may hidden, so no default submit, so we need to explicitly handle this also
-    (e/for [[btn-q _e] (dom/On-all "submit" #(do (.preventDefault %) (.stopPropagation %)
-                                                 (when-not disabled (doto % (js/console.log 'FormSubmitGenesis!-submit)))))]
-      ;; TODO logic duplicated in ButtonGenesis!
-      (let [[form-t form-v] (e/snapshot form)] ; snapshot to detach form before any reference to form, or spending the form token would loop into this branch and cause a crash.
-        (form-t) ; immediately detach form
-        [(fn token ; proxy genesis
-           ([] (btn-q) #_(form-t))
-           ([err] '... #_(btn-q err)))
-         ;; abandon entity and clear form, ready for next submit -- snapshot to avoid clearing concurrent edits
-         [directive form-v]]))))
+    (let [submit-handler #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
+                              (when (and (not disabled) (event-is-from-this-form? %)) %))]
+      (if-not genesis
+        ;; Regular tx submit – txs are sequential.
+        (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not
+              ;; enough. Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because
+              ;; we don't render success/failure (could be revisited).
+              [btn-t _] (when show-button (Button! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
+              ;; Submit is the only authoritative event.
+              ;; Native browser navigation must always be prevented
+              submit-event (dom/On "submit" submit-handler nil)
+              [t _err] (if auto-submit (e/Token edits) (e/Token submit-event))]
+          btn-t ; force let branch to force-mount button
+          submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
+          (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
+            (Directive! directive edits (unify-t t btn-t))))
+        (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
+          (when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
+          (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
+            (let [[edit-t edit-v] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
+              (edit-t) ; immediately detach edits – clears user input.
+              [(stop-err-propagation submit-q)
+               [directive edit-v]])))))))
 
 (defn invert-fields-to-form [edit-merge edits]
   (when (seq edits)
@@ -398,10 +376,12 @@ lifecycle (e.g. for errors) in an associated optimistic collection view!"
            !tx-rejected-error (atom nil)
            tx-rejected-error (e/watch !tx-rejected-error)
 
-           [tempids _ :as ?cs] (e/call (if genesis FormSubmitGenesis! FormSubmit!)
-                                 ::commit form :label "commit"  :disabled (e/Reconcile (or clean? field-validation)) ; FIXME reconcile shouldn't be necessary
+           [tempids _ :as ?cs] (FormSubmit! ::commit form
+                                 :label "commit"
+                                 :disabled (e/Reconcile (or clean? field-validation)) ; FIXME reconcile shouldn't be necessary
                                  :auto-submit auto-submit ; (when auto-submit dirty-form)
-                                 :show-button show-buttons)
+                                 :show-button show-buttons
+                                 :genesis genesis)
            [_ _ :as ?d] (FormDiscard! ::discard form :disabled clean? :label "discard" :show-button show-buttons)]
        (dom/p (dom/props {:data-role "errormessage"})
               (when (not= form-validation ::nil) (dom/text form-validation))
