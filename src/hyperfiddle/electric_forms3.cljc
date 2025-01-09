@@ -269,7 +269,6 @@ accept the previous token and retain the new one."
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
-    ;; TODO check for double submit and for double submits in genesis = true case
     (when (and (not show-button) (not disabled))
       (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
@@ -400,12 +399,10 @@ accept the previous token and retain the new one."
        (e/amb
          (e/for [[btn-q [cmd form-v]] (e/amb ?cs ?d)]
            (case cmd ; does order of burning matter?
-             ;; FIXME clicking discard while commit is busy turns submit button green
+             ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
              ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
                              ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
-                             ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-                             (partial (fn [ts] (doseq [t ts] (t))) (e/as-vec tempids))
-                             ]
+                             (partial (fn [ts] (doseq [t ts] (t))) (e/as-vec tempids))]
                          (case genesis
                            true (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
                                   (case (btn-q) (e/amb)) ; discard now and swallow cmd, we're done
