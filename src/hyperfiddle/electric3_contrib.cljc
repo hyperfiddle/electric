@@ -17,6 +17,10 @@
 #_(e/defn Some "return first non-nothing in order"
   [xs] (first (e/as-vec xs))) ; todo optimize
 
+(e/defn Sleep
+  ([ms x] (e/Task (m/sleep ms x)))
+  ([ms] (Sleep ms nil)))
+
 (defn task-status "
 Task -> continuous flow. State is [] before task completion, [result] after.
 " [t] (m/reductions conj (m/ap (m/? t))))
