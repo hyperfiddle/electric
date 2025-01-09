@@ -160,6 +160,21 @@ accept the previous token and retain the new one."
        errors]
       (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
 
+;;; Edit/action -> command mapping
+
+(defn directive->command
+  ([directive token] (when token [token directive]))
+  ([directive edit token]
+   (when token
+     (let [[edit-t edit-v] edit]
+       [(unify-t token edit-t)
+        (if edit-t [directive edit-v] [directive nil])]))))
+
+(e/defn Directive!
+  ([directive token]
+   (e/When token (directive->command directive token)))
+  ([directive edit token]
+   (e/When token (directive->command directive edit token))))
 
 ;;; Buttons
 
@@ -177,7 +192,9 @@ accept the previous token and retain the new one."
         [btn-t err] (e/Token event)]
     [btn-t err event node]))
 
-(e/defn Button! ; Like `Button!*` with extra semantic markup reflecting tx status.
+(e/defn TxButton!
+  ;; Like `Button!*` with extra semantic markup reflecting tx status.
+  ;; Users want `Button!` instead, mapping "button click tx" to a business command.
   "Transactional button with busy state. Disables when busy. To be styled with CSS:
   - button[aria-busy=true]{...} : tx is comitting
   - button[aria-invalid=true]{...} : tx failed
@@ -195,14 +212,8 @@ accept the previous token and retain the new one."
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
     (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
 
-(defn directive->command [directive edit token]
-  (when token
-    (let [[edit-t edit-v] edit]
-      [(unify-t token edit-t)
-       (if edit-t [directive edit-v] [directive nil])])))
-
-(e/defn Directive! [directive edit token]
-  (e/When token (directive->command directive edit token)))
+(e/defn Button! [directive & {:as props}] ; User friendly API answering "what does the button do when clicked: it returns [token directive], ∅ otherwise."
+  (Directive! directive (first (TxButton! props))))
 
 ;;; Forms
 
@@ -303,7 +314,7 @@ accept the previous token and retain the new one."
         (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not
               ;; enough. Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because
               ;; we don't render success/failure (could be revisited).
-              [btn-t _] (when show-button (Button! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
+              [btn-t _] (when show-button (TxButton! nil (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
               ;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
