@@ -477,54 +477,52 @@ accept the previous token and retain the new one."
                  ([err] (reset! !last-state [::rejected err]))))]
         args))))
 
-;;; Experiments
+(e/defn Reconcile-records [stable-kf sort-key as bs]
+  (e/client
+    (let [as! (e/as-vec as) ; todo differential reconciliation
+          bs! (e/as-vec bs)]
+      (js/console.log "Reconcile" {:as as! :bs bs!})
+      (->> (merge-with (fn [a b] (or a b)) ; FIXME WIP this is only valid for create-new ; todo deep merge partial prediction (incl. edits)
+             (index-by stable-kf as!)
+             (index-by stable-kf bs!))
+        vals
+        (sort-by sort-key)
+        #_(drop (count bs!)) ; todo fix glitch
+        (e/diff-by stable-kf)))))
 
-#_(e/defn Reconcile-records [stable-kf sort-key as bs]
-    (e/client
-      (let [as! (e/as-vec as) ; todo differential reconciliation
-            bs! (e/as-vec bs)]
-        (js/console.log "Reconcile" {:as as! :bs bs!})
-        (->> (merge-with (fn [a b] (or a b)) ; FIXME WIP this is only valid for create-new ; todo deep merge partial prediction (incl. edits)
-               (index-by stable-kf as!)
-               (index-by stable-kf bs!))
-          vals
-          (sort-by sort-key)
-          #_(drop (count bs!)) ; todo fix glitch
-          (e/diff-by stable-kf)))))
+(e/declare Service)
 
-#_(e/declare Service)
+(e/defn PendingController [stable-kf sort-key forms xs]
+  (let [!pending (atom {}) ; [id -> guess]
+        ps (val (e/diff-by key (e/watch !pending)))]
+    (e/for [[t cmd guess :as form] forms #_(Service forms)]
+      (prn 'PendingController cmd guess)
+      ((fn [] (assert (<= (count guess) 1))))
+      (let [[tempid guess] (first guess)]
+        (case guess
+          nil nil ; guess is optional
+          ::retract nil ; todo
+          (do (swap! !pending assoc tempid (assoc guess ::pending form))
+              (e/on-unmount #(swap! !pending dissoc tempid)) ; FIXME hangs tab with infinite loop
+              ))
+        (e/amb)))
+    (Reconcile-records stable-kf sort-key xs ps)))
 
-#_(e/defn PendingController [stable-kf sort-key forms xs]
-    (let [!pending (atom {}) ; [id -> guess]
-          ps (val (e/diff-by key (e/watch !pending)))]
-      (e/for [[t cmd guess :as form] forms #_(Service forms)]
-        (prn 'PendingController cmd guess)
-        ((fn [] (assert (<= (count guess) 1))))
-        (let [[tempid guess] (first guess)]
-          (case guess
-            nil nil ; guess is optional
-            ::retract nil ; todo
-            (do (swap! !pending assoc tempid (assoc guess ::pending form))
-                (e/on-unmount #(swap! !pending dissoc tempid)) ; FIXME hangs tab with infinite loop
-                ))
-          (e/amb)))
-      (Reconcile-records stable-kf sort-key xs ps)))
+(e/declare effects* #_{})
 
-#_(e/declare effects*)
+(defmacro try-ok [& body] ; fixme inject sentinel
+  `(try ~@body ::ok ; sentinel
+        (catch Exception e# (doto ::fail (prn e#)))))
 
-#_(defmacro try-ok [& body] ; fixme inject sentinel
-    `(try ~@body ::ok ; sentinel
-          (catch Exception e# (doto ::fail (prn e#)))))
-
-#_(e/defn Service [forms]
-    (e/client ; client bias, t doesn't transfer
-      (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
-      (e/for [[t form guess] forms]
-        (let [[effect & args] form
-              Effect (effects* effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
-              res (e/Apply Effect args)] ; effect handlers span client and server
-          (prn 'final-res res)
-          (case res
-            nil (prn `res-was-nil-stop!)
-            ::ok (t) ; sentinel, any other value is an error
-            (t ::rejected)))))) ; feed error back into control to prompt for retry
+(e/defn Service [forms]
+  (e/client ; client bias, t doesn't transfer
+    (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
+    (e/for [[t form guess] forms]
+      (let [[effect & args] form
+            Effect ((or effects* {}) effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
+            res (e/Apply Effect args)] ; effect handlers span client and server
+        (prn 'final-res res)
+        (case res
+          nil (prn `res-was-nil-stop!)
+          ::ok (t) ; sentinel, any other value is an error
+          (t ::rejected)))))) ; feed error back into control to prompt for retry
