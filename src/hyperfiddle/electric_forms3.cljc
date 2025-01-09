@@ -14,7 +14,7 @@
     (dom/input (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
       (e/Reconcile ; don't reveal :grow/:shrink when the `if` switches
         ; (Note: Reconcile is discrete, so it will not even emit :change on switch)
-        (if (dom/Focused?)
+        (if (dom/Focused?) ; "don't damage user input"
           (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (e/snapshot (str v)))
           (set! (.-value dom/node) (str v)))))))
 
@@ -24,10 +24,16 @@
     (e/amb
       (dom/input (dom/props {:type "checkbox", :id id})
         (dom/props (dissoc props :id :label :parse))
-        (e/Reconcile
-          (if (dom/Focused?) ; TODO port safari fix from forms0
-            (dom/On "change" #(-> % .-target .-checked parse) (e/snapshot checked))
-            (set! (.-checked dom/node) checked))))
+        ;; Dataflow circuit Checkbox won't track user focused state - unlike Input and transactional Checkbox!.
+        ;; Because:
+        ;;  - "don't damage user input" is well defined for tx controls (token span), not so much for a dataflow checkbox.
+        ;;  - Safari don't focus checkboxes on click (only text inputs, so to match overall macos behavior)
+        ;;    - Ticket: https://www.notion.so/hyperfiddle/electric-forms0-Checkbox-does-not-work-on-Safari-both-mac-and-ios-16fb4d1e85d180d69249e2630a063485?pvs=4
+        ;; Alternatives:
+        ;;  - browser-specific behavior
+        ;;  - ?
+        (set! (.-checked dom/node) checked)
+        (dom/On "change" #(-> % .-target .-checked parse) checked)) ; checked passes through
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 ;;; Simple uncontrolled inputs (sugar for the unvarying literal case)
@@ -103,7 +109,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
             (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :edit-monoid :Validate))
                        (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
-            editing? (dom/Focused? input-node) ; TODO port safari fix from forms0
+            editing? (dom/Focused? input-node) ; never true on Safari (MacOs and iOS)
             waiting? (some? t)
             error? (some? err)
             dirty? (or editing? waiting? error?)
