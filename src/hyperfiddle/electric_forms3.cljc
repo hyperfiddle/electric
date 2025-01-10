@@ -11,12 +11,15 @@
 (e/defn Input [v & {:keys [maxlength type parse] :as props
                     :or {maxlength 100 type "text" parse identity}}]
   (e/client
-    (dom/input (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
-      (e/Reconcile ; don't reveal :grow/:shrink when the `if` switches
-        ; (Note: Reconcile is discrete, so it will not even emit :change on switch)
-        (if (dom/Focused?) ; "don't damage user input"
-          (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (e/snapshot (str v)))
-          (set! (.-value dom/node) (str v)))))))
+    (dom/input
+      (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
+      (when-not (dom/Focused?)  ; "don't damage user input"
+        (set! (.-value dom/node) (str v)))
+      ;; event handler can't be guarded by focus – <input type=number> renders a
+      ;; ↑↓ mouse control over the text input to increment/decrement a number.
+      ;; Clicking those buttons don't focus the input.
+      (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (str v)) ; (str v) passes through
+      )))
 
 (e/defn Checkbox [checked & {:keys [id label parse] :as props
                              :or {id (random-uuid) parse identity}}]
