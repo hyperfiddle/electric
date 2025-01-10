@@ -2683,3 +2683,25 @@
            (let [Varargs (e/fn [& args] (e/server (identity args)))]
              (tap (Varargs 1 2 3)))) {} {})
     % := [1 2 3]))
+
+(tests "output can respawn many times before first ack"
+  (let [!c (atom true)
+        !x (atom 0)
+        clocks (atom {})
+        clock (fn [k]
+                (m/observe
+                  (fn [!]
+                    (swap! clocks assoc k !)
+                    #(swap! clocks dissoc k))))
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-clock [(clock :client-reader) (m/seed (repeat nil))]}
+              (let [x (e/server (inc (e/client (e/watch !x))))]
+                (when (e/watch !c) x)))
+            prn prn)]
+    (swap! !c not)
+    (swap! !c not)
+    (swap! !c not)
+    (tick :client-reader)
+    (tick :client-reader)
+    (tick :client-reader)
+    (tick :client-reader)))

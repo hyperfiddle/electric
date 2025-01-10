@@ -1010,7 +1010,7 @@ T T T -> (EXPR T)
     (aset o output-slot-port port)
     (aset o output-slot-request-local (aget output output-slot-request-local))
     (aset o output-slot-request-remote (aget output output-slot-request-remote))
-    (aset o output-slot-pending (identity 0))
+    (aset o output-slot-pending (aget output output-slot-pending))
     (aset o output-slot-frozen false)
     (aset output output-slot-port nil)
     ((aget output output-slot-process))
@@ -1035,21 +1035,25 @@ T T T -> (EXPR T)
     (bit-or (zero (aget output output-slot-request-remote) 2r010))
     (bit-or (zero (aget output output-slot-pending) 2r100))))
 
-(defn input-ack [^objects input]
-  (aset input input-slot-pending (dec (aget input input-slot-pending)))
-  (case (input-state input)
-    2r000 (input-dispose input)
-    2r100 (input-reset input)
-    nil))
+(defn input-ack [^objects remote slot]
+  (let [^objects input (get (aget remote remote-slot-inputs) slot)]
+    (aset input input-slot-pending (dec (aget input input-slot-pending)))
+    (case (input-state input)
+      2r000 (input-dispose input)
+      2r100 (input-reset input)
+      nil)
+    remote))
 
-(defn output-ack [^objects output]
-  (aset output output-slot-pending (dec (aget output output-slot-pending)))
-  (when (identical? output (aget output output-slot-ready))
-    (output-enqueue output))
-  (case (output-state output)
-    2r000 (output-dispose output)
-    2r100 (output-reset output)
-    nil))
+(defn output-ack [^objects remote slot]
+  (let [^objects output (get (aget remote remote-slot-outputs) slot)]
+    (aset output output-slot-pending (dec (aget output output-slot-pending)))
+    (when (identical? output (aget output output-slot-ready))
+      (output-enqueue output))
+    (case (output-state output)
+      2r000 (output-dispose output)
+      2r100 (output-reset output)
+      nil)
+    remote))
 
 (defn remote-ack [^objects remote]
   (let [^objects tail (aget remote remote-slot-current-event)
@@ -1058,8 +1062,8 @@ T T T -> (EXPR T)
     (when (identical? tail event) (throw (ex-info "Unexpected ack." {})))
     (aset tail event-slot-next head)
     (aset head event-slot-prev tail)
-    (reduce run input-ack (aget event event-slot-inputs))
-    (reduce run output-ack (aget event event-slot-outputs))))
+    (reduce input-ack remote (aget event event-slot-inputs))
+    (reduce output-ack remote (aget event event-slot-outputs))))
 
 (defn remote-change [^objects remote ^Slot slot diff]
   (when-some [^objects input (get (aget remote remote-slot-inputs) slot)]
@@ -1102,24 +1106,24 @@ T T T -> (EXPR T)
         (assoc! request slot diff)))))
 
 (defn input-crash [^objects input]
+  (aset input input-slot-request-remote (identity 0))
+  (aset input input-slot-pending (identity 0))
   (if (zero? (aget input input-slot-request-local))
     (input-dispose input)
     (do ;; TODO do not request transitive deps
         (remote-update-request (aget input input-slot-remote)
           (port-slot (aget input input-slot-port)) 1)
-        (input-reset input)))
-  (aset input input-slot-request-remote (identity 0))
-  (aset input input-slot-pending (identity 0)))
+        (input-reset input))))
 
 (defn output-crash [^objects output]
+  (aset output output-slot-request-remote (identity 0))
+  (aset output output-slot-pending (identity 0))
   (if (zero? (aget output output-slot-request-local))
     (output-dispose output)
     (do ;; TODO do not request transitive deps
         (remote-update-request (aget output output-slot-remote)
           (port-slot (aget output output-slot-port)) 1)
-        (output-reset output)))
-  (aset output output-slot-request-remote (identity 0))
-  (aset output output-slot-pending (identity 0)))
+        (output-reset output))))
 
 (defn channel-cancel [^objects channel]
   ((aget channel channel-slot-process)))
@@ -1149,26 +1153,26 @@ T T T -> (EXPR T)
 (defn output-local-toggle [^objects output]
   (let [^objects remote (aget output output-slot-remote)
         ^objects event (aget remote remote-slot-current-event)
+        slot (port-slot (aget output output-slot-port))
         outputs (aget event event-slot-outputs)]
     (aset event event-slot-outputs
-      (if (contains? outputs output)
-        (do (output-ack output)
-            (disj! outputs output))
-        (do (aset output output-slot-pending
-              (inc (aget output output-slot-pending)))
-            (conj! outputs output))))))
+      ((if (contains? outputs slot)
+         (do (output-ack remote slot) disj!)
+         (do (aset output output-slot-pending
+               (inc (aget output output-slot-pending)))
+             conj!)) outputs slot))))
 
 (defn input-local-toggle [^objects input]
   (let [^objects remote (aget input input-slot-remote)
         ^objects event (aget remote remote-slot-current-event)
+        slot (port-slot (aget input input-slot-port))
         inputs (aget event event-slot-inputs)]
     (aset event event-slot-inputs
-      (if (contains? inputs input)
-        (do (input-ack input)
-            (disj! inputs input))
-        (do (aset input input-slot-pending
-              (inc (aget input input-slot-pending)))
-            (conj! inputs input))))))
+      ((if (contains? inputs slot)
+         (do (input-ack remote slot) disj!)
+         (do (aset input input-slot-pending
+               (inc (aget input input-slot-pending)))
+             conj!)) inputs slot))))
 
 (declare input-remote-up input-remote-down input-local-up input-local-down)
 
@@ -1267,77 +1271,82 @@ T T T -> (EXPR T)
               "Unserializable value(s): " (str/join ", " (into [] (comp (distinct) (map pr-str)) d)))]
     msg))
 
+(defn channel-transfer-exit [^objects channel busy]
+  (let [^objects remote (aget channel channel-slot-remote)
+        ^objects peer (aget remote remote-slot-peer)]
+    (if (zero? (aget channel channel-slot-alive))
+      (do (aset channel channel-slot-step nil)
+          (channel-notify channel))
+      (aset channel channel-slot-ready channel))
+    (exit peer busy)))
+
 (defn channel-transfer [^objects channel]
   (let [^objects remote (aget channel channel-slot-remote)
         ^objects peer (aget remote remote-slot-peer)
         busy (enter peer)]
-    (try (if (identical? channel (aget remote remote-slot-channel))
-           (loop [port* (transient #{})
-                  change (transient {})
-                  freeze (transient #{})]
-             (if-some [^objects output (aget remote remote-slot-ready)]
-               (let [ps (aget output output-slot-process)]
-                 (aset remote remote-slot-ready (aget output output-slot-ready))
-                 (case (output-state output)
-                   2r101 (do (aset output output-slot-ready output)
-                             (recur port* change freeze))
-                   (do (aset output output-slot-ready nil)
-                       (if-some [port (aget output output-slot-port)]
-                         (let [slot (port-slot port)]
-                           (if (aget output output-slot-frozen)
-                             (do (aset channel channel-slot-alive
-                                   (dec (aget channel channel-slot-alive)))
-                                 (recur port* change (conj! freeze slot)))
-                             (recur (conj! port* port)
-                               (let [diff @ps]
-                                 (if (i/empty-diff? diff)
-                                   change (assoc! change
-                                            slot (if-some [p (get change slot)]
-                                                   (i/combine p diff) diff)))) freeze)))
-                         (do (try @ps (catch #?(:clj Throwable :cljs :default) _))
-                             (recur port* change freeze))))))
-               (let [change (persistent! change)
-                     freeze (persistent! freeze)
-                     acks (aget remote remote-slot-acks)
-                     request (persistent! (aget remote remote-slot-request))
-                     changeset (-> (unchecked-add (count change) (count freeze))
-                                 (unchecked-add (count request)))]
-                 (aset remote remote-slot-acks (identity 0))
-                 (aset remote remote-slot-request (transient {}))
-                 (when (pos? changeset)
-                   (let [^objects event (aget remote remote-slot-current-event)
-                         ^objects head (aget event event-slot-next)
-                         ^objects tail (object-array event-slots)]
-                     (aset event event-slot-inputs
-                       (persistent! (aget event event-slot-inputs)))
-                     (aset event event-slot-outputs
-                       (persistent! (aget event event-slot-outputs)))
-                     (aset remote remote-slot-current-event tail)
-                     (aset event event-slot-next tail)
-                     (aset head event-slot-prev tail)
-                     (aset tail event-slot-next head)
-                     (aset tail event-slot-prev event)
-                     (aset tail event-slot-inputs (transient #{}))
-                     (aset tail event-slot-outputs (transient #{}))))
-                 (when (pos? (unchecked-add acks changeset))
-                   (binding [*unserializable* (atom #{})]
-                     (let [ret (encode [acks request change freeze]
-                                 (aget channel channel-slot-writer-opts))]
-                       (when-some [d (not-empty @*unserializable*)]
-                         (println (->unserializable-msg port* d)))
-                       ret))))))
-           (let [e (aget channel channel-slot-shared)]
-             (aset channel channel-slot-shared nil)
-             (throw e)))
+    (when-not (identical? channel (aget remote remote-slot-channel))
+      (let [e (aget channel channel-slot-shared)]
+        (aset channel channel-slot-shared nil)
+        (channel-transfer-exit channel busy)
+        (throw e)))
+    (try (loop [port* (transient #{})
+                change (transient {})
+                freeze (transient #{})]
+           (if-some [^objects output (aget remote remote-slot-ready)]
+             (let [ps (aget output output-slot-process)]
+               (aset remote remote-slot-ready (aget output output-slot-ready))
+               (case (output-state output)
+                 2r101 (do (aset output output-slot-ready output)
+                           (recur port* change freeze))
+                 (do (aset output output-slot-ready nil)
+                     (if-some [port (aget output output-slot-port)]
+                       (let [slot (port-slot port)]
+                         (if (aget output output-slot-frozen)
+                           (do (aset channel channel-slot-alive
+                                 (dec (aget channel channel-slot-alive)))
+                               (recur port* change (conj! freeze slot)))
+                           (recur (conj! port* port)
+                             (let [diff @ps]
+                               (if (i/empty-diff? diff)
+                                 change (assoc! change
+                                          slot (if-some [p (get change slot)]
+                                                 (i/combine p diff) diff)))) freeze)))
+                       (do (try @ps (catch #?(:clj Throwable :cljs :default) _))
+                           (recur port* change freeze))))))
+             (let [change (persistent! change)
+                   freeze (persistent! freeze)
+                   acks (aget remote remote-slot-acks)
+                   request (persistent! (aget remote remote-slot-request))
+                   changeset (-> (unchecked-add (count change) (count freeze))
+                               (unchecked-add (count request)))]
+               (aset remote remote-slot-acks (identity 0))
+               (aset remote remote-slot-request (transient {}))
+               (when (pos? changeset)
+                 (let [^objects event (aget remote remote-slot-current-event)
+                       ^objects head (aget event event-slot-next)
+                       ^objects tail (object-array event-slots)]
+                   (aset event event-slot-inputs
+                     (persistent! (aget event event-slot-inputs)))
+                   (aset event event-slot-outputs
+                     (persistent! (aget event event-slot-outputs)))
+                   (aset remote remote-slot-current-event tail)
+                   (aset event event-slot-next tail)
+                   (aset head event-slot-prev tail)
+                   (aset tail event-slot-next head)
+                   (aset tail event-slot-prev event)
+                   (aset tail event-slot-inputs (transient #{}))
+                   (aset tail event-slot-outputs (transient #{}))))
+               (when (pos? (unchecked-add acks changeset))
+                 (binding [*unserializable* (atom #{})]
+                   (let [ret (encode [acks request change freeze]
+                               (aget channel channel-slot-writer-opts))]
+                     (when-some [d (not-empty @*unserializable*)]
+                       (println (->unserializable-msg port* d)))
+                     ret))))))
          (catch #?(:clj Throwable :cljs :default) e
            (channel-crash channel)
            (throw e))
-         (finally
-           (if (zero? (aget channel channel-slot-alive))
-             (do (aset channel channel-slot-step nil)
-                 (channel-notify channel))
-             (aset channel channel-slot-ready channel))
-           (exit peer busy)))))
+         (finally (channel-transfer-exit channel busy)))))
 
 (defn channel-ready [^objects channel busy]
   (let [^objects remote (aget channel channel-slot-remote)
