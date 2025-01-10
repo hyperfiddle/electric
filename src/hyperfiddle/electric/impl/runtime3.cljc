@@ -1259,18 +1259,16 @@ T T T -> (EXPR T)
     (dotimes [_ diff]
       (output-remote-up (slot-port slot)))))
 
-(def ^:dynamic *unserializable*)
-
 (defn ->unserializable-msg [port* d]
   (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
         has-mt* (filterv ::lang/line mt*)
         msg (str (when (seq has-mt*)
-                   (str "Possible values (if let-bound search for their usage):\n"
+                   (str "[unserializable] Possible values (if let-bound search for their usage):\n"
                      (str/join "\n" (eduction (map clean-msg) (distinct) has-mt*))
                      (when (not= (count mt*) (count has-mt*))
                        (str "\nThe value list is incomplete."))
                      "\n"))
-              "Unserializable value(s): " (str/join ", " (into [] (comp (distinct) (map pr-str)) d)))]
+              "Value: " d)]
     msg))
 
 (defn channel-transfer-exit [^objects channel busy]
@@ -1339,12 +1337,13 @@ T T T -> (EXPR T)
                    (aset tail event-slot-inputs (transient #{}))
                    (aset tail event-slot-outputs (transient #{}))))
                (when (pos? (unchecked-add acks changeset))
-                 (binding [*unserializable* (atom #{})]
-                   (let [ret (encode [acks request change freeze]
-                               (aget channel channel-slot-writer-opts))]
-                     (when-some [d (not-empty @*unserializable*)]
-                       (println (->unserializable-msg port* d)))
-                     ret))))))
+                 (try (encode [acks request change freeze]
+                        (aget channel channel-slot-writer-opts))
+                      (catch #?(:clj Throwable :cljs :default) e
+                        (if-some [ed (cond (::unserializable (ex-data e)) (ex-data e)
+                                           (::unserializable (ex-data (ex-cause e))) (ex-data (ex-cause e)))]
+                          (throw (ex-info (->unserializable-msg port* (:v ed)) ed))
+                          (throw e))))))))
          (catch #?(:clj Throwable :cljs :default) e
            (channel-crash channel)
            (throw e))
@@ -1438,8 +1437,8 @@ T T T -> (EXPR T)
                     #?@(:clj [clojure.lang.PersistentQueue (t/write-handler (fn [_] "_") (fn [_]))])
                     })
         default (t/write-handler
-                  (fn [v] (swap! *unserializable* conj v) "unserializable")
-                  (fn [v]))]
+                  (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true})))
+                  (fn [_]))]
     #?(:clj  {:handlers handlers :default-handler default}
        :cljs {:handlers (assoc handlers :default default)})))
 
