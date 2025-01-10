@@ -17,12 +17,12 @@
           (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (e/snapshot (str v)))
           (set! (.-value dom/node) (str v)))))))
 
-(e/defn Checkbox [checked & {:keys [id label parse] :as props
-                             :or {id (random-uuid) parse identity}}]
+(e/defn Checkbox [checked & {:keys [id type label parse] :as props
+                             :or {type "checkbox", id (random-uuid), parse identity}}]
   (e/client
     (e/amb
-      (dom/input (dom/props {:type "checkbox", :id id})
-        (dom/props (dissoc props :id :label :parse))
+      (dom/input (dom/props {:type type, :id id})
+        (dom/props (dissoc props :id :label :parse :type))
         ;; Dataflow circuit Checkbox won't track user focused state - unlike Input and transactional Checkbox!.
         ;; Because:
         ;;  - "don't damage user input" is well defined for tx controls (token span), not so much for a dataflow checkbox.
