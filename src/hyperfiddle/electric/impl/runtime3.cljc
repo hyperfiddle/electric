@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [resolve])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
+            #?(:cljs missionary.impl.Propagator)
             [clojure.pprint]
             [contrib.debug :as dbg]
             [contrib.data :as cd]
@@ -11,6 +12,7 @@
             [contrib.assert :as ca]
             [clojure.string :as str])
   (:import missionary.Cancelled
+           #?(:clj missionary.impl.Propagator$Publisher)
            #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))
            #?(:clj (java.util.concurrent.locks ReentrantLock))))
@@ -1426,7 +1428,15 @@ T T T -> (EXPR T)
                     Unbound (t/write-handler
                               (fn [_] "unbound")
                               (fn [^Unbound unbound]
-                                [(.-key unbound)]))})
+                                [(.-key unbound)]))
+
+                    ;; Workaround for unserializable values in e/for.
+                    ;; It's OK to pass them as `nil` because they aren't used on the remote peer?
+                    ;; Then why send them, you ask? Tech debt that is todo and harder to implement.
+                    #?(:clj missionary.impl.Propagator$Publisher :cljs missionary.impl.Propagator/Publisher)
+                    (t/write-handler (fn [_] "_") (fn [_])) ; _ is transit's nil tag
+                    #?@(:clj [clojure.lang.PersistentQueue (t/write-handler (fn [_] "_") (fn [_]))])
+                    })
         default (t/write-handler
                   (fn [v] (swap! *unserializable* conj v) "unserializable")
                   (fn [v]))]
