@@ -17,12 +17,6 @@
             [missionary.core :as m]
             [hyperfiddle.detest :as dt]))
 
-#?(:clj
-   (do
-     ;; Optionally, tell RCF not to rewrite Electric programs.
-     (defmethod ana/macroexpand-hook `single [the-var form env args]
-       (reduced form))))
-
 (defn ->local-config [env]
   (let [p (if (:js-globals env) :cljs :clj)] {::lang/peers {:client p, :server p}}))
 
@@ -219,5 +213,4 @@
   (r/peer-sink (r/make-peer :client {} nil defs main nil)))
 
 (defmacro single {:style/indent 1} [conf & body]
-  `(run-single (main ~conf ~@body) ::Main))
-
+  (with-meta `(run-single (main ~conf ~@body) ::Main) (meta &form)))

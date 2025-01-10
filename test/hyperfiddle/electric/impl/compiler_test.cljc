@@ -562,7 +562,7 @@
             (r/ap '{}
               (r/pure ~'prn)
               (r/node ~'frame 1)))
-          (r/define-node ~'frame 3 'nil
+          (r/define-node ~'frame 3 '{}
             (r/join
               (r/pure
                 (r/drain

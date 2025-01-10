@@ -6,6 +6,7 @@
             [contrib.assert :as ca]
             [contrib.data :refer [keep-if ->box]]
             [contrib.debug :as dbg]
+            [contrib.walk :as cw]
             [clojure.set :as set]
             [contrib.triple-store :as ts]
             [fipp.edn]
@@ -251,98 +252,133 @@
         #_else (-expand-all-foreign o env)))
     (-expand-all-foreign o env)))
 
+(defn pretty-aliaser [alias-map]
+  (fn [sym]
+    (if-some [[_ ns-str] (find alias-map (namespace sym))]
+      (cond (symbol? sym) (symbol ns-str (name sym))
+            (keyword? sym) (keyword (str ":" ns-str) (name sym)) ; hack so we see ::foo, not :foo
+            :else sym)
+      sym)))
+
+(tests
+  ((pretty-aliaser {"foo.bar" "fb"}) 'foo.bar/baz) := 'fb/baz
+  ((pretty-aliaser {"foo.bar" "fb"}) :foo.bar/baz) := (keyword ":fb" "baz")
+  ((pretty-aliaser {"clojure.core" nil}) 'clojure.core/+) := '+
+  )
+
+(def pp-aliaser (pretty-aliaser {"hyperfiddle.electric.impl.runtime3" "r"
+                                 "hyperfiddle.electric.impl.lang3" "lang"
+                                 "hyperfiddle.electric-local-def3" "ldef"
+                                 "hyperfiddle.electric3-test" "t"
+                                 "hyperfiddle.electric3" "e"
+                                 "hyperfiddle.incseq" "i"
+                                 "missionary.core" "m"
+                                 "clojure.core" nil}))
+
+(let [rewrite #(cond-> % (or (symbol? %) (keyword? %)) pp-aliaser)]
+  (defn pprint-source [source] (fipp.edn/pprint (cw/postwalk rewrite source) {:width 120})))
+
+(defn +meta [env o]
+  (if (instance? clojure.lang.IObj o)
+    (cond-> o (::meta env) (vary-meta #(merge (::meta env) %)))
+    o))
+
 (defn -expand-all [o env]
-  (cond
-    (and (seq? o) (seq o))
-    (if (find-local-entry env (first o))
-      (if (electric-sym? (first o))
-        (recur (?meta o (cons `$ o)) env)
-        (?meta o (list* (?meta o (first o)) (mapv #(-expand-all (?meta o %) env) (rest o)))))
-      (case (first o)
-        ;; (ns ns* deftype* defrecord* var)
+  (let [env (cond-> env (meta o) (update ::meta merge (meta o))), +meta (fn [o] (+meta env o))]
+    ;; (prn (meta o) (::meta env) o)
+    (cond
+      (and (seq? o) (seq o))
+      (if (find-local-entry env (first o))
+        (if (electric-sym? (first o))
+          (recur (+meta (cons `$ o)) env)
+          (+meta (list* (+meta (first o)) (mapv #(-expand-all (+meta %) env) (rest o)))))
+        (case (first o)
+          ;; (ns ns* deftype* defrecord* var)
 
-        (do) (if (nnext o)
-               (let [body (mapv #(?meta o (list `e/drain %)) (next o))
-                     body (conj (pop body) (?meta o (second (peek body))))] ; last arg isn't drained
-                 (recur (?meta o (cons `e/amb body)) env))
-               (recur (?meta o (second o)) env))
+          (do) (if (nnext o)
+                 (let [body (mapv #(+meta (list `e/drain %)) (next o))
+                       body (conj (pop body) (+meta (second (peek body))))] ; last arg isn't drained
+                   (recur (+meta (cons `e/amb body)) env))
+                 (recur (+meta (second o)) env))
 
-        (let clojure.core/let cljs.core/let)
-        (let [[_ bs & body] o] (recur (?meta o (list* 'let* (dst/destructure* bs) body)) env))
+          (let clojure.core/let cljs.core/let)
+          (let [[_ bs & body] o] (recur (+meta (list* 'let* (dst/destructure* bs) body)) env))
 
-        (let*) (let [[_ bs & body] o
-                     <env> (->box env)
-                     f (fn [bs [sym v]]
-                         (let [env (<env>)] (<env> (add-local env sym)) (conj bs sym (-expand-all (?meta o v) env))))
-                     bs2 (transduce (partition-all 2) (completing f) [] bs)]
-                 (?meta o (list 'let* bs2 (-expand-all (?meta body (cons 'do body)) (<env>)))))
+          (let*) (let [[_ bs & body] o
+                       <env> (->box env)
+                       f (fn [bs [sym v]]
+                           (let [env (<env>)] (<env> (add-local env sym)) (conj bs sym (-expand-all (+meta v) env))))
+                       bs2 (transduce (partition-all 2) (completing f) [] bs)]
+                   (+meta (list 'let* bs2 (-expand-all (+meta (cons 'do body)) (<env>)))))
 
-        (loop*) (let [[_ bs & body] o
-                      [bs2 env2] (reduce
-                                   (fn [[bs env] [sym v]]
-                                     [(conj bs sym (-expand-all (?meta o v) env)) (add-local env sym)])
-                                   [[] env]
-                                   (partition-all 2 bs))]
-                  (recur (?meta o `(::call (r/bind-args (r/bind-self (::ctor (let [~@(interleave (take-nth 2 bs2)
+          (loop*) (let [[_ bs & body] o
+                        [bs2 env2] (reduce
+                                     (fn [[bs env] [sym v]]
+                                       [(conj bs sym (-expand-all (+meta v) env)) (add-local env sym)])
+                                     [[] env]
+                                     (partition-all 2 bs))]
+                    (recur (+meta `(::call (r/bind-args (r/bind-self (::ctor (let [~@(interleave (take-nth 2 bs2)
                                                                                        (map (fn [i] `(::lookup ~i))
                                                                                          (range)))] ~@body)))
                                              ~@(map (fn [arg] `(::pure ~arg))
                                                  (take-nth 2 (next bs2))))))
-                    env2))
+                      env2))
 
-        (recur) (recur (?meta o `(::call (r/bind-args (::lookup :recur) ~@(map (fn [arg] `(::pure ~arg)) (next o))))) env)
+          (recur) (recur (+meta `(::call (r/bind-args (::lookup :recur) ~@(map (fn [arg] `(::pure ~arg)) (next o))))) env)
 
-        (case clojure.core/case)
-        (let [[_ v & clauses] o
-              has-default-clause? (odd? (count clauses))
-              clauses2 (cond-> clauses has-default-clause? butlast)
-              xpand #(-expand-all (?meta o %) env)]
-          (?meta o (list* 'case (xpand v)
+          (case clojure.core/case)
+          (let [[_ v & clauses] o
+                has-default-clause? (odd? (count clauses))
+                clauses2 (cond-> clauses has-default-clause? butlast)
+                xpand #(-expand-all (+meta %) env)]
+            (+meta (list* 'case (xpand v)
                      (cond-> (into [] (comp (partition-all 2) (mapcat (fn [[match expr]] [match (xpand expr)])))
                                clauses2)
                        has-default-clause? (conj (xpand (last clauses)))))))
 
-        (if) (let [[_ test then else] o, xpand #(-expand-all (?meta o %) env)]
-               (?meta o (list 'case (xpand test) '(nil false) (xpand else) (xpand then))))
+          (if) (let [[_ test then else] o, xpand #(-expand-all (+meta %) env)]
+                 (+meta (list 'case (xpand test) '(nil false) (xpand else) (xpand then))))
 
-        (condp clojure.core/condp cljs.core/condp) (recur (?meta o (apply xplatform-condp (next o))) env)
+          (condp clojure.core/condp cljs.core/condp) (recur (+meta (apply xplatform-condp (next o))) env)
 
-        (quote) o
+          (quote) o
 
-        (fn*) (-expand-all-foreign o (dissoc env ::electric))
+          (fn*) (-expand-all-foreign o (dissoc env ::electric))
 
-        (letfn*) (let [[_ bs & body] o
-                       env2 (reduce add-local env (take-nth 2 bs))
-                       bs2 (->> bs (into [] (comp (partition-all 2)
-                                              (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env2)])))))]
-                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (?meta o (cons 'do body)) env2)))
-                     env))
+          (letfn*) (let [[_ bs & body] o
+                         env2 (reduce add-local env (take-nth 2 bs))
+                         bs2 (->> bs (into [] (comp (partition-all 2)
+                                                (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env2)])))))]
+                     (recur (+meta `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)]
+                                      ~(-expand-all (+meta (cons 'do body)) env2)))
+                       env))
 
-        (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
+          (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
 
-        (js*) (let [[_ s & args] o, gs (repeatedly (count args) gensym)]
-                (recur (?meta o `((fn* ([~@gs] (~'js* ~s ~@gs))) ~@args)) env))
+          (js*) (let [[_ s & args] o, gs (repeatedly (count args) gensym)]
+                  (recur (+meta `((fn* ([~@gs] (~'js* ~s ~@gs))) ~@args)) env))
 
-        (binding clojure.core/binding)
-        (let [[_ bs & body] o]
-          (?meta o (list 'binding (into [] (comp (partition-all 2) (mapcat (fn [[sym v]] [sym (-expand-all (?meta o v) env)]))) bs)
-                     (-expand-all (?meta o (cons 'do body)) env))))
+          (binding clojure.core/binding)
+          (let [[_ bs & body] o]
+            (+meta (list 'binding (->> bs (into [] (comp (partition-all 2)
+                                                     (mapcat (fn [[sym v]] [sym (-expand-all (+meta v) env)])))))
+                     (-expand-all (+meta (cons 'do body)) env))))
 
-        (set!) (?meta o (list 'set! (-expand-all (?meta o (nth o 1)) env) (-expand-all (?meta o (nth o 2)) env)))
+          (set!) (+meta (list 'set! (-expand-all (+meta (nth o 1)) env) (-expand-all (+meta (nth o 2)) env)))
 
-        (::ctor) (?meta o (list ::ctor (list ::site nil (-expand-all (?meta o (second o)) env))))
+          (::ctor) (+meta (list ::ctor (list ::site nil (-expand-all (+meta (second o)) env))))
 
-        (::site) (?meta o (seq (conj (into [] (take 2) o)
-                                 (-expand-all (?meta o (cons 'do (drop 2 o))) (assoc env ::current (second o))))))
+          (::site) (+meta (seq (conj (into [] (take 2) o)
+                                 (-expand-all (+meta (cons 'do (drop 2 o))) (assoc env ::current (second o))))))
 
-        #_else (?expand-macro o env -expand-all)))
+          #_else (?expand-macro o env -expand-all)))
 
-    (instance? cljs.tagged_literals.JSValue o)
-    (cljs.tagged_literals.JSValue. (-expand-all (?meta o (.-val ^cljs.tagged_literals.JSValue o)) env))
+      (instance? cljs.tagged_literals.JSValue o)
+      (cljs.tagged_literals.JSValue. (-expand-all (+meta (.-val ^cljs.tagged_literals.JSValue o)) env))
 
-    (map-entry? o) (?meta o (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (?meta o (val o)) env)))
-    (coll? o) (?meta o (into (?meta o (empty o)) (map #(-expand-all (?meta o %) env)) o))
-    :else o))
+      (map-entry? o) (+meta (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (+meta (val o)) env)))
+      (coll? o) (+meta (into (+meta (empty o)) (map #(-expand-all (+meta %) env)) o))
+      :else o)))
 
 #_(defn -expand-all-in-try [o env]
     (if (seq? o)
@@ -403,9 +439,9 @@
                                    ::line (:line mt), ::column (:column mt)
                                    ::def (::def env), ::ns (get-ns env)}))))
 
-(defn ?reroute-source-map [ts from-e to-e]
+(defn ?copy-source-map [{{::keys [->id]} :o :as ts} from-e to-e]
   (if-some [sm-e* (ts/find ts ::source-map-of from-e)]
-    (ts/asc ts (first sm-e*) ::source-map-of to-e)
+    (ts/add ts (assoc (ts/->node ts (first sm-e*)) :db/id (->id), ::source-map-of to-e))
     ts))
 
 (defn untwin [s]
@@ -601,7 +637,7 @@
   ([{{::keys [->uid]} :o :as ts} from-e pe to-e]
    (reduce (fn [ts e] (copy-point-recursively ts e to-e))
      (-> ts (ts/add (assoc (ts/->node ts from-e) :db/id to-e, ::parent pe, ::uid (->uid)))
-       (?reroute-source-map from-e to-e))
+       (?copy-source-map from-e to-e))
      (get-children-e ts from-e))))
 
 (defn ?update-meta [env form] (cond-> env (meta form) (assoc ::meta (meta form))))
@@ -634,10 +670,10 @@
                           ts (-> ts (ts/add {:db/id e, ::ctor-local ctor, ::type ::mklocal
                                              ::k k, ::uid uid})
                                (?add-source-map e form env))]
-                      (recur bform pe (update-in env [:locals k] assoc ::electric-let uid) ts))
+                      (recur (?meta form bform) pe (update-in env [:locals k] assoc ::electric-let uid) ts))
         (::bindlocal) (let [[_ k v bform] form
                             mklocal-e (:db/id (->node ts (-> env :locals (get k) ::electric-let)))]
-                        (recur bform pe env (analyze v mklocal-e env ts)))
+                        (recur (?meta form bform) pe env (analyze v mklocal-e env ts)))
         (::case_) (let [[_ test & brs] form
                         [default brs2] (if (odd? (count brs))
                                          [(last brs) (butlast brs)]
@@ -658,7 +694,7 @@
                 (if (or (nil? current) (= (->env-type env) current))
                   (if (seq arg*)
                     (add-ap-literal `(fn* ~arg* ~code) val* pe (->id) env form ts)
-                    (add-literal ts code (->id) pe env))
+                    (add-literal ts (?meta form code) (->id) pe env))
                   (recur `[~@val*] pe env ts)))
         (::cc-letfn) (let [current (get (::peers env) (::current env))
                            [_ bs] form, lfn* `(letfn* ~bs ~(vec (take-nth 2 bs))), e (->id)
@@ -720,19 +756,20 @@
                       (recur [o] pe env ts))))))
         (binding clojure.core/binding) (let [[_ bs bform] form, gs (repeatedly (/ (count bs) 2) gensym)]
                                          (recur (if (seq bs)
-                                                  `(let* [~@(interleave gs (take-nth 2 (next bs)))]
-                                                     (::call ((::static-vars r/bind) (::ctor ~bform)
-                                                              ~@(interleave
-                                                                  (mapv #(get-lookup-key % env) (take-nth 2 bs))
-                                                                  (mapv #(list ::pure %) gs)))))
-                                                  bform)
+                                                  (?meta form
+                                                    `(let* [~@(interleave gs (take-nth 2 (next bs)))]
+                                                       (::call ((::static-vars r/bind) (::ctor ~bform)
+                                                                ~@(interleave
+                                                                    (mapv #(get-lookup-key % env) (take-nth 2 bs))
+                                                                    (mapv #(list ::pure %) gs))))))
+                                                  (?meta form bform))
                                            pe env ts))
         (def) (let [[_ sym v] form]
                 (case (->env-type env)
                   :clj (recur `((fn* ([x#] (def ~sym x#))) ~v) pe env ts)
                   :cljs (do (def-sym-in-cljs-compiler! sym (get-ns env))
                             (add-ap-literal `(fn [v#] (set! ~sym v#)) [v] pe (->id) env form ts))))
-        (set!) (let [[_ target v] form] (recur `((fn* ([v#] (set! ~target v#))) ~v) pe env ts))
+        (set!) (let [[_ target v] form] (recur (with-meta `((fn* ([v#] (set! ~target v#))) ~v) (meta form)) pe env ts))
         (::ctor) (let [e (->id), ce (->id), uid (->uid)]
                    (recur (second form) ce (assoc env ::ctor-uid uid, ::site nil)
                      (-> ts (ts/add {:db/id e, ::parent pe, ::type ::pure, ::site (::current env)})
@@ -764,7 +801,10 @@
         (::frame) (let [e (->id)] (-> ts
                                     (ts/add {:db/id e, ::parent pe, ::type ::pure, ::site (::current env)})
                                     (ts/add {:db/id (->id), ::parent e, ::type ::frame, ::site (::current env)})))
-        (::lookup) (let [[_ sym] form] (ts/add ts {:db/id (->id), ::parent pe, ::type ::lookup, ::sym sym, ::site (::current env)}))
+        (::lookup) (let [[_ sym] form, e (->id)]
+                     (-> ts
+                       (ts/add {:db/id e, ::parent pe, ::type ::lookup, ::sym sym, ::site (::current env)})
+                       (?add-source-map e form env)))
         (::static-vars) (recur (second form) pe (assoc env ::static-vars true) ts)
         (::debug) (recur (second form) pe (assoc env ::debug true) ts)
         (::sitable) (let [e (->id)] (recur (second form) e env (ts/add ts {:db/id e, ::parent pe, ::type ::sitable, ::site (::current env)})))
@@ -1380,7 +1420,7 @@
                                 (-> ts
                                   (ts/add {:db/id pure-e, ::parent ap-e, ::type ::pure, ::site site})
                                   (ts/add {:db/id comp-e, ::parent pure-e, ::type ::comp, ::site site})
-                                  (?reroute-source-map ap-e pure-e))
+                                  (?copy-source-map ap-e pure-e))
                                 ce)))
 
                           (> pure-cnt 1)
@@ -1471,7 +1511,8 @@
                             (let [nd (ts/->node ts (get-child-e ts localv-e))]
                               (and (= ::literal (::type nd))
                                 (let [v (::v nd)]
-                                  (or (string? v) (keyword? v) (number? v))))))))
+                                  (or (string? v) (keyword? v) (number? v) (boolean? v) (nil? v)
+                                    (and (seq? v) (= 'quote (first v))))))))))
         delete-ctor-nodes (fn delete-ctor-nodes [ts mklocal-uid]
                             (reduce ts/del ts (ts/find ts ::ctor-ref mklocal-uid)))
         delete-ctor-frees (fn delete-ctor-frees [ts mklocal-uid]
@@ -1548,7 +1589,7 @@
                                    pe (ts/? ts ret-e ::parent)]
                                (-> ts (ts/del ret-e) (ts/del v-e)
                                  (ts/add (assoc v-nd :db/id ret-e, ::parent pe))
-                                 (?reroute-source-map v-e ret-e)
+                                 (?copy-source-map v-e ret-e)
                                  (reparent-children v-e ret-e)
                                  (delete-point-recursively (uid->e ts mklocal-uid))
                                  (delete-ctor-nodes mklocal-uid)
@@ -1588,8 +1629,8 @@
                   ~@(->> (get-ordered-ctors-e ts)
                       (map #(emit-ctor ts % env nm))
                       (interleave (range))))))]
-    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint ret))
-    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint ret))
+    (when (and (::print-clj-source env) (= :clj (->env-type env))) (pprint-source ret))
+    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (pprint-source ret))
     ret))
 
 (defn ->ts [] (ts/->ts {::->id (->->id), ::->uid (->->id)}))
@@ -1612,6 +1653,6 @@
         source `(fn ([] ~(emit-fn ts (get-root-e ts) root-key))
                   ([idx#] (case idx# ~@(interleave (range) ctors)))
                   ([get# deps#] ~deps))]
-    (when (and (::print-clj-source env) (= :clj (->env-type env))) (fipp.edn/pprint source))
-    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (fipp.edn/pprint source))
+    (when (and (::print-clj-source env) (= :clj (->env-type env))) (pprint-source source))
+    (when (and (::print-cljs-source env) (= :cljs (->env-type env))) (pprint-source source))
     source))

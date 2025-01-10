@@ -110,7 +110,8 @@ Returns the successive states of items described by `incseq`.
         env (merge (meta nm) (lang/normalize-env &env) web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym) {::lang/node true})
         source (lang/->source env (-> nm ns-qualify keyword)
-                      `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next)))]
+                 (with-meta `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next))
+                   (meta &form)))]
     (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
     `(def ~nm2 ~source)))
 
