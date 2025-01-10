@@ -273,6 +273,10 @@ accept the previous token and retain the new one."
 
 (defn stop-err-propagation [token] (when token (fn ([] (token)) ([_err]))))
 
+(e/defn Amb->nil [table]
+  (when (e/Some? table)
+    table))
+
 (e/defn FormSubmit! ; dom/node must be a form
   [directive edits & {:keys [disabled show-button auto-submit genesis] :as props}]
   (e/client
@@ -330,7 +334,7 @@ accept the previous token and retain the new one."
           btn-t ; force let branch to force-mount button
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-            (Directive! directive edits (unify-t t btn-t))))
+            (Directive! directive edits (unify-t t (Amb->nil btn-t)))))
         (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
           (when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
           (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
@@ -384,7 +388,7 @@ accept the previous token and retain the new one."
            show-buttons (cond
                           (boolean? show-buttons) show-buttons
                           (nil? show-buttons) false
-                          (= ::smart (qualify show-buttons)) (not clean?))
+                          (= ::smart (qualify show-buttons)) (and (not clean?) (not auto-submit)))
 
            [form-t form-v field-validation :as form]
            (invert-fields-to-form edit-merge (e/as-vec edits))
