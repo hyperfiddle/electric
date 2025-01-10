@@ -125,11 +125,11 @@
       (if (identical? o o2)
         (if (electric-sym? (first o))
           (recur (?meta o (cons `e/$ o)) env caller)
-          (?meta o (cond->> (?meta o (list* (first o) (mapv (fn-> caller env) (rest o))))
+          (?meta o (cond->> (?meta o (list* (first o) (mapv #(caller (?meta o %) env) (next o))))
                      (and (or (::trace env) (::e/trace env)) (some-> (qualify-sym (first o) env) (traceable)))
                      (list `r/tracing (list 'quote (trace-crumb o env))))))
         (caller o2 env)))
-    (?meta o (list* (caller (first o) env) (mapv (fn-> caller env) (next o))))))
+    (?meta o (list* (caller (?meta o (first o)) env) (mapv #(caller (?meta o %) env) (next o))))))
 
 (defmacro $ [F & args]
   `(::call ((::static-vars r/dispatch) '~F ~F ~@(map (fn [arg] `(::pure ~arg)) args))))
@@ -257,13 +257,13 @@
     (if (find-local-entry env (first o))
       (if (electric-sym? (first o))
         (recur (?meta o (cons `$ o)) env)
-        (?meta o (list* (first o) (mapv (fn-> -expand-all env) (rest o)))))
+        (?meta o (list* (?meta o (first o)) (mapv #(-expand-all (?meta o %) env) (rest o)))))
       (case (first o)
         ;; (ns ns* deftype* defrecord* var)
 
         (do) (if (nnext o)
-               (let [body (mapv #(list `e/drain %) (next o))
-                     body (conj (pop body) (second (peek body)))] ; last arg isn't drained
+               (let [body (mapv #(?meta o (list `e/drain %)) (next o))
+                     body (conj (pop body) (?meta o (second (peek body))))] ; last arg isn't drained
                  (recur (?meta o (cons `e/amb body)) env))
                (recur (?meta o (second o)) env))
 
@@ -273,14 +273,14 @@
         (let*) (let [[_ bs & body] o
                      <env> (->box env)
                      f (fn [bs [sym v]]
-                         (let [env (<env>)] (<env> (add-local env sym)) (conj bs sym (-expand-all v env))))
+                         (let [env (<env>)] (<env> (add-local env sym)) (conj bs sym (-expand-all (?meta o v) env))))
                      bs2 (transduce (partition-all 2) (completing f) [] bs)]
                  (?meta o (list 'let* bs2 (-expand-all (?meta body (cons 'do body)) (<env>)))))
 
         (loop*) (let [[_ bs & body] o
                       [bs2 env2] (reduce
                                    (fn [[bs env] [sym v]]
-                                     [(conj bs sym (-expand-all v env)) (add-local env sym)])
+                                     [(conj bs sym (-expand-all (?meta o v) env)) (add-local env sym)])
                                    [[] env]
                                    (partition-all 2 bs))]
                   (recur (?meta o `(::call (r/bind-args (r/bind-self (::ctor (let [~@(interleave (take-nth 2 bs2)
@@ -296,13 +296,13 @@
         (let [[_ v & clauses] o
               has-default-clause? (odd? (count clauses))
               clauses2 (cond-> clauses has-default-clause? butlast)
-              xpand (fn-> -expand-all env)]
+              xpand #(-expand-all (?meta o %) env)]
           (?meta o (list* 'case (xpand v)
                      (cond-> (into [] (comp (partition-all 2) (mapcat (fn [[match expr]] [match (xpand expr)])))
                                clauses2)
                        has-default-clause? (conj (xpand (last clauses)))))))
 
-        (if) (let [[_ test then else] o, xpand (fn-> -expand-all env)]
+        (if) (let [[_ test then else] o, xpand #(-expand-all (?meta o %) env)]
                (?meta o (list 'case (xpand test) '(nil false) (xpand else) (xpand then))))
 
         (condp clojure.core/condp cljs.core/condp) (recur (?meta o (apply xplatform-condp (next o))) env)
@@ -315,7 +315,7 @@
                        env2 (reduce add-local env (take-nth 2 bs))
                        bs2 (->> bs (into [] (comp (partition-all 2)
                                               (mapcat (fn [[sym v]] [sym (-expand-all-foreign v env2)])))))]
-                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (cons 'do body) env2)))
+                   (recur (?meta o `(let [~(vec (take-nth 2 bs2)) (::cc-letfn ~bs2)] ~(-expand-all (?meta o (cons 'do body)) env2)))
                      env))
 
         (try) (throw (ex-info "try is TODO" {:o o})) #_(list* 'try (mapv (fn-> -all-in-try env) (rest o)))
@@ -325,23 +325,23 @@
 
         (binding clojure.core/binding)
         (let [[_ bs & body] o]
-          (?meta o (list 'binding (into [] (comp (partition-all 2) (mapcat (fn [[sym v]] [sym (-expand-all v env)]))) bs)
-                     (-expand-all (cons 'do body) env))))
+          (?meta o (list 'binding (into [] (comp (partition-all 2) (mapcat (fn [[sym v]] [sym (-expand-all (?meta o v) env)]))) bs)
+                     (-expand-all (?meta o (cons 'do body)) env))))
 
-        (set!) (?meta o (list 'set! (-expand-all (nth o 1) env) (-expand-all (nth o 2) env)))
+        (set!) (?meta o (list 'set! (-expand-all (?meta o (nth o 1)) env) (-expand-all (?meta o (nth o 2)) env)))
 
-        (::ctor) (?meta o (list ::ctor (list ::site nil (-expand-all (second o) env))))
+        (::ctor) (?meta o (list ::ctor (list ::site nil (-expand-all (?meta o (second o)) env))))
 
         (::site) (?meta o (seq (conj (into [] (take 2) o)
-                                 (-expand-all (cons 'do (drop 2 o)) (assoc env ::current (second o))))))
+                                 (-expand-all (?meta o (cons 'do (drop 2 o))) (assoc env ::current (second o))))))
 
         #_else (?expand-macro o env -expand-all)))
 
     (instance? cljs.tagged_literals.JSValue o)
-    (cljs.tagged_literals.JSValue. (-expand-all (.-val ^cljs.tagged_literals.JSValue o) env))
+    (cljs.tagged_literals.JSValue. (-expand-all (?meta o (.-val ^cljs.tagged_literals.JSValue o)) env))
 
-    (map-entry? o) (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (val o) env))
-    (coll? o) (?meta (meta o) (into (empty o) (map (fn-> -expand-all env)) o))
+    (map-entry? o) (?meta o (clojure.lang.MapEntry. (-expand-all (key o) env) (-expand-all (?meta o (val o)) env)))
+    (coll? o) (?meta o (into (?meta o (empty o)) (map #(-expand-all (?meta o %) env)) o))
     :else o))
 
 #_(defn -expand-all-in-try [o env]

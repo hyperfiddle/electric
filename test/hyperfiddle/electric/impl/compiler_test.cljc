@@ -432,8 +432,8 @@
              (einc (edec 0))))
     `[(r/cdef 0 [nil nil] [nil] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 'nil (r/pure ~'dec))
-          (r/define-node ~'frame 1 'nil (r/pure ~'inc))
+          (r/define-node ~'frame 0 '{} (r/pure ~'dec))
+          (r/define-node ~'frame 1 '{} (r/pure ~'inc))
           (r/define-call ~'frame 0
             (r/pure (r/bind (r/ctor ::Main 1)
                       ::einc (r/node ~'frame 0)
@@ -587,7 +587,7 @@
   (match (l/test-compile ::Main (e/client (inc clj-only)))
     `[(r/cdef 0 [:server] [] :client
         (fn [~'frame]
-          (r/define-node ~'frame 0 'nil
+          (r/define-node ~'frame 0 '{}
             (r/pure ~'clj-only))
           (r/ap '{} (r/pure r/cannot-resolve)
             (r/node ~'frame 0))))])
@@ -595,20 +595,20 @@
            (e/client (inc clj-only)))
     `[(r/cdef 0 [:server] [] :client
         (fn [~'frame]
-          (r/define-node ~'frame 0 'nil (r/pure r/cannot-resolve))
+          (r/define-node ~'frame 0 '{} (r/pure r/cannot-resolve))
           (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (merge e/web-config (lang/normalize-env {}) {:js-globals {}})
            (::lang/site nil (inc clj-only)))
     `[(r/cdef 0 [:server] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 'nil (r/pure r/cannot-resolve))
+          (r/define-node ~'frame 0 '{} (r/pure r/cannot-resolve))
           (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))])
   (match (l/test-compile ::Main (e/server (inc cljs-only)))
     `[(r/cdef 0 [:client] [] :server
         (fn [~'frame]
-          (r/define-node ~'frame 0 'nil (r/pure r/cannot-resolve))
+          (r/define-node ~'frame 0 '{} (r/pure r/cannot-resolve))
           (r/ap '{} (r/pure ~'inc)
             (r/node ~'frame 0))))]))
 

@@ -45,7 +45,7 @@
 
 (defmacro main {:style/indent 1} [conf & body]
   (ca/is conf map? "provide config map as first argument")
-  `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main `(e/fn [] (do ~@body)))}))
+  `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main (lang/?meta (first body) `(e/fn [] (do ~@body))))}))
 
 (def run-local
   (letfn [(subject [^objects state slot]
