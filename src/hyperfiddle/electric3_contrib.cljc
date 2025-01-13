@@ -43,3 +43,15 @@ Continuous flow of thunks -> incseq of 1 item containing result of the latest th
                             #(clojure.core/remove-tap !))))))))
 
 (e/defn Tap [] (e/server (e/input >tap)))
+
+(e/defn UnglitchC [x else]
+  (e/client
+    (let [[x clock] (e/with-cycle [[p c] [::init 0]]
+                      [x (if (= p x) c (inc c))])]
+      (e/Reconcile (if (= clock (e/server (identity clock))) x else)))))
+
+(e/defn UnglitchS [x else]
+  (e/server
+    (let [[x clock] (e/with-cycle [[p c] [::init 0]]
+                          [x (if (= p x) c (inc c))])]
+      (e/Reconcile (if (= clock (e/client (identity clock))) x else)))))
