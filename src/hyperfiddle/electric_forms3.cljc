@@ -149,63 +149,47 @@ accept the previous token and retain the new one."
      (e/for [i (IndexRing limit offset)]
        (OptionRenderer i)))))
 
-(defn -checked? [v x]
-  (when v (= v x)))
-
-(e/defn Radio! [k authoritative-v & {:keys [id option-label Options type Validate edit-monoid]
-                       :or {type :radio, Validate (e/fn [_]), edit-monoid hash-map}
-                       :as props}]
-  (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – value will be set in absence of a token – see below
-        [t v errors :as edit] (e/watch !selected)
-        validation-message (not-empty (str (Validate v)))
-        options (Options)]
+(e/defn Picker!
+  [k authoritative-v Body &
+   {:keys [as Validate edit-monoid]
+    :or {as :div, Validate (e/fn [_]), edit-monoid hash-map}
+    :as props}]
+  (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
+        [t selected errors :as edit] (e/watch !selected)]
     (reset! !selected
-      (dom/dl
-        (dom/props {:id id, :role "radiogroup", :data-errormessage validation-message
-                    :style {:--radiogroup-items-count (e/Count options)}})
-        (let [props (if (#{"radio" :radio} type) (assoc props :name k) props)]
-          (LatestEdit
-            (e/for [x options]
-              (let [id (random-uuid)]
-                (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
-                (dom/dd
-                  (Checkbox! x (-checked? v x) :id id :type type :label option-label
-                    :edit-monoid (fn [x _checked?] x)
-                    (dissoc props :id :type :option-label :Options :Validate)))))))))
+      (dom/With-element as
+        (e/fn []
+          (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate selected)))})
+          (Body selected))))
     (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
       [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
-       (edit-monoid k v)
+       (edit-monoid k selected)
        errors]
       (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
 
-(e/defn RadioPicker! [k authoritative-v & {:keys [id option-label Options type Validate edit-monoid]
-                       :or {type :radio, Validate (e/fn [_]), edit-monoid hash-map}
-                       :as props}]
-  (let [props (if (#{"radio" :radio} type) (assoc props :name k) props)
-        !selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – value will be set in absence of a token – see below
-        [t v errors :as edit] (e/watch !selected)
-        options (e/as-vec (Options)) ; all options are get rendered anyway. Look for TablePicker! otherwise.
-        options-count (count options)]
-    (reset! !selected
-      (dom/dl
-        (dom/props {:id id, :role "radiogroup", :data-errormessage (not-empty (str (Validate v)))
-                    :style {:--radiogroup-items-count options-count}})
-        (PickerOptions options-count
+(defn -checked? [v x]
+  (when v (= v x)))
+
+(e/defn RadioPicker!
+  [k authoritative-v
+   & {:keys [as option-label Options Validate edit-monoid]
+      :or   {as :dl, Validate (e/fn [_]), edit-monoid hash-map}
+      :as   props}]
+  (Picker! k authoritative-v
+    (e/fn [selected-index]
+      (let [options (e/as-vec (Options))] ; all options get rendered anyway. Look for TablePicker! otherwise.
+        (PickerOptions (count options)
           (e/fn [index]
             (let [x  (get options index)
                   id (random-uuid)]
               (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
               (dom/dd
-                (Checkbox! x (-checked? v x) :id id :type type :label option-label
-                  :edit-monoid (fn [x _checked?] x)
-                  (dissoc props :id :type :option-label :Options :Validate))))))))
-    (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
-      [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
-       (edit-monoid k v)
-       errors]
-      (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
+                (Checkbox! x (-checked? selected-index x) :id id, :name k, :type :radio, :label option-label
+                  :edit-monoid (fn [x _checked?] x))))))))
+    :as as
+    props))
 
-(e/declare Directive!)
+(e/defn ^:deprecated Radio! "Deprecated in favor of `RadioPicker!`" [k authoritative-v & {:as props}] (RadioPicker! k authoritative-v props))
 
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
@@ -215,33 +199,26 @@ accept the previous token and retain the new one."
       :as props}]
   (dom/div
     (dom/props {:class "Viewport", :style {:height "96px"}}) ; TODO cleanup
+    (dom/props (dissoc props :Validate :edit-monoid))
     (let [row-height 24 ; TODO parameterize
-          [offset limit] (Scroll-window row-height record-count dom/node {})
-          !selected (atom [nil (e/snapshot authoritative-v) nil])
-          [t v errors] (e/watch !selected)]
-      (reset! !selected
-        (dom/table
-          (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}
-                      :aria-role "radiogroup"
-                      :data-errormessage (not-empty (str (Validate v)))})
-          (dom/props (dissoc props :Validate :edit-monoid))
-          (PickerOptions offset limit
-            (e/fn [index] ; render all rows even when record-count < limit
-              (dom/tr
-                (dom/props {:aria-role "radio"
-                            :style {:--order (inc index)}
-                            :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
-                (dom/props {:tabindex "0" :aria-checked (= index v)})
-                (Row index)
-                (let [[t _err] (e/Token (dom/On "focus" identity nil))]
-                  (e/When t [t index])))))))
-      (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
-                                                  (* row-height (- record-count limit)) 0) "px")}}))
-      (if (some? t)
-        [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil)))
-         (edit-monoid k v)
-         errors]
-        (do (swap! !selected assoc 1 authoritative-v) (e/amb))))))
+          [offset limit] (Scroll-window row-height record-count dom/node {})]
+      (e/amb
+        (Picker! k authoritative-v
+          (e/fn [selected-index]
+            (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}})
+            (PickerOptions offset limit
+              (e/fn [index] ; render all rows even when record-count < limit
+                (dom/tr
+                  (dom/props {:role "radio"
+                              :style {:--order (inc index)}
+                              :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
+                  (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+                  (Row index)
+                  (let [[t _err] (e/Token (dom/On "focus" identity nil))] ;; TODO use aria-compliant checkbox selection event (e.g. click + keypress on <SPC>)
+                    (e/When t [t index]))))))
+          :as :table)
+        (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
+                                                    (* row-height (- record-count limit)) 0) "px")}}))))))
 
 ;;; Edit/action -> command mapping
 
