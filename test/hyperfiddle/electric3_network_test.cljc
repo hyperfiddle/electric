@@ -14,16 +14,17 @@
 (defmacro with-electric [[tap step] opts eform & body]
   (let [ngn (gensym "engine")]
     `(let [~ngn (l/->engine ~opts), ~tap #(l/tap ~ngn %), ~step #(l/step ~ngn %)]
-       (l/spawn ~ngn (l/local-ngn ~opts ~ngn ~eform))
-       ~@body
-       ~(when (= :full (:debug opts)) `(prn 'cancel-engine))
-       ~@(if (:skip-cancel opts)
-           `[(t/is (= 1 1))]
-           `[(l/cancel ~ngn)
-             (let [[t# ret#] (try [:ok (l/step ~ngn (constantly true))]
-                                  (catch ~(if (:js-globals &env) :default `Throwable) e# [:ex e#]))]
-               (t/is (= :ex t#))
-               (t/is (instance? Cancelled ret#)))])
+       (t/testing (str "[seed " (-> ~ngn l/->info :seed) "]")
+         (l/spawn ~ngn (l/local-ngn ~opts ~ngn ~eform))
+         ~@body
+         ~(when (= :full (:debug opts)) `(prn 'cancel-engine))
+         ~@(if (:skip-cancel opts)
+             `[(t/is (= 1 1))]
+             `[(l/cancel ~ngn)
+               (let [[t# ret#] (try [:ok (l/step ~ngn (constantly true))]
+                                    (catch ~(if (:js-globals &env) :default `Throwable) e# [:ex e#]))]
+                 (t/is (= :ex t#))
+                 (t/is (instance? Cancelled ret#)))]))
        #_(t/is (~'thrown? Cancelled (l/step ~ngn (constantly true)))))))
 
 (t/deftest simple-transfer
@@ -43,6 +44,20 @@
           (step #{true})
           (swap! !x not)
           (step #{'not-x})))))
+
+(t/deftest if-glitch-2
+  (let [!x (atom true)]
+    (with-electric [tap step] {:seed 4548796385789271096}
+        (e/client
+          (let [x (e/watch !x)]
+            (if x
+              (e/server (tap ['x x]))
+              (tap 'not-x))))
+      (step #{['x true]})
+      (swap! !x not)
+      (step #{'not-x})
+      ;; (step #{['x false]})              ; happens but shouldn't
+        )))
 
 (t/deftest there-and-back
   (with-electric [tap step] {} (tap (e/server (e/call (e/fn [] (e/client 2)))))
