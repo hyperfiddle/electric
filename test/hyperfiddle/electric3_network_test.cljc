@@ -30,6 +30,20 @@
   (with-electric [tap step] {} (tap (e/server 1))
     (step #{1})))
 
+(t/deftest if-glitch
+  (dotimes [_ 10]
+    (let [!x (atom true)]
+      (with-electric [tap step] {}
+          (e/client
+            (let [x (e/watch !x)]
+              (if x
+                (let [y (tap x)]
+                  (e/server (identity y)))
+                (tap 'not-x))))
+          (step #{true})
+          (swap! !x not)
+          (step #{'not-x})))))
+
 (t/deftest there-and-back
   (with-electric [tap step] {} (tap (e/server (e/call (e/fn [] (e/client 2)))))
     (step #{2})))
