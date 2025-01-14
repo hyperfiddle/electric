@@ -154,6 +154,7 @@ accept the previous token and retain the new one."
    {:keys [as Validate edit-monoid]
     :or {as :div, Validate (e/fn [_]), edit-monoid hash-map}
     :as props}]
+  #_(prn "picekr props" props)
   (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
         [t selected errors :as edit] (e/watch !selected)]
     (reset! !selected
@@ -187,6 +188,8 @@ accept the previous token and retain the new one."
                 (Checkbox! x (-checked? selected-index x) :id id, :name k, :type :radio, :label option-label
                   :edit-monoid (fn [x _checked?] x))))))))
     :as as
+    :edit-monoid edit-monoid
+    :Validate Validate
     props))
 
 (e/defn ^:deprecated Radio! "Deprecated in favor of `RadioPicker!`" [k authoritative-v & {:as props}] (RadioPicker! k authoritative-v props))
@@ -198,16 +201,16 @@ accept the previous token and retain the new one."
       :or {Validate (e/fn [_]), edit-monoid hash-map}
       :as props}]
   (dom/div
-    (dom/props {:class "Viewport", :style {:height "96px"}}) ; TODO cleanup
+    (dom/props {:class "Viewport", #_#_:style {:height "96px"}}) ; TODO cleanup
     (dom/props (dissoc props :Validate :edit-monoid))
     (let [row-height 24 ; TODO parameterize
           [offset limit] (Scroll-window row-height record-count dom/node {})]
       (e/amb
         (Picker! k authoritative-v
-          (e/fn [selected-index]
+          (e/fn PickerBody [selected-index]
             (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}})
             (PickerOptions offset limit
-              (e/fn [index] ; render all rows even when record-count < limit
+              (e/fn PickerRow [index] ; render all rows even when record-count < limit
                 (dom/tr
                   (dom/props {:role "radio"
                               :style {:--order (inc index)}
@@ -216,7 +219,10 @@ accept the previous token and retain the new one."
                   (Row index)
                   (let [[t _err] (e/Token (dom/On "focus" identity nil))] ;; TODO use aria-compliant checkbox selection event (e.g. click + keypress on <SPC>)
                     (e/When t [t index]))))))
-          :as :table)
+          :as :table
+          :edit-monoid edit-monoid
+          :Validate Validate
+          props)
         (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
                                                     (* row-height (- record-count limit)) 0) "px")}}))))))
 
@@ -587,3 +593,20 @@ accept the previous token and retain the new one."
           nil (prn `res-was-nil-stop!)
           ::ok (t) ; sentinel, any other value is an error
           (t ::rejected)))))) ; feed error back into control to prompt for retry
+
+(e/defn Interpreter
+  ([commands] ; as in free monad command – recipes for effects
+   (Interpreter (or effects* {}) commands))
+  ([effects commands]
+   (e/client ; client bias, t doesn't transfer
+     #_(prn `Interpreter (e/Count commands) 'commands (e/as-vec (second commands)))
+     (e/for [[t [effect & args] guess :as command] commands]
+       (if-let [Effect (effects effect)]
+         (let [res (e/Apply Effect args)]
+           (prn 'final-res res)
+           (case res
+             nil nil #_(prn `res-was-nil-stop!)
+             ::ok (t)
+             (t ::rejected))
+           (e/amb))
+         command)))))
