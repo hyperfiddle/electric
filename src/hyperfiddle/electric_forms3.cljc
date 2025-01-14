@@ -4,7 +4,8 @@
             [contrib.str :refer [pprint-str]]
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
-            [hyperfiddle.electric-dom3 :as dom]))
+            [hyperfiddle.electric-dom3 :as dom]
+            [hyperfiddle.electric-scroll0 :refer [Scroll-window IndexRing]]))
 
 ;;; Simple controlled inputs (dataflow circuits)
 
@@ -140,6 +141,14 @@ accept the previous token and retain the new one."
       (swap! !latest (fn [[old-t _old-v] new] (when old-t (old-t)) new) edits))
     (e/When latest latest)))
 
+(e/defn PickerOptions
+  ([options-count OptionRenderer] ; no pagination, render all options
+   (PickerOptions 0 options-count OptionRenderer))
+  ([offset limit OptionRenderer] ; scroll-like pagination
+   (LatestEdit
+     (e/for [i (IndexRing limit offset)]
+       (OptionRenderer i)))))
+
 (defn -checked? [v x]
   (when v (= v x)))
 
@@ -168,6 +177,71 @@ accept the previous token and retain the new one."
        (edit-monoid k v)
        errors]
       (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
+
+(e/defn RadioPicker! [k authoritative-v & {:keys [id option-label Options type Validate edit-monoid]
+                       :or {type :radio, Validate (e/fn [_]), edit-monoid hash-map}
+                       :as props}]
+  (let [props (if (#{"radio" :radio} type) (assoc props :name k) props)
+        !selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – value will be set in absence of a token – see below
+        [t v errors :as edit] (e/watch !selected)
+        options (e/as-vec (Options)) ; all options are get rendered anyway. Look for TablePicker! otherwise.
+        options-count (count options)]
+    (reset! !selected
+      (dom/dl
+        (dom/props {:id id, :role "radiogroup", :data-errormessage (not-empty (str (Validate v)))
+                    :style {:--radiogroup-items-count options-count}})
+        (PickerOptions options-count
+          (e/fn [index]
+            (let [x  (get options index)
+                  id (random-uuid)]
+              (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
+              (dom/dd
+                (Checkbox! x (-checked? v x) :id id :type type :label option-label
+                  :edit-monoid (fn [x _checked?] x)
+                  (dissoc props :id :type :option-label :Options :Validate))))))))
+    (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
+      [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
+       (edit-monoid k v)
+       errors]
+      (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
+
+(e/declare Directive!)
+
+(e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
+  ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
+  [k authoritative-v record-count Row
+   & {:keys [Validate edit-monoid]
+      :or {Validate (e/fn [_]), edit-monoid hash-map}
+      :as props}]
+  (dom/div
+    (dom/props {:class "Viewport", :style {:height "96px"}}) ; TODO cleanup
+    (let [row-height 24 ; TODO parameterize
+          [offset limit] (Scroll-window row-height record-count dom/node {})
+          !selected (atom [nil (e/snapshot authoritative-v) nil])
+          [t v errors] (e/watch !selected)]
+      (reset! !selected
+        (dom/table
+          (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}
+                      :aria-role "radiogroup"
+                      :data-errormessage (not-empty (str (Validate v)))})
+          (dom/props (dissoc props :Validate :edit-monoid))
+          (PickerOptions offset limit
+            (e/fn [index] ; render all rows even when record-count < limit
+              (dom/tr
+                (dom/props {:aria-role "radio"
+                            :style {:--order (inc index)}
+                            :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
+                (dom/props {:tabindex "0" :aria-checked (= index v)})
+                (Row index)
+                (let [[t _err] (e/Token (dom/On "focus" identity nil))]
+                  (e/When t [t index])))))))
+      (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
+                                                  (* row-height (- record-count limit)) 0) "px")}}))
+      (if (some? t)
+        [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil)))
+         (edit-monoid k v)
+         errors]
+        (do (swap! !selected assoc 1 authoritative-v) (e/amb))))))
 
 ;;; Edit/action -> command mapping
 
