@@ -489,6 +489,10 @@ input's value, use `EventListener`."
   ([] (Focused? node))
   ([node] (e/client (e/input (squarewave node "focus" "blur" (= node (.-activeElement js/document)))))))
 
+(e/defn Focused-in?
+  ([] (Focused-in? node))
+  ([node] (e/client (e/input (squarewave node "focusin" "focusout" (= node (.-activeElement js/document)))))))
+
 (e/defn Mouse-down?
   ([] (Mouse-down? node))
   ([node] (e/client (e/input (squarewave node "mousedown" "mouseup" false)))))

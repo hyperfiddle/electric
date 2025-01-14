@@ -157,16 +157,18 @@ accept the previous token and retain the new one."
   #_(prn "picekr props" props)
   (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
         [t selected errors :as edit] (e/watch !selected)]
-    (reset! !selected
-      (dom/With-element as
-        (e/fn []
-          (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate selected)))})
-          (Body selected))))
-    (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
-      [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
-       (edit-monoid k selected)
-       errors]
-      (do (swap! !selected assoc 1 authoritative-v) (e/amb)))))
+    (dom/With-element as
+      (e/fn []
+        (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate selected)))})
+        (reset! !selected (Body selected))
+        (let [focused? (dom/Focused-in?)]
+          (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
+            [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
+             (edit-monoid k selected)
+             errors]
+            (e/When (not focused?)
+              (swap! !selected assoc 1 authoritative-v)
+              (e/amb))))))))
 
 (defn -checked? [v x]
   (when v (= v x)))
