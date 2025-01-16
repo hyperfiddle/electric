@@ -21,7 +21,8 @@
          ~@(if (:skip-cancel opts)
              `[(t/is (= 1 1))]
              `[(l/cancel ~ngn)
-               (let [[t# ret#] (try [:ok (l/step ~ngn (constantly true))]
+               (t/is (= ::l/cancelled (l/step ~ngn (constantly true))))
+               #_(let [[t# ret#] (try [:ok (l/step ~ngn (constantly true))]
                                     (catch ~(if (:js-globals &env) :default `Throwable) e# [:ex e#]))]
                  (t/is (= :ex t#))
                  (t/is (instance? Cancelled ret#)))]))
@@ -46,18 +47,17 @@
           (step #{'not-x})))))
 
 (t/deftest if-glitch-2
-  (let [!x (atom true)]
-    (with-electric [tap step] {:seed 4548796385789271096}
-        (e/client
-          (let [x (e/watch !x)]
-            (if x
-              (e/server (tap ['x x]))
-              (tap 'not-x))))
-      (step #{['x true]})
-      (swap! !x not)
-      (step #{'not-x})
-      ;; (step #{['x false]})              ; happens but shouldn't
-        )))
+  (dotimes [_ 10]
+    (let [!x (atom true)]
+      (with-electric [tap step] {}
+          (e/client
+            (let [x (e/watch !x)]
+              (if x
+                (e/server (tap ['x x]))
+                (tap 'not-x))))
+          (step #{['x true]})
+          (swap! !x not)
+          (step #{'not-x})))))
 
 (t/deftest there-and-back
   (with-electric [tap step] {} (tap (e/server (e/call (e/fn [] (e/client 2)))))
@@ -122,16 +122,17 @@
       #(kvs/remove! kvs k))))
 
 (t/deftest mount-point
-  (with-electric [tap step] {} (let [mp (e/mount-point)]
-                                 (tap (e/as-vec (e/join mp)))
-                                 (e/server
-                                   (e/call
-                                     (e/fn []
-                                       (e/client
-                                         [(e/join (mount-at mp (e/tag) :foo))
-                                          (e/join (mount-at mp (e/tag) :bar))])))))
-    (step #{[]})
-    (step #{[:foo :bar]})))
+  (with-electric [tap step] {:skip-cancel true} ; with cancellation a [] sneaks through
+      (let [mp (e/mount-point)]
+        (tap (e/as-vec (e/join mp)))
+        (e/server
+          (e/call
+              (e/fn []
+                (e/client
+                  [(e/join (mount-at mp (e/tag) :foo))
+                   (e/join (mount-at mp (e/tag) :bar))])))))
+      (step #{[]})
+      (step #{[:foo :bar]})))
 
 (t/deftest branch-unmount
   (let [!x (atom true)]

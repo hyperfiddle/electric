@@ -113,7 +113,7 @@
      (reify Engine
        (add-proc [_ proc] (swap! !proc* conj proc))
        (del-proc [_ proc] (swap! !proc* (fn [proc*] (filterv #(not= % proc) proc*))))
-       (tap [_ v] (when (nil? v) (prn 'tap v)) (swap! !q conj v))
+       (tap [_ v] (swap! !q conj v))
        (->rng [_] rng)
        (->opts [_] o)
        (->info [_] {:seed seed, :steps @!n})
@@ -121,9 +121,14 @@
        (spawn [this flow]
          (let [flow (fpe/enforce {:name 'root, :on-violate dt/on-violate}
                       (cond->> flow (-> this ->opts :debug) (dbg/instrument* 'root dbgf)))]
-           (reset! !root (flow #(reset! !s :step) #(reset! !s :done)))
+           (reset! !root ((m/reduce (fn [_ _] (reset! !s :step)) nil flow) {} {}))
+           #_(reset! !root ((->> flow
+                            ;; workaround for https://www.notion.so/hyperfiddle/delayed-local-sampling-of-a-conditional-can-glitch-on-remote-peer-17db4d1e85d18038bfcff5d5c0bbe847?pvs=4
+                            (m/latest identity)          ; collapse consecutive transfers
+                            (m/eduction (map identity))) ; consume eagerly
+                          #(reset! !s :step) #(reset! !s :done)))
            nil))
-       (cancel [_] (@!root))
+       (cancel [this] (@!root) (tap this ::cancelled))
        (step [_ pred]
          ;; (prn 'q-before-step (into [] @!q))
          (try
@@ -135,7 +140,7 @@
                              (do (swap! !q pop) v)
                              (throw (ex-info (str "value " (pr-str v) " doesn't match predicate " pred) {:seed seed, :steps @!n, :value v, :predicate pred}))))
                          (if (= :step @!s)
-                           (do (reset! !s nil) @@!root (recur #{} @!proc*))
+                           (do (reset! !s nil) #_@@!root (recur #{} @!proc*))
                            (if (and (not= :done @!s) (seq proc*))
                              (let [n (rng (count proc*)), proc (nth proc* n)]
                                (if (proc (rng))
