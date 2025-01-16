@@ -154,7 +154,6 @@ accept the previous token and retain the new one."
    {:keys [as Validate edit-monoid]
     :or {as :div, Validate (e/fn [_]), edit-monoid hash-map}
     :as props}]
-  #_(prn "picekr props" props)
   (let [!selected (atom [nil (e/snapshot authoritative-v) nil]) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
         [t selected errors :as edit] (e/watch !selected)]
     (dom/With-element as
@@ -162,6 +161,9 @@ accept the previous token and retain the new one."
         (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate selected)))})
         (reset! !selected (Body selected))
         (let [focused? (dom/Focused-in?)]
+          focused? ; force event handler - temporary
+          ;; TODO use focused? to put focus on aria-checked element on focus enter
+          ;; TODO intercept arrow keys to focus next/previous/first/last checkable elements.
           (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
             [(after-ack t (fn after [] (swap! !selected assoc 0 nil 2 nil))) ; clear token and error, don't touch value
              (edit-monoid k selected)
@@ -219,7 +221,9 @@ accept the previous token and retain the new one."
                               :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
                   (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
                   (Row index)
-                  (let [[t _err] (e/Token (dom/On "focus" identity nil))] ;; TODO use aria-compliant checkbox selection event (e.g. click + keypress on <SPC>)
+                  (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
+                                            (dom/On "click" identity nil) ;;
+                                            (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
                     (e/When t [t index]))))))
           :as :table
           :edit-monoid edit-monoid

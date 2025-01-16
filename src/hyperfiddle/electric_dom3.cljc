@@ -475,27 +475,32 @@ input's value, use `EventListener`."
 ;; Extras ;;
 ;;;;;;;;;;;;
 
-#?(:cljs (defn squarewave [node enter-event leave-event init]
+#?(:cljs (defn squarewave [node enter-event leave-event init f]
            (->> (mx/mix
-                  (m/observe (fn [!] (events/with-listener node enter-event (fn [_] (! true)))))
-                  (m/observe (fn [!] (events/with-listener node leave-event (fn [_] (! false))))))
+                  (m/observe (fn [!] (events/with-listener node enter-event (fn [e] (some-> (f enter-event e) !)))))
+                  (m/observe (fn [!] (events/with-listener node leave-event (fn [e] (some-> (f leave-event e) !))))))
              (m/reductions {} init) (m/relieve {}))))
 
 (e/defn Mouse-over?
   ([] (Mouse-over? node))
-  ([node] (e/client (e/input (squarewave node "mouseenter" "mouseleave" false)))))
+  ([node] (e/client (e/input (squarewave node "mouseenter" "mouseleave" false {"mouseenter" true, "mouseleave" false})))))
 
 (e/defn Focused?
   ([] (Focused? node))
-  ([node] (e/client (e/input (squarewave node "focus" "blur" (= node (.-activeElement js/document)))))))
+  ([node] (e/client (e/input (squarewave node "focus" "blur" (= node (.-activeElement js/document)) {"focus" true, "blur" false})))))
 
 (e/defn Focused-in?
   ([] (Focused-in? node))
-  ([node] (e/client (e/input (squarewave node "focusin" "focusout" (= node (.-activeElement js/document)))))))
+  ([node] (Focused-in? node (fn [event-type ^js event]
+                              ;; focus from outside, blur to outside of container – ignore internal focus/blur between children.
+                              (when (not (.contains node (.-relatedTarget event)))
+                                ({"focusin" true, "focusout" false} event-type)))))
+  ([node f]
+   (e/client (e/input (squarewave node "focusin" "focusout" (= node (.-activeElement js/document)) f)))))
 
 (e/defn Mouse-down?
   ([] (Mouse-down? node))
-  ([node] (e/client (e/input (squarewave node "mousedown" "mouseup" false)))))
+  ([node] (e/client (e/input (squarewave node "mousedown" "mouseup" false {"mousedown" true, "mouseup" false})))))
 
 ;;;;;;;;;;;
 ;; Sugar ;;
