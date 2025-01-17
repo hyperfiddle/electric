@@ -30,3 +30,11 @@
        nil)))
 
 #?(:clj (defn slurp-safe [filename] (try-nil (slurp filename))))
+
+(defn call [f & args] (apply f args))
+
+(tests
+  (apply inc [1]) := 2
+  (call inc 1) := 2
+  (-> (partial inc 1) call) := 2
+  (some-> nil call) := nil)
