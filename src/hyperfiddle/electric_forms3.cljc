@@ -601,8 +601,7 @@ accept the previous token and retain the new one."
           (t ::rejected)))))) ; feed error back into control to prompt for retry
 
 (e/defn Interpreter
-  ([commands] ; as in free monad command – recipes for effects
-   (Interpreter (or effects* {}) commands))
+  ([commands] (Interpreter (or effects* {}) commands))
   ([effects commands]
    (e/client ; client bias, t doesn't transfer
      #_(prn `Interpreter (e/Count commands) 'commands (e/as-vec (second commands)))
