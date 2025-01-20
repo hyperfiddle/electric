@@ -269,7 +269,7 @@ On unmount:
 
 (def LAST-PROPS
   "Due to a bug in both Webkit and FF, input type range's knob renders in the
-  wrong place if value is set after `min` and `max`, and `max` is above 100.
+  wrong place if value is set before `min` and `max`, and `max` is above 100.
   Other UI libs circumvent this issue by setting `value` last."
   [:value ::value])
 
