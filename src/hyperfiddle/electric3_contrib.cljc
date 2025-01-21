@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric3-contrib
   "Experimental operators under consideration for inclusion in electric core"
-  (:require [hyperfiddle.electric3 :as e]
+  (:require [contrib.missionary-contrib :as mx]
+            [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
             [missionary.core :as m]))
 
@@ -21,6 +22,8 @@
 (e/defn Sleep
   ([ms x] (e/Task (m/sleep ms x)))
   ([ms] (Sleep ms nil)))
+
+(e/defn Throttle [ms x] (e/input (mx/throttle ms (Outputs x))))
 
 (e/defn Latch-stale [x]
   (let [!cache (atom [])]
