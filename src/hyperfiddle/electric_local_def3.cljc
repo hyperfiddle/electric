@@ -41,6 +41,9 @@
   (ca/is conf map? "provide config map as first argument")
   `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main (lang/?meta (first body) `(e/fn [] (do ~@body))))}))
 
+(defn fastest [& args]
+  (m/absolve (apply m/race (map m/attempt args))))
+
 (def run-local
   (letfn [(subject [^objects state slot]
             (fn [cb] (aset state slot cb) #()))
@@ -50,28 +53,35 @@
             (m/reduce (fn ([] (aget state slot))
                         ([cb x] (cb x) cb))
               (m/zip {} latency events)))]
-    (fn [[client-read-clock client-write-clock] [server-read-clock server-write-clock] defs main]
+    (fn [result-sample-clock
+         client-reader-clock client-writer-clock
+         server-reader-clock server-writer-clock
+         defs main]
       (let [state (doto (object-array 4)
                     (aset 0 (m/mbx))                        ;; client->server
-                    (aset 1 (m/mbx)))]                      ;; server->client
-        (m/join (constantly nil)
+                    (aset 1 (m/mbx)))                       ;; server->client
+            peer (r/make-peer :client {} (subject state 2) defs main nil)]
+        (fastest
+          (m/reduce (constantly nil) (m/zip {} result-sample-clock (r/peer-root peer)))
           ;; client process. Pushes its events into mbx at idx 0. Registers callback at idx 2
-          (r/peer-boot (r/make-peer :client {} (subject state 2) defs main nil)
-            (partial writer state 0 client-write-clock))
+          (writer state 0 client-writer-clock (r/peer-events peer))
           ;; server process. Pushes its events into mbx at idx 1. Registers callback at idx 3
-          (writer state 1 server-write-clock
+          (writer state 1 server-writer-clock
             (r/peer-events (r/make-peer :server {} (subject state 3) defs main nil)))
           ;; polls the client->server mailbox and pushes values in the server callback
-          (writer state 3 server-read-clock (reader state 0))
+          (writer state 3 server-reader-clock (reader state 0))
           ;; polls the server->client mailbox and pushes values in the client callback
-          (writer state 2 client-read-clock (reader state 1)))))))
+          (writer state 2 client-reader-clock (reader state 1)))))))
 
-(def immediate [(m/seed (repeat nil)) (m/seed (repeat nil))])
+(def immediate (m/seed (repeat nil)))
 
 (defmacro local {:style/indent 1} [conf & body]
   `(run-local
-     ~(::lang/client-clock conf `immediate)
-     ~(::lang/server-clock conf `immediate)
+     ~(::lang/result-sample-clock conf `immediate)
+     ~(::lang/client-reader-clock conf `immediate)
+     ~(::lang/client-writer-clock conf `immediate)
+     ~(::lang/server-reader-clock conf `immediate)
+     ~(::lang/server-writer-clock conf `immediate)
      (main ~conf ~@body) ::Main))
 
 (defprotocol Engine

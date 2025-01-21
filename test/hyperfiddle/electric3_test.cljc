@@ -2441,26 +2441,28 @@
                     (swap! !clocks assoc k !)
                     #(swap! !clocks dissoc k))))
         tick (fn [k] ((@!clocks k) nil))]
-    ((l/local {::lang/client-clock [(clock :client-read) (clock :client-write)]
-               ::lang/server-clock [(clock :server-read) (clock :server-write)]}
+    ((l/local {::lang/client-reader-clock (clock :client-reader)
+               ::lang/client-writer-clock (clock :client-writer)
+               ::lang/server-reader-clock (clock :server-reader)
+               ::lang/server-writer-clock (clock :server-writer)}
        (let [x (e/watch !x)]
          (when (e/watch !y)
            (e/server [(identity x)
                       (when (e/watch !z) x)]))))
      tap tap)
-    (tick :client-write)
-    (tick :server-read)
-    (tick :server-write)
+    (tick :client-writer)
+    (tick :server-reader)
+    (tick :server-writer)
     (swap! !z not)
-    (tick :server-write)
+    (tick :server-writer)
     (swap! !y not)
-    (tick :client-write)
-    (tick :client-read)
-    (tick :client-read)
-    (tick :server-read)
-    (tick :server-write)
-    (tick :client-read)
-    (tick :client-write)
+    (tick :client-writer)
+    (tick :client-reader)
+    (tick :client-reader)
+    (tick :server-reader)
+    (tick :server-writer)
+    (tick :client-reader)
+    (tick :client-writer)
     (tap :done)
     % := :done))
 
@@ -2475,8 +2477,8 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))]
-    ((l/local {::lang/client-clock [(clock :client) (m/seed (repeat nil))]
-               ::lang/server-clock [(clock :server) (m/seed (repeat nil))]}
+    ((l/local {::lang/client-reader-clock (clock :client)
+               ::lang/server-reader-clock (clock :server)}
        (let [x (e/server (e/watch !x))]
          (when (e/watch !y) (identity x))
          (e/server (when (e/watch !z) (e/client (identity x))))))
@@ -2533,8 +2535,10 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
-                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
+                      ::lang/client-writer-clock (clock :client-writer)
+                      ::lang/server-reader-clock (clock :server-reader)
+                      ::lang/server-writer-clock (clock :server-writer)}
               (if (e/watch !x) (e/server (tap :branch)) (tap :unmount)))
             tap tap)]
     (tick :client-writer)
@@ -2566,8 +2570,10 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
-                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
+                      ::lang/client-writer-clock (clock :client-writer)
+                      ::lang/server-reader-clock (clock :server-reader)
+                      ::lang/server-writer-clock (clock :server-writer)}
               (e/server
                 (e/for [x (e/diff-by {} (range (e/watch !x)))]
                   (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
@@ -2594,8 +2600,10 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-clock [(clock :client-reader) (clock :client-writer)]
-                      ::lang/server-clock [(clock :server-reader) (clock :server-writer)]}
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
+                      ::lang/client-writer-clock (clock :client-writer)
+                      ::lang/server-reader-clock (clock :server-reader)
+                      ::lang/server-writer-clock (clock :server-writer)}
               (e/server
                 (e/for [x (e/diff-by {} (range (e/watch !x)))]
                   (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
@@ -2661,8 +2669,8 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-clock [(clock :client-reader) (m/seed (repeat nil))]
-                      ::lang/server-clock [(clock :server-reader) (m/seed (repeat nil))]}
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
+                      ::lang/server-reader-clock (clock :server-reader)}
               (e/for [x (e/diff-by {} (range (e/watch !x)))]
                 (e/server (tap x)))) tap tap)]
     (tick :server-reader)
@@ -2694,7 +2702,7 @@
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
         tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-clock [(clock :client-reader) (m/seed (repeat nil))]}
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)}
               (let [x (e/server (inc (e/client (e/watch !x))))]
                 (when (e/watch !c) x)))
             prn prn)]
