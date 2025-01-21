@@ -133,3 +133,10 @@
       % := {:degree 7, :permutation {}, :grow 0, :shrink 0, :change {0 -7, 1 -6, 2 -5, 3 -4, 4 -3, 5 -2}, :freeze #{}}
       )))
 
+;; NOTE: output is weird when size isn't divisible by step
+;; For now it's up to the user to provide correct values
+(let [ring (fn ring [size offset step]
+             (let [start (- size offset)]
+               (mapv #(+ offset (mod % size)) (range start (+ size start) step))))]
+  (e/defn Ring [size offset step]
+    (e/diff-by {} (ring size offset step))))
