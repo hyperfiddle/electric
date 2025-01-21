@@ -157,12 +157,12 @@ accept the previous token and retain the new one."
    {:keys [as Validate edit-monoid]
     :or {as :div, Validate (e/fn [_]), edit-monoid hash-map}
     :as props}]
-  (let [!selected (atom {::token nil, ::selected (e/snapshot authoritative-v), ::validation nil}) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
-        {::keys [token selected validation]} (e/watch !selected)]
+  (let [!selected (atom {::token nil, ::value (e/snapshot authoritative-v), ::validation nil}) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
+        {::keys [token value validation]} (e/watch !selected)]
     (dom/With-element as
       (e/fn []
-        (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate selected)))})
-        (reset! !selected (Body selected))
+        (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate value)))})
+        (reset! !selected (Body value))
         (let [focused? (dom/Focused-in?)]
           focused? ; force event handler - temporary
           ;; TODO use focused? to put focus on aria-checked element on focus enter
@@ -170,10 +170,10 @@ accept the previous token and retain the new one."
           (if (some? token) ; "don't damage user input" – only track authoritative value in absence of a token
             {::token (after-ack token (fn after [] (swap! !selected assoc ::token nil ::validation nil)))
              ::name k
-             ::value selected
+             ::value value
              ::validation validation}
             (e/When (not focused?)
-              (swap! !selected assoc ::selected authoritative-v)
+              (swap! !selected assoc ::value authoritative-v)
               (e/amb))))))))
 
 (defn -checked? [v x]
@@ -194,8 +194,8 @@ accept the previous token and retain the new one."
               (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
               (dom/dd
                 (-> (Checkbox! x (-checked? selected-index x) :id id, :name k, :type :radio, :label option-label)
-                  (assoc ::selected x)
-                  (dissoc x))))))))
+                  (assoc ::value x)
+                  #_(dissoc x))))))))
     :as as
     :edit-monoid edit-monoid
     :Validate Validate
@@ -229,7 +229,7 @@ accept the previous token and retain the new one."
                   (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
                                             (dom/On "click" identity nil) ;;
                                             (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
-                    (e/When t [t index]))))))
+                    (e/When t {::token t, ::value index}))))))
           :as :table
           :edit-monoid edit-monoid
           :Validate Validate
