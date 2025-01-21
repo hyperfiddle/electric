@@ -2705,3 +2705,16 @@
     (tick :client-reader)
     (tick :client-reader)
     (tick :client-reader)))
+
+(tests "reentrant propagation glitch"
+  (let [!q (atom true)
+        ps ((l/local {}
+              (let [!r (atom true)
+                    b (e/watch !r)]
+                (reset! !r (e/server (e/watch !q)))
+                (when b (e/server (tap ['never-false b])))))
+            prn prn)]
+    % := '[never-false true]
+    (reset! !q false)
+    (tap :done)
+    % := :done))
