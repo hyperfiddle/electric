@@ -43,9 +43,9 @@
     (let [!latched? (atom false), unlatch! (->unlatch-fn !latched?)]
       [(if (e/watch !latched?) (e/Snapshot v) v)  (->latch-fn !latched? unlatch!)])))
 
-(e/defn WithDataSlot
-  ([t] (WithDataSlot t nil))
-  ([t init-v]
-   (let [!d (atom init-v)]
-     [(when t (fn t2 ([] (t2 nil)) ([d] (reset! !d d) (t d))))
-      (e/watch !d)])))
+(let [->spend-fn (fn [t !d] (when t (fn t2 ([] (t2 nil)) ([d] (reset! !d d) (t d)))))]
+  (e/defn WithDataSlot
+    ([t] (WithDataSlot t nil))
+    ([t init-v]
+     (let [!d (atom init-v)]
+       [(->spend-fn t !d) (e/watch !d)]))))
