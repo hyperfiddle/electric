@@ -52,9 +52,10 @@
 (def remote-slot-ready 5)
 (def remote-slot-current-event 6)
 (def remote-slot-acks 7)
-(def remote-slot-request 8)
-(def remote-slot-events 9)
-(def remote-slots 10)
+(def remote-slot-pos-request 8)
+(def remote-slot-neg-request 9)
+(def remote-slot-events 10)
+(def remote-slots 11)
 
 (def event-slot-prev 0)                                     ;; prev element in the DLCL
 (def event-slot-next 1)                                     ;; next element in the DLCL
@@ -1103,13 +1104,35 @@ T T T -> (EXPR T)
             (when-not (identical? n sub) (recur n)))))))
   remote)
 
-(defn remote-update-request [^objects remote slot d]
-  (let [request (aget remote remote-slot-request)
-        diff (+ (get request slot 0) d)]
-    (aset remote remote-slot-request
-      (if (zero? diff)
-        (dissoc! request slot)
-        (assoc! request slot diff)))))
+(defn remote-inc-request [^objects remote slot]
+  (let [pos-request (aget remote remote-slot-pos-request)
+        neg-request (aget remote remote-slot-neg-request)]
+    (if-some [r (get pos-request slot)]
+      (aset remote remote-slot-pos-request
+        (assoc! pos-request slot (inc r)))
+      (if-some [r (get neg-request slot)]
+        (if (= 1 r)
+          (aset remote remote-slot-neg-request
+            (dissoc! neg-request slot))
+          (aset remote remote-slot-neg-request
+            (assoc! neg-request slot (dec r))))
+        (aset remote remote-slot-pos-request
+          (assoc! pos-request slot 1))))))
+
+(defn remote-dec-request [^objects remote slot]
+  (let [pos-request (aget remote remote-slot-pos-request)
+        neg-request (aget remote remote-slot-neg-request)]
+    (if-some [r (get neg-request slot)]
+      (aset remote remote-slot-neg-request
+        (assoc! neg-request slot (inc r)))
+      (if-some [r (get pos-request slot)]
+        (if (= 1 r)
+          (aset remote remote-slot-pos-request
+            (dissoc! pos-request slot))
+          (aset remote remote-slot-pos-request
+            (assoc! pos-request slot (dec r))))
+        (aset remote remote-slot-neg-request
+          (assoc! neg-request slot 1))))))
 
 (defn input-crash [^objects input]
   (aset input input-slot-request-remote (identity 0))
@@ -1117,8 +1140,8 @@ T T T -> (EXPR T)
   (if (zero? (aget input input-slot-request-local))
     (input-dispose input)
     (do ;; TODO do not request transitive deps
-        (remote-update-request (aget input input-slot-remote)
-          (port-slot (aget input input-slot-port)) 1)
+        (remote-inc-request (aget input input-slot-remote)
+          (port-slot (aget input input-slot-port)))
         (input-reset input))))
 
 (defn output-crash [^objects output]
@@ -1127,8 +1150,8 @@ T T T -> (EXPR T)
   (if (zero? (aget output output-slot-request-local))
     (output-dispose output)
     (do ;; TODO do not request transitive deps
-        (remote-update-request (aget output output-slot-remote)
-          (port-slot (aget output output-slot-port)) 1)
+        (remote-inc-request (aget output output-slot-remote)
+          (port-slot (aget output output-slot-port)))
         (output-reset output))))
 
 (defn channel-cancel [^objects channel]
@@ -1138,7 +1161,8 @@ T T T -> (EXPR T)
   (let [^objects remote (aget channel channel-slot-remote)]
     (aset remote remote-slot-channel nil)
     (aset remote remote-slot-acks (identity 0))
-    (aset remote remote-slot-request (transient {}))
+    (aset remote remote-slot-pos-request (transient {}))
+    (aset remote remote-slot-neg-request (transient {}))
     (let [^objects tail (aget remote remote-slot-current-event)]
       (aset tail event-slot-prev tail)
       (aset tail event-slot-next tail))
@@ -1256,12 +1280,13 @@ T T T -> (EXPR T)
           ))
       (port-deps run output-remote-up port))))
 
-(defn output-update-request [slot diff]
-  (if (neg? diff)
-    (dotimes [_ (- diff)]
-      (output-remote-down (slot-port slot)))
-    (dotimes [_ diff]
-      (output-remote-up (slot-port slot)))))
+(defn output-update-pos-request [slot d]
+  (dotimes [_ d]
+    (output-remote-up (slot-port slot))))
+
+(defn output-update-neg-request [slot d]
+  (dotimes [_ d]
+    (output-remote-down (slot-port slot))))
 
 (defn ->unserializable-msg [port* d]
   (let [mt* (mapv #(aget ^objects % port-slot-meta) (persistent! port*))
@@ -1320,11 +1345,14 @@ T T T -> (EXPR T)
              (let [change (persistent! change)
                    freeze (persistent! freeze)
                    acks (aget remote remote-slot-acks)
-                   request (persistent! (aget remote remote-slot-request))
+                   pos-request (persistent! (aget remote remote-slot-pos-request))
+                   neg-request (persistent! (aget remote remote-slot-neg-request))
                    changeset (-> (unchecked-add (count change) (count freeze))
-                               (unchecked-add (count request)))]
+                               (unchecked-add (count pos-request))
+                               (unchecked-add (count neg-request)))]
                (aset remote remote-slot-acks (identity 0))
-               (aset remote remote-slot-request (transient {}))
+               (aset remote remote-slot-pos-request (transient {}))
+               (aset remote remote-slot-neg-request (transient {}))
                (when (pos? changeset)
                  (let [^objects event (aget remote remote-slot-current-event)
                        ^objects head (aget event event-slot-next)
@@ -1341,7 +1369,7 @@ T T T -> (EXPR T)
                    (aset tail event-slot-inputs (transient #{}))
                    (aset tail event-slot-outputs (transient #{}))))
                (when (pos? (unchecked-add acks changeset))
-                 (try (encode [acks request change freeze]
+                 (try (encode [acks pos-request neg-request change freeze]
                         (aget channel channel-slot-writer-opts))
                       (catch #?(:clj Throwable :cljs :default) e
                         (if-some [ed (cond (::unserializable (ex-data e)) (ex-data e)
@@ -1362,14 +1390,17 @@ T T T -> (EXPR T)
         (channel-terminated channel)
         (if (identical? channel (aget remote remote-slot-channel))
           (try
-            (let [[acks request change freeze]
+            (let [[acks pos-request neg-request change freeze]
                   (decode @(aget channel channel-slot-process)
                     (aget channel channel-slot-reader-opts))]
               (dotimes [_ acks] (remote-ack remote))
-              (reduce-kv run output-update-request request)
+              (reduce-kv run output-update-pos-request pos-request)
+              (reduce-kv run output-update-neg-request neg-request)
               (reduce-kv remote-change remote change)
               (reduce remote-freeze remote freeze)
-              (when (pos? (+ (count request) (count change) (count freeze)))
+              (when (pos? (-> (unchecked-add (count change) (count freeze))
+                            (unchecked-add (count pos-request))
+                            (unchecked-add (count neg-request))))
                 (aset remote remote-slot-acks
                   (inc (aget remote remote-slot-acks)))
                 (channel-output-event channel)))
@@ -1497,7 +1528,7 @@ T T T -> (EXPR T)
   (let [^objects input (input-check-create port)
         ^objects remote (aget input input-slot-remote)]
     (input-local-up port)
-    (remote-update-request remote (port-slot port) 1)
+    (remote-inc-request remote (port-slot port))
     (when-some [^objects channel (aget remote remote-slot-channel)]
       (channel-output-event channel))))
 
@@ -1505,7 +1536,7 @@ T T T -> (EXPR T)
   (let [^objects input (input-check-create port)
         ^objects remote (aget input input-slot-remote)]
     (input-local-down port)
-    (remote-update-request remote (port-slot port) -1)
+    (remote-dec-request remote (port-slot port))
     (when-some [^objects channel (aget remote remote-slot-channel)]
       (channel-output-event channel))))
 
@@ -1622,7 +1653,8 @@ entrypoint.
     (aset remote remote-slot-inputs {})
     (aset remote remote-slot-outputs {})
     (aset remote remote-slot-acks (identity 0))
-    (aset remote remote-slot-request (transient {}))
+    (aset remote remote-slot-pos-request (transient {}))
+    (aset remote remote-slot-neg-request (transient {}))
     (aset remote remote-slot-current-event
       (let [e (object-array event-slots)]
         (aset e event-slot-prev e)

@@ -2726,3 +2726,22 @@
     (reset! !q false)
     (tap :done)
     % := :done))
+
+(tests
+  (let [!x (atom true)
+        !y (atom 0)
+        ps ((l/local {}
+              (let [z (e/watch (atom :foo))]
+                (when (case (e/watch !x) true true true)
+                  (let [y (e/server (e/watch !y))]
+                    (tap y)
+                    (tap [(e/server (identity z)) y])))))
+            tap tap)]
+    % := [:foo 0]
+    % := 0
+    (swap! !x not)
+    % := [:foo 0]
+    % := 0
+    (swap! !y inc)
+    % := [:foo 1]
+    % := 1))
