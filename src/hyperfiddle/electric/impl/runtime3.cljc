@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric.impl.runtime3
-  (:refer-clojure :exclude [resolve])
+  (:refer-clojure :exclude [resolve *e])
   (:require [hyperfiddle.incseq :as i]
             [missionary.core :as m]
             #?(:cljs missionary.impl.Propagator)
@@ -287,9 +287,13 @@ T T T -> (EXPR T)
              (map #(str (->class-name (type %)) (when-some [msg (ex-message %)] (str ": " msg)))))
     (iterate ex-cause e)))
 
+(def *e nil)
+
 (defn ?swap-exception [f mt]
   (try (f)
        (catch #?(:clj Throwable :cljs :default) e
+         #?(:clj (alter-var-root #'*e (constantly e))
+            :cljs (set! *e e))
          (let [clean-ex (clean-ex mt (str/join "\nvia: " (ex-messages e)))]
            (println (ex-message clean-ex))
            (throw clean-ex)))))

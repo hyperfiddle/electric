@@ -493,3 +493,5 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 ;; using low-level primitives
 (defmacro case_ [test & branches] `(::lang/case_ ~test ~@branches))
 (defmacro call_ [ctor] `(::lang/call ~ctor))
+
+(cc/defn pp-ex [] (#?(:clj prn :cljs js/console.error) r/*e))
