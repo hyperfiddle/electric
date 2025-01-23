@@ -405,7 +405,7 @@ accept the previous token and retain the new one."
                ::name directive
                ::value (::value edits)})))))))
 
-(defn invert-fields-to-form [_edit-merge field-edits]
+(defn invert-fields-to-form [field-edits]
   (when (seq field-edits)
     {::token (let [tokens (map ::token field-edits)]
                (fn token ; fresh if ts changes (should fields be disabled when commit pending?)
@@ -438,10 +438,10 @@ accept the previous token and retain the new one."
     & {:as props}]
    (e/client
      (let [{::keys [debug commit ; :commit fn must be side-effect free, :debug true will call :commit on every edit and present the result to the user
-                    discard show-buttons auto-submit edit-merge genesis
+                    discard show-buttons auto-submit genesis
                     Validate
                     #_InspectState]}
-           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::Validate (e/fn [_]) #_#_::InspectState (e/fn [_])})
+           (auto-props props {::debug false ::show-buttons true ::genesis false ::Validate (e/fn [_]) #_#_::InspectState (e/fn [_])})
            form-name name
            dirty-count (count (remove #{nil-t} (map ::token (e/as-vec edits))))
            clean? (zero? dirty-count)
@@ -451,7 +451,7 @@ accept the previous token and retain the new one."
                           (= ::smart (qualify show-buttons)) (and (not clean?) (not auto-submit)))
 
            {::keys [validation] :as form}
-           (invert-fields-to-form edit-merge (e/as-vec edits))
+           (invert-fields-to-form (e/as-vec edits))
 
            !form-validation (atom ::nil)
            form-validation (e/watch !form-validation)
