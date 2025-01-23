@@ -72,8 +72,8 @@ Simple uncontrolled checkbox, e.g.
 (def nil-t (constantly nil))
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
-                v & {:keys [maxlength type parse edit-monoid Validate] :as props
-                     :or {maxlength 100 type "text" parse identity edit-monoid hash-map, Validate (e/fn [_])}}]
+                v & {:keys [maxlength type parse Validate] :as props
+                     :or {maxlength 100 type "text" parse identity Validate (e/fn [_])}}]
   (e/client
     (dom/input
       (dom/props (-> props (dissoc :parse :Validate) (assoc :maxLength maxlength :type type)))
@@ -87,10 +87,9 @@ Simple uncontrolled checkbox, e.g.
         (when waiting? (dom/props {:aria-busy true}))
         (if waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
           (let [v' ((fn [] (-> e .-target .-value (subs 0 maxlength) parse)))
-                validation-message (Validate v')
-                #_#_edit (edit-monoid field-name v')] ; named field edit, a KV structure
+                validation-message (Validate v')]
             (InputValidity validation-message)
-            {::token t, ::name field-name, ::value v' ::validation validation-message} #_[t edit validation-message]) ; edit request, bubbles upward to service
+            {::token t, ::name field-name, ::value v' ::validation validation-message})  ; edit request, bubbles upward to interpreter
           {::token nil-t, ::name field-name ::value v})))))
 
 (defn unify-t ; unify-token ; WIP
@@ -105,14 +104,13 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
   (unify-t t1 (fn proxy-token [& [_err]] (f!))))
 ;; chaining f after t or t after f is just `comp`
 
-(e/defn Checkbox! [k checked & {:keys [id type label parse edit-monoid Validate] :as props
-                                :or {id (random-uuid) type :checkbox parse identity edit-monoid hash-map
-                                     Validate (e/fn [_])}}]
+(e/defn Checkbox! [k checked & {:keys [id type label parse Validate] :as props
+                                :or {id (random-uuid) type :checkbox parse identity Validate (e/fn [_])}}]
   ; todo esc?
   (e/client
     (e/amb
       (let [[e t err input-node]
-            (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :edit-monoid :Validate))
+            (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :Validate))
                        (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
             editing? (dom/Focused? input-node) ; never true on Safari (MacOs and iOS)
@@ -127,8 +125,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
         (InputValidity input-node validation-message)
         (e/When waiting?
           (dom/props input-node {:aria-busy true})
-          {::token t, ::name k ::value v, ::validation validation-message}
-          #_[t (edit-monoid k v) validation-message]))
+          {::token t, ::name k ::value v, ::validation validation-message}))
       (e/When label (dom/label (dom/props {:for id}) (dom/text (label k)))))))
 
 (e/defn LatestEdit "
@@ -175,8 +172,8 @@ accept the previous token and retain the new one."
 
 (e/defn RadioPicker!
   [k authoritative-v
-   & {:keys [as option-label Options Validate edit-monoid]
-      :or   {as :dl, Validate (e/fn [_]), edit-monoid hash-map}
+   & {:keys [as option-label Options Validate]
+      :or   {as :dl, Validate (e/fn [_])}
       :as   props}]
   (Picker! k authoritative-v
     (e/fn [selected-index]
@@ -188,10 +185,8 @@ accept the previous token and retain the new one."
               (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
               (dom/dd
                 (-> (Checkbox! x (-checked? selected-index x) :id id, :name k, :type :radio, :label option-label)
-                  (assoc ::value x)
-                  #_(dissoc x))))))))
+                  (assoc ::value x))))))))
     :as as
-    :edit-monoid edit-monoid
     :Validate Validate
     props))
 
@@ -200,12 +195,12 @@ accept the previous token and retain the new one."
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k authoritative-v record-count Row
-   & {:keys [Validate edit-monoid]
-      :or {Validate (e/fn [_]), edit-monoid hash-map}
+   & {:keys [Validate]
+      :or {Validate (e/fn [_])}
       :as props}]
   (dom/div
     (dom/props {:class "Viewport", #_#_:style {:height "96px"}}) ; TODO cleanup
-    (dom/props (dissoc props :Validate :edit-monoid))
+    (dom/props (dissoc props :Validate))
     (let [row-height 24 ; TODO parameterize
           [offset limit] (Scroll-window row-height record-count dom/node {})]
       (e/amb
@@ -226,7 +221,6 @@ accept the previous token and retain the new one."
                                             (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
                     (e/When t {::token t, ::value index}))))))
           :as :table
-          :edit-monoid edit-monoid
           :Validate Validate
           props)
         (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
@@ -444,10 +438,10 @@ accept the previous token and retain the new one."
     & {:as props}]
    (e/client
      (let [{::keys [debug commit ; :commit fn must be side-effect free, :debug true will call :commit on every edit and present the result to the user
-                    discard show-buttons auto-submit edit-merge genesis edit-monoid
+                    discard show-buttons auto-submit edit-merge genesis
                     Validate
                     #_InspectState]}
-           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::edit-monoid hash-map, ::Validate (e/fn [_]) #_#_::InspectState (e/fn [_])})
+           (auto-props props {::debug false ::show-buttons true ::edit-merge merge ::genesis false ::Validate (e/fn [_]) #_#_::InspectState (e/fn [_])})
            form-name name
            dirty-count (count (remove #{nil-t} (map ::token (e/as-vec edits))))
            clean? (zero? dirty-count)
@@ -517,7 +511,7 @@ accept the previous token and retain the new one."
                                                     ([err] (reset! !tx-rejected-error err))))
                                ::name form-name
                                ::value form-v
-                               ;; (if name (edit-monoid name form-v) form-v) ; nested forms as fields in larger forms ; FIXME
+                               ;; (if name {name form-v} form-v) ; nested forms as fields in larger forms ; FIXME
                                ::guess guess}))))))
 
          (let [commit-edit (if commit (commit (::value form) "-1") (::value form))
