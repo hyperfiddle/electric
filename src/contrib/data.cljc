@@ -213,6 +213,14 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
   := {0 {:db/ident :foo, :a 1},
       1 {:db/ident :bar, :b 2}})
 
+(defn index-of "Find numeric index of `x` in seq `xs`, according to `=`.  O(n). Might never terminate if seq is infinite."
+  [xs x]
+  (loop [i 0
+         xs (seq xs)]
+    (cond (empty? xs) -1
+          (= x (first xs)) i
+          () (recur (inc i) (rest xs)))))
+
 (defn group-by-pred [f? xs] ; todo rename
   (let [{a true b false} (group-by f? xs)]
     [a b]))

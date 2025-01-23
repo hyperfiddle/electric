@@ -144,20 +144,14 @@ accept the previous token and retain the new one."
       (swap! !latest (fn [{::keys [token]} new] (when token (token)) new) edits))
     (e/When latest latest)))
 
-(e/defn PickerOptions
-  ([options-count OptionRenderer] ; no pagination, render all options
-   (PickerOptions 0 options-count OptionRenderer))
-  ([offset limit OptionRenderer] ; scroll-like pagination
-   (LatestEdit
-     (e/for [i (IndexRing limit offset)]
-       (OptionRenderer i)))))
-
 (e/defn Picker!
   [k authoritative-v Body &
-   {:keys [as Validate edit-monoid]
-    :or {as :div, Validate (e/fn [_]), edit-monoid hash-map}
+   {:keys [as Validate]
+    :or {as :div, Validate (e/fn [_])}
     :as props}]
-  (let [!selected (atom {::token nil, ::value (e/snapshot authoritative-v), ::validation nil}) ; "don't damage user input" – will track authoritative-v in absence of a token – see below
+  (let [!selected (atom {::token nil, ::value (e/snapshot  ; "don't damage user input" – will track authoritative-v in absence of a token – see below
+                                                (identity authoritative-v)) ; HACK prevent a crash if `authoritative-v` binding is (e/server ...)
+                         ::validation nil})
         {::keys [token value validation]} (e/watch !selected)]
     (dom/With-element as
       (e/fn []
@@ -187,8 +181,8 @@ accept the previous token and retain the new one."
   (Picker! k authoritative-v
     (e/fn [selected-index]
       (let [options (e/as-vec (Options))] ; all options get rendered anyway. Look for TablePicker! otherwise.
-        (PickerOptions (count options)
-          (e/fn [index]
+        (LatestEdit
+          (e/for [index (IndexRing (count options) 0)]
             (let [x  (get options index)
                   id (random-uuid)]
               (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
@@ -218,13 +212,14 @@ accept the previous token and retain the new one."
         (Picker! k authoritative-v
           (e/fn PickerBody [selected-index]
             (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}})
-            (PickerOptions offset limit
-              (e/fn PickerRow [index] ; render all rows even when record-count < limit
+            (LatestEdit
+              (e/for [index (IndexRing limit offset)] ; render all rows even when record-count < limit
                 (dom/tr
                   (dom/props {:role "radio"
                               :style {:--order (inc index)}
                               :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
                   (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+                  ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
                   (Row index)
                   (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
                                             (dom/On "click" identity nil) ;;
@@ -616,6 +611,13 @@ accept the previous token and retain the new one."
                           (F (::value form))))))
 
 (defn command [name value] {::token nil-t ::name name, ::value value})
+
+(e/defn Update [m k F] (assoc m k (F (get m k))))
+
+(e/defn Intercept
+  ([F x Parse] (Update (F x) ::value Parse))
+  ([F x Unparse Parse]
+   (Update (F (Unparse x)) ::value Parse)))
 
 ;;; TODO
 #_(e/defn Reconcile-records [stable-kf sort-key as bs]
