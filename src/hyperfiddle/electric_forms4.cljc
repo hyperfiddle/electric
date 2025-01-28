@@ -195,14 +195,13 @@ accept the previous token and retain the new one."
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k authoritative-v record-count Row
-   & {:keys [Validate]
-      :or {Validate (e/fn [_])}
+   & {:keys [Validate row-height]
+      :or {Validate (e/fn [_]), row-height 24}
       :as props}]
   (dom/div
     (dom/props {:class "Viewport", #_#_:style {:height "96px"}}) ; TODO cleanup
-    (dom/props (dissoc props :Validate))
-    (let [row-height 24 ; TODO parameterize
-          [offset limit] (Scroll-window row-height record-count dom/node {})]
+    (dom/props (dissoc props :Validate :row-height))
+    (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
       (e/amb
         (Picker! k authoritative-v
           (e/fn PickerBody [selected-index]
