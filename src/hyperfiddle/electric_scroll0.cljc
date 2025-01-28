@@ -52,7 +52,7 @@
     ((fn [_] (set! (.-scrollTop dom/node) 0)) record-count) ; scroll to top on search or navigate
     ; backlog: don't touch scrollTop when records are inserted (e.g., live chat view)
     (let [[clientHeight] (e/input (resize-observer node))
-          [scrollTop] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
+          [scrollTop scrollHeight #_clientHeight] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
       (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor))))
 
 (e/defn Spool2 [cnt xs! offset limit] ; legacy
