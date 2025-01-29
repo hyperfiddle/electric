@@ -2745,3 +2745,22 @@
     (swap! !y inc)
     % := [:foo 1]
     % := 1))
+
+(tests "work skipping on application result"
+  (let [!start (atom 0)]
+    ((l/local {}
+       (tap
+         (let [start (e/watch !start)
+               !o (atom {}), o (e/watch !o)]
+           (swap! !o assoc :cache start)
+           (swap! !o assoc :stream (e/pure (e/Tap-diffs tap start)))
+           (when (:stream o) (e/join (:stream o))))))
+     tap tap)
+    % := nil
+    % := {:grow 1, :shrink 0, :degree 1, :permutation {}, :change {0 0}, :freeze #{}}
+    % := 0
+    (swap! !start inc)
+    % := {:grow 0, :shrink 0, :degree 1, :permutation {}, :change {0 1}, :freeze #{}}
+    % := 1
+    (tap :done)
+    % := :done))
