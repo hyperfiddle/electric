@@ -9,7 +9,8 @@
 (def slot-push 4)
 (def slot-live 5)
 (def slot-value 6)
-(def slots 7)
+(def slot-results 7)
+(def slots 8)
 
 (deftype EmptySeq [t]
   IFn
@@ -54,8 +55,10 @@
                          (recur item (rem (unchecked-inc-int i) arity)))))))))))))
 
 (defn item-spawn [^objects state item flow]
-  (let [^objects processes (aget state slot-processes)
+  (let [^objects results (aget state slot-results)
+        ^objects processes (aget state slot-processes)
         arity (alength processes)]
+    (aset results item state)
     (aset processes item
       (flow #(input-ready state item)
         #(input-ready state (unchecked-subtract-int item arity)))))
@@ -66,7 +69,8 @@
     (dotimes [item (alength processes)] ((aget processes item)))))
 
 (defn transfer [^objects state]
-  (let [^objects processes (aget state slot-processes)
+  (let [^objects results (aget state slot-results)
+        ^objects processes (aget state slot-processes)
         ^ints ready (aget state slot-ready)
         arity (alength processes)
         item (aget ready 0)]
@@ -83,7 +87,9 @@
                (if (neg? item)
                  (do (aset state slot-live (dec (aget state slot-live)))
                      (update diff :freeze conj (unchecked-add-int arity item)))
-                 (try (update diff :change assoc item @(aget processes item))
+                 (try (let [r @(aget processes item)]
+                        (if (= (aget results item) (aset results item r))
+                          diff (update diff :change assoc item r)))
                       (catch #?(:clj Throwable :cljs :default) e
                         (aset state slot-notifier nil)
                         (cancel state) e))))))
@@ -134,5 +140,6 @@
             :permutation {}
             :change      {}
             :freeze      #{}})
+         (aset state slot-results (object-array arity))
          (reduce-kv item-spawn state items)
          (->Ps state))))))
