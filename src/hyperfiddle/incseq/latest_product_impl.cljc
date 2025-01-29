@@ -17,7 +17,8 @@
 (def slot-push 9)
 (def slot-live 10)
 (def slot-args 11)
-(def slots 12)
+(def slot-results 12)
+(def slots 13)
 
 (defn lock [^objects state]
   #?(:clj (.lock ^Lock (aget state slot-lock))))
@@ -77,6 +78,33 @@
       (a/acopy buffer 0
         (aset buffers item
           (object-array (double-upto n degree))) 0 n))))
+
+(defn ensure-results-capacity [^objects state cap]
+  (let [^objects buffer (aget state slot-results)
+        size (alength buffer)]
+    (if (< size cap)
+      (let [s (double-upto size cap)
+            b (object-array s)]
+        (a/acopy buffer 0 b 0 size)
+        (loop [i size]
+          (when (< i s)
+            (aset b i state)
+            (recur (unchecked-inc i))))
+        (aset state slot-results b))
+      buffer)))
+
+(defn apply-results-cycle [^objects buffer cycle]
+  (let [i (nth cycle 0)
+        x (aget buffer i)]
+    (loop [i i
+           k 1]
+      (let [j (nth cycle k)
+            k (unchecked-inc-int k)]
+        (aset buffer i (aget buffer j))
+        (if (< k (count cycle))
+          (recur j k)
+          (aset buffer j x))))
+    buffer))
 
 (defn compute-permutation [l r grow degree shrink permutation]
   (let [lr (unchecked-multiply l r)
@@ -214,9 +242,9 @@
                                         (reduce-kv
                                           (fn [m k v]
                                             (let [^objects buffer (aget buffers item)]
-                                              (if (= (aget buffer k) (aset buffer k v))
-                                                m (reduce (fn [m i] (assoc! m i nil))
-                                                    m (combine-indices lr-size-after size-after r k)))))
+                                              (aset buffer k v)
+                                              (reduce (fn [m i] (assoc! m i nil)) m
+                                                (combine-indices lr-size-after size-after r k))))
                                           (transient {}) (:change item-diff)))
                        product-freeze (persistent!
                                         (reduce
@@ -232,29 +260,38 @@
                                              :freeze product-freeze})
                        item (aget ready pull)]
                    (if (== arity item)
-                     (assoc diff
-                       :change (persistent!
-                                 (reduce (fn [m i]
-                                           (loop [n i
-                                                  j (alength buffers)]
-                                             (let [j (unchecked-dec-int j)
-                                                   c (aget counts (unchecked-add-int offset j))]
-                                               (aset args j (aget ^objects (aget buffers j) (rem n c)))
-                                               (if (pos? j)
-                                                 (recur (quot n c) j)
-                                                 (assoc! m i (call f args))))))
-                                   (transient {}) (keys (:change diff))))
-                       :freeze (persistent!
-                                 (reduce (fn [s i]
-                                           (loop [n i
-                                                  j (alength freezers)]
-                                             (let [j (unchecked-dec-int j)
-                                                   c (aget counts (unchecked-add-int offset j))]
-                                               (if (frozen? (aget freezers j) (rem n c))
-                                                 (if (pos? j)
-                                                   (recur (quot n c) j)
-                                                   (conj! s i)) s))))
-                                   (transient #{}) (:freeze diff))))
+                     (let [degree (:degree diff)
+                           ^objects results (ensure-results-capacity state degree)]
+                       (p/decompose apply-results-cycle results (:permutation diff))
+                       (loop [i (- degree (:shrink diff))]
+                         (when (< i degree)
+                           (aset results i state)
+                           (recur (unchecked-inc i))))
+                       (assoc diff
+                         :change (persistent!
+                                   (reduce (fn [m i]
+                                             (let [r (loop [n i
+                                                            j (alength buffers)]
+                                                       (let [j (unchecked-dec-int j)
+                                                             c (aget counts (unchecked-add-int offset j))]
+                                                         (aset args j (aget ^objects (aget buffers j) (rem n c)))
+                                                         (if (pos? j)
+                                                           (recur (quot n c) j)
+                                                           (call f args))))]
+                                               (if (= (aget results i) (aset results i r))
+                                                 m (assoc! m i r))))
+                                     (transient {}) (keys (:change diff))))
+                         :freeze (persistent!
+                                   (reduce (fn [s i]
+                                             (loop [n i
+                                                    j (alength freezers)]
+                                               (let [j (unchecked-dec-int j)
+                                                     c (aget counts (unchecked-add-int offset j))]
+                                                 (if (frozen? (aget freezers j) (rem n c))
+                                                   (if (pos? j)
+                                                     (recur (quot n c) j)
+                                                     (conj! s i)) s))))
+                                     (transient #{}) (:freeze diff)))))
                      (do (aset ready pull arity)
                          (recur item (rem (unchecked-inc-int pull) arity) diff))))))))
          (catch #?(:clj Throwable :cljs :default) e
@@ -342,5 +379,6 @@
         (aset state slot-ready ready)
         (aset state slot-counts (a/weight-tree arity))
         (aset state slot-live (identity arity))
+        (aset state slot-results (doto (object-array 1) (aset 0 state)))
         (reduce-kv input-spawn state diffs)
         (->Ps state)))))
