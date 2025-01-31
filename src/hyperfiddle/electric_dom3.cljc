@@ -624,17 +624,18 @@ input's value, use `EventListener`."
 return flow of elements matching selector over time, i.e. as the target element comes and goes
 we need to keep listening for when it comes back"
            [node selector]
-           (m/observe
-             (fn [!]
-               (let [o (js/MutationObserver.
-                         (fn [ms o]
-                           (when-let [x (.querySelector node selector)]
-                             #_(prn 'mut selector x) (! x))
-                           ; todo use querySelectorAll and return simultaneous matches as table
-                           #_(doseq [x (array-seq (.querySelectorAll node selector))] (! x))))]
-                 (try (.observe o node #js{:subtree true :childList true})
-                   (catch :default e (js/error "MutationObserver failed, invalid call? e: " e)))
-                 #(.disconnect o))))))
+           (m/relieve
+             (m/observe
+               (fn [!]
+                 (! (.querySelector node selector))
+                 (let [o (js/MutationObserver.
+                           (fn [ms o]
+                             (! (.querySelector node selector))
+                             ; todo use querySelectorAll and return simultaneous matches as table
+                             #_(doseq [x (array-seq (.querySelectorAll node selector))] (! x))))]
+                   (try (.observe o node #js{:subtree true :childList true})
+                        (catch :default e (js/error "MutationObserver failed, invalid call? e: " e)))
+                   #(.disconnect o)))))))
 
 (e/defn Await-element [node selector] ; reactive to elements coming and going
   ; this is expensive, so don't provide the js/document.body default node
