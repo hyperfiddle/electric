@@ -2764,3 +2764,18 @@
     % := 1
     (tap :done)
     % := :done))
+
+(tests "mount-point glitch"
+  (let [!b (atom false)]
+    ((l/local {}
+       (let [mp (e/mount-point)]
+         (tap (e/join mp))
+         (e/$ (e/fn [] (kvs/insert! mp (e/tag) :x)))
+         (when (e/watch !b)
+           (kvs/insert! mp (e/tag) :y))))
+     tap tap)
+    % := :x
+    (swap! !b not)
+    % := :y
+    (tap :done)
+    % := :done))
