@@ -262,14 +262,18 @@
 
 ;;; Entity back references
 
+(defn reverse-attribute? [attribute]
+  {:pre [(qualified-keyword? attribute)]}
+  (clojure.string/starts-with? (name attribute) "_"))
+
 (defn revert-attribute [attribute]
   {:pre [(qualified-keyword? attribute)]}
   (let [nom (name attribute)]
-    (keyword (namespace attribute) (if (clojure.string/starts-with? nom "_")
-                                     (subs nom 1)
-                                     (str "_" nom)))))
+    (keyword (namespace attribute) (if (reverse-attribute? attribute) (subs nom 1) (str "_" nom)))))
 
 (comment
+  (reverse-attribute? :foo/bar) := false
+  (reverse-attribute? :foo/_bar) := true
   (revert-attribute :abstractRelease/artists) := :abstractRelease/_artists
   (revert-attribute (revert-attribute :abstractRelease/artists)) := :abstractRelease/artists
   )
