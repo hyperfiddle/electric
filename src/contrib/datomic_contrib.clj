@@ -260,6 +260,35 @@
   (ea-includes-lowercase? swing.suber-model/*datomic-db* 17592193910285 #{:school/name :db/id} "285") := true
   (get (datomic.api/entity *datomic-db* swing-edu) :school/name) := true)
 
+;;; Entity back references
+
+(defn revert-attribute [attribute]
+  {:pre [(qualified-keyword? attribute)]}
+  (let [nom (name attribute)]
+    (keyword (namespace attribute) (if (clojure.string/starts-with? nom "_")
+                                     (subs nom 1)
+                                     (str "_" nom)))))
+
+(comment
+  (revert-attribute :abstractRelease/artists) := :abstractRelease/_artists
+  (revert-attribute (revert-attribute :abstractRelease/artists)) := :abstractRelease/artists
+  )
+
+(defn back-references [db eid]
+  (contrib.data/group-by
+    (comp revert-attribute first)
+    (fn [coll x] (conj (or coll #{}) (second x)))
+    (datomic.api/q '[:find ?ident ?e
+                     :in $ ?target
+                     :where
+                     [?e ?a ?target]
+                     [?a :db/ident ?ident]]
+      db eid)))
+
+(comment
+  (back-references _db 778454232478138)
+  (back-references _db (:db/id _artist_e))
+  )
 
 ;;; Datafy/Nav
 
@@ -282,6 +311,7 @@
           indexed-schema (delay (index-schema (query-schema db)))] ; could be cached outside to be shared outside
       (-> {:db/id (:db/id entity)}
         (into (datomic.api/touch entity))
+        (into (back-references db (:db/id entity))) ; G: should this be always on?
         (with-meta {`ccp/nav (fn nav-datomic-entity [_ k v]
                                (cond
                                  (= :db/id k) entity

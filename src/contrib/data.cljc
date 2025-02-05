@@ -1,4 +1,5 @@
 (ns contrib.data
+  (:refer-clojure :exclude [group-by])
   (:require clojure.math
             clojure.string
             [clojure.datafy :refer [datafy]] ; todo remove
@@ -226,8 +227,18 @@ If (kf x) return nil, falls back to positional index.
           (= x (first xs)) i
           () (recur (inc i) (rest xs)))))
 
+(defn group-by
+  ([kf coll] (group-by kf (fnil conj []) coll))
+  ([kf group-fn coll]
+   (persistent!
+     (reduce
+       (fn [ret x]
+         (let [k (kf x)]
+           (assoc! ret k (group-fn (get ret k) x))))
+       (transient {}) coll))))
+
 (defn group-by-pred [f? xs] ; todo rename
-  (let [{a true b false} (group-by f? xs)]
+  (let [{a true b false} (clojure.core/group-by f? xs)]
     [a b]))
 
 (tests
