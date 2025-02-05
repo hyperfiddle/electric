@@ -326,12 +326,49 @@
   (def _e    (datomic.api/entity _db 17592186058336)) ; pour l'amour
   (require '[clojure.datafy :refer [datafy nav]])
   (def _de (datafy _e))
-  (= _e (ccp/nav _de :db/id :not-found)) := true
-  (def _artist_e (first (ccp/nav _de :abstractRelease/artists (:abstractRelease/artists _e))))
-  (def _artist_de (datafy _artist_e))
+  _de
+   := {:db/id 17592186058336,
+       :abstractRelease/gid #uuid "f05a1be3-e383-4cd4-ad2a-150ae118f622",
+       :abstractRelease/name "Pour l’amour des sous / Parle au patron, ma tête est malade",
+       :abstractRelease/type :release.type/single,
+       :abstractRelease/artists #{#:db{:id 778454232478138} #:db{:id 580542139477874}},
+       :abstractRelease/artistCredit "Jean Yanne & Michel Magne"}
 
-  (def _country_e (ccp/nav _artist_de :artist/country (:artist/country _artist_de)))
-  (def _country_de (datafy _country_e))
+  (= _e (ccp/nav _de :db/id (:db/id _de))) := true
+
+  (ccp/nav _de :abstractRelease/artists (:abstractRelease/artists _e)) := #{#:db{:id 778454232478138} #:db{:id 580542139477874}}
+  (first *1) := #:db{:id 778454232478138}
+  (type *1) := datomic.query.EntityMap
+  (def _artist (datafy *2))
+  _artist
+  := {:artist/sortName "Yanne, Jean",
+      :artist/name "Jean Yanne",
+      :artist/type :artist.type/person,
+      :artist/country :country/FR,
+      :artist/gid #uuid "da0c147b-2da4-4d81-818e-f2aa9be37f9e",
+      :artist/startDay 18,
+      :artist/endDay 23,
+      :artist/startYear 1933,
+      :artist/endMonth 5,
+      :artist/endYear 2003,
+      :db/id 778454232478138,
+      :artist/startMonth 7,
+      :artist/gender :artist.gender/male,
+      ;; FIXME inconsistent
+      :track/_artists #{862017116284125 1059929209283807 1059929209283808 862017116284124},
+      :release/_artists #{17592186080017 17592186069801},
+      :abstractRelease/_artists #{17592186058336 17592186067319}
+      }
+
+  (:artist/country _artist) := :country/FR
+  (ccp/nav _artist :artist/country (:artist/country _artist)) := #:db{:id 17592186045645}
+  (datafy *1)
+   := {:db/id 17592186045645,
+      :db/ident :country/FR,
+      :country/name "France",
+      :release/_country #{17592186076553 ...},
+      :artist/_country #{765260092944782 ...},
+      :label/_country #{17592186068643 ...}}
 
   (query-schema _db)
   (def _schema (index-schema (query-schema _db)))
