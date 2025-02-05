@@ -5,7 +5,8 @@
             #_[hyperfiddle.electric :as e] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]
-            [contrib.test.datomic-peer-mbrainz :as test]))
+            [contrib.test.datomic-peer-mbrainz :as test]
+            [clojure.core.protocols :as ccp]))
 
 (tests (some? test/db) := true)
 
@@ -258,3 +259,53 @@
   (ea-includes-lowercase? *datomic-db* swing-edu :school/name "SwingEDU") := true
   (ea-includes-lowercase? swing.suber-model/*datomic-db* 17592193910285 #{:school/name :db/id} "285") := true
   (get (datomic.api/entity *datomic-db* swing-edu) :school/name) := true)
+
+
+;;; Datafy/Nav
+
+(defn query-schema [db]
+  (datomic.api/q '[:find (pull ?attr [*
+                            {:db/valueType [:db/ident]
+                             :db/cardinality [:db/ident]
+                             :db/unique [:db/ident]}])
+         :where [:db.part/db :db.install/attribute ?attr]]
+    db
+    {:limit -1}))
+
+(defn index-schema [schema] (into {} (comp cat (index-by :db/ident)) schema))
+(defn ref? [indexed-schema a] (= :db.type/ref (get-in indexed-schema [a :db/valueType :db/ident])))
+
+(extend-type datomic.query.EntityMap
+  ccp/Datafiable
+  (datafy [^datomic.query.EntityMap entity]
+    (let [db (.-db entity)
+          indexed-schema (delay (index-schema (query-schema db)))] ; could be cached outside to be shared outside
+      (-> {:db/id (:db/id entity)}
+        (into (datomic.api/touch entity))
+        (with-meta {`ccp/nav (fn nav-datomic-entity [_ k v]
+                               (cond
+                                 (= :db/id k) entity
+                                 (and (keyword? v) (ref? @indexed-schema k)) (datomic.api/entity db v) ; traverse ident refs
+                                 () (k entity v) ; traverse refs or return value
+                                 ))})))))
+
+
+(comment
+  (def _conn (d/connect "datomic:dev://localhost:4334/mbrainz-1968-1973"))
+  (def _db   (datomic.api/db _conn))
+  (def _e    (datomic.api/entity _db 17592186058336)) ; pour l'amour
+  (require '[clojure.datafy :refer [datafy nav]])
+  (def _de (datafy _e))
+  (= _e (ccp/nav _de :db/id :not-found)) := true
+  (def _artist_e (first (ccp/nav _de :abstractRelease/artists (:abstractRelease/artists _e))))
+  (def _artist_de (datafy _artist_e))
+
+  (def _country_e (ccp/nav _artist_de :artist/country (:artist/country _artist_de)))
+  (def _country_de (datafy _country_e))
+
+  (query-schema _db)
+  (def _schema (index-schema (query-schema _db)))
+  (ref? _schema :db/ident)
+  (get-in _schema [:abstractRelease/artists])
+  (get-in _schema [:artist/country])
+  )

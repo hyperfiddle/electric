@@ -149,12 +149,17 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
   (xorxs nil #{}) := #{}
   (xorxs nil) := nil)
 
-(defn index-by [kf xs]
-  {:pre [kf]}
-  (into {} (map-indexed (fn [i x]
-                          [(kf x i) ; fallback to index when key is not present
-                           #_(if-not kf (kf x i) i) ; alternative design is to define nil kf as fallback
-                           x])) xs))
+(defn index-by
+  "Given a key function `kf`, return a map of {(kf x) x} for all x in `xs`.
+If (kf x) return nil, falls back to positional index.
+(index-by kf) return a transducer producing pairs [(kf x) x]."
+  ([kf]
+   {:pre [kf]}
+   (map-indexed (fn [i x]
+                  [(kf x i) ; fallback to index when key is not present
+                   x])))
+  ([kf xs]
+   (into {} (index-by kf) xs)))
 
 (tests
   (def xs [{:db/ident :foo :a 1}
