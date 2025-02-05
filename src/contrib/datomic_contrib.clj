@@ -277,7 +277,8 @@
 (defn back-references [db eid]
   (contrib.data/group-by
     (comp revert-attribute first)
-    (fn [coll x] (conj (or coll #{}) (second x)))
+    (fn [coll x] (conj (or coll #{})
+                   (datomic.api/entity db (second x))))
     (datomic.api/q '[:find ?ident ?e
                      :in $ ?target
                      :where
