@@ -132,6 +132,8 @@ Qualify a keyword with a namespace. If already qualified, leave untouched. Nil-s
   (auto-props {:a 1} {:dom/class "a"}) := {:contrib.data/a 1 :dom/class "a"}
   (auto-props {:a 1}) := {:contrib.data/a 1})
 
+(defn map-entry [k v] (first {k v}))
+
 (defn xorxs
   "an argument parser that accepts both scalars and collections, lifting scalars into a collection"
   [xorxs & [zero]]
