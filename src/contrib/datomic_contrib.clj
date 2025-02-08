@@ -2,13 +2,16 @@
   (:require [contrib.data :refer [index-by unqualify]]
             [contrib.datomic-m :as d] ; care
             datomic.api
+            [dustingetz.identify :refer [Identifiable]] ; unresolved from electric module, promote ns to root
             #_[hyperfiddle.electric :as e] ; ?
             [hyperfiddle.rcf :refer [tests % tap]]
             [missionary.core :as m]
             [contrib.test.datomic-peer-mbrainz :as test]
-            [clojure.core.protocols :as ccp]))
+            [clojure.core.protocols :as ccp :refer [Datafiable]]))
 
-(tests (some? test/db) := true)
+(tests 
+  (require '[dustingetz.mbrainz :refer [test-db lennon pour-lamour yanne cobblestone]])
+  (some? @test-db) := true)
 
 ; These should use entity API & fetch data when necessary, doing on trees is not ergonomic enough
 ; (in Hyperfiddle-2020, much complexity stemmed from tree-passing, root cause batch data loading)
@@ -73,9 +76,9 @@
         (m/eduction (map first)))))
 
 (tests
-  (count (m/? (m/reduce conj [] (attributes> test/db [:db/ident])))) := 83
-  (count (m/? (m/reduce conj [] (attributes> test/db)))) := 83
-  (count (m/? (d/pull test/db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]}))) := 3)
+  (count (m/? (m/reduce conj [] (attributes> @test-db [:db/ident])))) := 83
+  (count (m/? (m/reduce conj [] (attributes> @test-db)))) := 83
+  (count (m/? (d/pull @test-db {:eid 50 :selector [:db/ident :db/valueType :db/cardinality]}))) := 3)
 
 (defn schema! [db] ; todo stream
   (m/sp
@@ -97,17 +100,18 @@
 #_(defn schema> [db] (e/task->cp (schema! db))) ; no electric here
 
 (tests
-  (:db/ident (m/? (schema! test/db)))
+  (def test-schema (delay (m/? (schema! @test-db))))
+  (:db/ident @test-schema)
   := #:db{:ident :db/ident,
           :valueType #:db{:ident :db.type/keyword},
           :cardinality #:db{:ident :db.cardinality/one}}
 
-  (:db/id (m/? (schema! test/db)))
+  (:db/id @test-schema)
   := #:db{:ident :db/id,
           :cardinality #:db{:ident :db.cardinality/one},
           :valueType #:db{:ident :db.type/long}}
 
-  (count (m/? (schema! test/db))))
+  (count @test-schema) := 84)
 
 (defn entity-history-datoms>
   ([db e] (entity-history-datoms> db e nil))
@@ -120,11 +124,11 @@
             (m/amb= (m/?> >fwd-xs) (m/?> >rev-xs)))))))
 
 (comment
-  (time (m/? (m/reduce conj [] (entity-history-datoms> test/db 74766790739005 nil))))
-  (time (count (m/? (m/reduce conj [] (entity-history-datoms> test/db nil nil)))))
-  (def it ((entity-history-datoms> test/db 74766790739005 nil)
+  (time (m/? (m/reduce conj [] (entity-history-datoms> @test-db 74766790739005 nil))))
+  (time (count (m/? (m/reduce conj [] (entity-history-datoms> @test-db nil nil)))))
+  (def it ((entity-history-datoms> @test-db 74766790739005 nil)
            #(println ::notify) #(println ::terminate)))
-  @it
+  @it ; crashes 20250208
   (it))
 
 (defn ident! [db ?e]
@@ -142,10 +146,11 @@
 (comment
   (m/? (d/query {:query '[:find (pull ?e [:db/ident]) ?f :in $ ?e
                           :where [?e :db/ident ?f]]
-                 :args [test/db 17]}))
+                 :args [@test-db 17]}))
+  := [[#:db{:ident :db.excise/beforeT} :db.excise/beforeT]]
 
-  (m/? (ident! test/db 17)) := :db.excise/beforeT
-  (m/? (ident! test/db nil)) := nil)
+  (m/? (ident! @test-db 17)) := :db.excise/beforeT
+  (m/? (ident! @test-db nil)) := nil)
 
 ;#?(:clj (defn before? [^java.util.Date a ^java.util.Date b] (<= (.getTime a) (.getTime b))))
 ;(defn- xf-filter-before-date [before] #?(:clj (filter (fn [[tx e a v added?]] (before? t before)))))
@@ -157,15 +162,6 @@
   ; Draw :add as more recent than :retract for the same attribute
   (compare [tx' a added']
            [tx a' added]))
-
-;(extend-protocol Datafiable
-;  datomic.query.EntityMap
-;  (datafy [o] (into {} o)))
-;
-;(extend-protocol Navigable
-;  datomic.query.EntityMap
-;  (nav [coll k v]
-;    (clojure.datafy/datafy v)))
 
 ;#?(:clj (defn entity-datoms! [db e] (p/chan->task (d/datoms db {:index :eavt, :components [e]}))))
 ;#?(:clj (defn entity-datoms> [db e] (->> (p/chan->ap (d/datoms db {:index :eavt, :components [e]}))
@@ -205,24 +201,23 @@
 
     () (assert false (str "unmatched tree entry, k: " k " v: " v))))
 
-(tests
+(comment
   ; watch out, test schema needs to match
-  (entity-tree-entry-children test/schema [:db/id 87960930235113]) := nil
-  (entity-tree-entry-children test/schema [:abstractRelease/name "Pour l’amour..."]) := nil
-  (entity-tree-entry-children test/schema [:abstractRelease/type #:db{:id 35435060739965075, :ident :release.type/single}])
+  (entity-tree-entry-children @test-schema [:db/id 87960930235113]) := nil
+  (entity-tree-entry-children @test-schema [:abstractRelease/name "Pour l’amour..."]) := nil
+  (entity-tree-entry-children @test-schema [:abstractRelease/type #:db{:id 35435060739965075, :ident :release.type/single}])
   := #:db{:id 35435060739965075, :ident :release.type/single}
-  (entity-tree-entry-children test/schema [:abstractRelease/artists [#:db{:id 20512488927800905}
+  (entity-tree-entry-children @test-schema [:abstractRelease/artists [#:db{:id 20512488927800905}
                                                                      #:db{:id 68459991991856131}]])
   := {20512488927800905 #:db{:id 20512488927800905},
       68459991991856131 #:db{:id 68459991991856131}}
 
-  (def tree (m/? (d/pull test/db {:eid test/pour-lamour :selector ['*]})))
-  (->> tree (map (fn [row]
-                   (entity-tree-entry-children test/schema row))))
+  (def tree (m/? (d/pull @test-db {:eid pour-lamour :selector ['*]})))
+  (->> tree (map (partial entity-tree-entry-children @test-schema)))
   := [nil
       nil
       nil
-      #:db{:id 35435060739965075, :ident :release.type/single}
+      #:db{:id 35435060739965075, :ident :release.type/single} ; BROKEN TEST
       {20512488927800905 #:db{:id 20512488927800905},
        68459991991856131 #:db{:id 68459991991856131}}
       nil]
@@ -239,7 +234,7 @@
     (.toLowerCase (or (str v) "")) ; v is str or str'able, e.g. keyword
     (.toLowerCase (or needle ""))))
 
-(comment
+(tests
   (includes-lowercase? "alice@example.com" "Alice") := true
   (includes-lowercase? "alice@example.com" "bob") := false
   (includes-lowercase? "alice@example.com" "") := true
@@ -266,23 +261,21 @@
   {:pre [(qualified-keyword? attribute)]}
   (clojure.string/starts-with? (name attribute) "_"))
 
-(defn revert-attribute [attribute]
+(defn invert-attribute [attribute]
   {:pre [(qualified-keyword? attribute)]}
   (let [nom (name attribute)]
     (keyword (namespace attribute) (if (reverse-attribute? attribute) (subs nom 1) (str "_" nom)))))
 
-(comment
+(tests
   (reverse-attribute? :foo/bar) := false
   (reverse-attribute? :foo/_bar) := true
-  (revert-attribute :abstractRelease/artists) := :abstractRelease/_artists
-  (revert-attribute (revert-attribute :abstractRelease/artists)) := :abstractRelease/artists
-  )
+  (invert-attribute :abstractRelease/artists) := :abstractRelease/_artists
+  (invert-attribute (invert-attribute :abstractRelease/artists)) := :abstractRelease/artists)
 
-(defn back-references [db eid]
+(defn back-references [db eid] ; returns a map, not entity, but all deep refs are entity
   (contrib.data/group-by
-    (comp revert-attribute first)
-    (fn [coll x] (conj (or coll #{})
-                   (datomic.api/entity db (second x))))
+    (comp invert-attribute first)
+    (fn [coll x] (conj (or coll #{}) (datomic.api/entity db (second x))))
     (datomic.api/q '[:find ?ident ?e
                      :in $ ?target
                      :where
@@ -290,10 +283,19 @@
                      [?a :db/ident ?ident]]
       db eid)))
 
-(comment
-  (back-references _db 778454232478138)
-  (back-references _db (:db/id _artist_e))
-  )
+(tests
+  (datomic.api/touch (datomic.api/entity @test-db yanne))
+  (def !e (back-references @test-db yanne))
+  ; WARNING: these are EntityMaps, NOT maps. d/touch returns native objects!
+  #_{:abstractRelease/_artists #{#:db{:id 17592186058336} #:db{:id 17592186067319}},
+     :release/_artists #{#:db{:id 17592186069801} #:db{:id 17592186080017}},
+     :track/_artists #{#:db{:id 1059929209283807}
+                       #:db{:id 862017116284124}
+                       #:db{:id 862017116284125}
+                       #:db{:id 1059929209283808}}}
+  (map type (:abstractRelease/_artists !e)) := [datomic.query.EntityMap datomic.query.EntityMap]
+  (map type (:release/_artists !e)) := [datomic.query.EntityMap datomic.query.EntityMap]
+  (map type (:track/_artists !e)) := [datomic.query.EntityMap datomic.query.EntityMap datomic.query.EntityMap datomic.query.EntityMap])
 
 ;;; Datafy/Nav
 
@@ -309,8 +311,28 @@
 (defn index-schema [schema] (into {} (comp cat (index-by :db/ident)) schema))
 (defn ref? [indexed-schema a] (= :db.type/ref (get-in indexed-schema [a :db/valueType :db/ident])))
 
+#_ ; BAD FUNCTION, leaving this tombstone to warn the next confused person
+(defn untouch-refs [indexed-schema touched-entity] ; only touched attrs are present
+  (letfn [(untouch-ref [{id :db/id}] (datomic.api/entity (.-db touched-entity) id))] ; resolve back to underlying for nav
+    (reduce-kv
+      (fn [acc k v]
+        (if (ref? indexed-schema k)
+          (cond
+            (set? v) (assoc acc k (set (map untouch-ref v)))
+            (map? v) (assoc acc k (untouch-ref v))
+            :else (assoc acc k v))
+          (assoc acc k v)))
+      {} touched-entity)))
+#_(tests
+  #_(def test-schema (delay (index-schema (query-schema @test-db))))
+  (def !e (datomic.api/entity @test-db pour-lamour))
+  (:abstractRelease/artists (datomic.api/touch !e)) ; := #{#:db{:id 778454232478138} #:db{:id 580542139477874}} -- fail bc entity not= map
+  (:abstractRelease/artists (untouch-refs @test-schema (datomic.api/touch (datomic.api/entity @test-db pour-lamour))))
+  (map type *1) := [datomic.query.EntityMap datomic.query.EntityMap])
+
 (extend-type datomic.query.EntityMap
-  ccp/Datafiable
+  Identifiable (-identify [^datomic.query.EntityMap !e] (:db/id !e))
+  Datafiable
   (datafy [^datomic.query.EntityMap entity]
     (let [db (.-db entity)
           indexed-schema (delay (index-schema (query-schema db)))] ; could be cached outside to be shared outside
@@ -321,31 +343,47 @@
                                (cond
                                  (= :db/id k) entity
                                  (and (keyword? v) (ref? @indexed-schema k)) (datomic.api/entity db v) ; traverse ident refs
-                                 () (k entity v) ; traverse refs or return value
+                                 () v #_(k entity v) ; traverse refs or return value
                                  ))})))))
 
 
 (comment
-  (def _conn (d/connect "datomic:dev://localhost:4334/mbrainz-1968-1973"))
-  (def _db   (datomic.api/db _conn))
-  (def _e    (datomic.api/entity _db 17592186058336)) ; pour l'amour
   (require '[clojure.datafy :refer [datafy nav]])
-  (def _de (datafy _e))
-  _de
+  (def !e (datomic.api/entity @test-db pour-lamour))
+  (datomic.api/touch !e) ; for effect
+  (datafy !e)
    := {:db/id 17592186058336,
        :abstractRelease/gid #uuid "f05a1be3-e383-4cd4-ad2a-150ae118f622",
        :abstractRelease/name "Pour l’amour des sous / Parle au patron, ma tête est malade",
        :abstractRelease/type :release.type/single,
-       :abstractRelease/artists #{#:db{:id 778454232478138} #:db{:id 580542139477874}},
+       :abstractRelease/artists _ ; #{datomic.query.EntityMap datomic.query.EntityMap}
        :abstractRelease/artistCredit "Jean Yanne & Michel Magne"}
 
-  (= _e (ccp/nav _de :db/id (:db/id _de))) := true
+  "datomic presents deep refs as native entity, NOT maps" ; WARNING: EntityMap prints as {:db/id 1}, which is incredibly confusing.
+  (map type (:abstractRelease/artists (datomic.api/touch !e))) := [datomic.query.EntityMap datomic.query.EntityMap]
 
-  (ccp/nav _de :abstractRelease/artists (:abstractRelease/artists _e)) := #{#:db{:id 778454232478138} #:db{:id 580542139477874}}
-  (first *1) := #:db{:id 778454232478138}
-  (type *1) := datomic.query.EntityMap
-  (def _artist (datafy *2))
-  _artist
+  "datafy presents deep refs as native entity NOT maps NOT scalars"
+  (map type (:abstractRelease/artists (datafy !e))) := [datomic.query.EntityMap datomic.query.EntityMap]
+
+  (tests "self-nav resolves the original underlying reference"
+    (let [x (as-> (datafy !e) x (nav x :db/id (:db/id x)))]
+      (type x) := datomic.query.EntityMap
+      (= !e x) := true))
+
+  (as-> (datafy !e) x
+    (nav x :abstractRelease/artists (:abstractRelease/artists x))
+    (map type x)) := [datomic.query.EntityMap datomic.query.EntityMap] ; prints as #{#:db{:id 778454232478138} #:db{:id 580542139477874}}
+
+  (def !yanne
+    (as-> (datafy !e) x
+      (nav x :abstractRelease/artists (:abstractRelease/artists x)) ; entities yanne and magne
+      (index-by :db/id x)
+      (nav x 778454232478138 (get x 778454232478138))))
+
+  (type !yanne) := datomic.query.EntityMap
+  (:db/id !yanne) := yanne
+
+  (datafy !yanne)
   := {:artist/sortName "Yanne, Jean",
       :artist/name "Jean Yanne",
       :artist/type :artist.type/person,
@@ -362,12 +400,10 @@
       ;; FIXME inconsistent
       :track/_artists #{862017116284125 1059929209283807 1059929209283808 862017116284124},
       :release/_artists #{17592186080017 17592186069801},
-      :abstractRelease/_artists #{17592186058336 17592186067319}
-      }
+      :abstractRelease/_artists #{17592186058336 17592186067319}}
 
-  (:artist/country _artist) := :country/FR
-  (ccp/nav _artist :artist/country (:artist/country _artist)) := #:db{:id 17592186045645}
-  (datafy *1)
+  (def !france (as-> (datafy !yanne) x (nav x :artist/country (:artist/country x))))
+  (datafy !france)
    := {:db/id 17592186045645,
       :db/ident :country/FR,
       :country/name "France",

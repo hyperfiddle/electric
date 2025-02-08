@@ -1,4 +1,4 @@
-(ns contrib.test.datomic-peer-mbrainz
+(ns contrib.test.datomic-peer-mbrainz ; superseded by dustingetz.mbrainz
   "Don't use for inline tests, this has external database connection dependency 
 not in-mem"
   (:require #_[contrib.datomic-contrib :as dx] ; no cycle
