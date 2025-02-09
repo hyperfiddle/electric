@@ -325,6 +325,22 @@ If (kf x) return nil, falls back to positional index.
 (tests
   (into [] (take-upto odd?) [2 4 6 8 9 10 12 14]) := [2 4 6 8 9])
 
+
+(defn distinct-ordered [xs]
+  (loop [remaining xs
+         seen #{}
+         result []]
+    (if (empty? remaining)
+      result
+      (let [x (first remaining)]
+        (recur (rest remaining)
+          (conj seen x)
+          (if (seen x)
+            result
+            (conj result x)))))))
+
+(tests (distinct-ordered [1 2 1 3 2 4]) := [1 2 3 4])
+
 (defn round-floor [n base] (* base (clojure.math/floor (/ n base))))
 
 (comment
