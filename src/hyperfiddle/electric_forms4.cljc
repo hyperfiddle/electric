@@ -2,6 +2,7 @@
   #?(:cljs (:require-macros hyperfiddle.electric-forms4))
   (:require [contrib.data :refer [index-by auto-props qualify]]
             [contrib.str :refer [pprint-str]]
+            [contrib.css :refer [css-slugify]]
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
@@ -199,7 +200,7 @@ accept the previous token and retain the new one."
       :or {Validate (e/fn [_]), row-height 24}
       :as props}]
   (dom/div
-    (dom/props {:class "Viewport", #_#_:style {:height "96px"}}) ; TODO cleanup
+    (dom/props {:class ["Viewport" (css-slugify k)], #_#_:style {:height "96px"}}) ; TODO cleanup
     (dom/props (dissoc props :Validate :row-height))
     (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
       (e/amb
