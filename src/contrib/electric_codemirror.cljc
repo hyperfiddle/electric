@@ -99,13 +99,13 @@
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))
 
-(e/defn edn [v] ($ CodeMirror {:parent dom/node} read-edn write-edn v))
-(e/defn string [v] ($ CodeMirror {:parent dom/node} identity identity v))
+(e/defn Edn [v] ($ CodeMirror {:parent dom/node} read-edn write-edn v))
+(e/defn String_ [v] ($ CodeMirror {:parent dom/node} identity identity v))
 
 #_
 (tests "cm/string"
   (def discard (e/run (binding [dom/node js/document.body]
-                        (tap (new string "hi")))))
+                        (tap (String_ "hi")))))
   ;; (def line (.querySelector js/document ".cm-line"))
   ;; (def content (.querySelector js/document ".cm-line"))
   ;; (.dispatchEvent line (js/Event. "mousedown"))
