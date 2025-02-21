@@ -81,3 +81,51 @@
          (js/performance.measure ~nm ~st ~fn)
          ret#))
     `(do ~@body)))
+
+;; debugging options
+;; [ ] turn off dynamically
+;; [X] add label
+;; [X] auto-label from expr
+;; [ ] try/catch
+;; [X] condition (debug when)
+;; [X] print n times
+;; [X] print view of value
+;; [X] print meta
+;; [X] custom printer
+;; [X] opts map last (thread first support)
+
+(defn ! [{label :label, catch? :catch, pred :when, n :times, view :view, meta? :meta?, printer :printer}]
+  (let [!n (atom 0)]
+    (fn [v]
+      (let [v-as ((or view identity) v)]
+        (when (and (or (nil? pred) (pred v)) (or (nil? n) (<= (swap! !n inc) n)))
+          (binding [*print-meta* meta?]
+            ((or printer prn) label '=> v-as)))
+        v))))
+
+(defmacro spy
+  ([form] `(spy {:label '~form} ~form))
+  ([opts form]
+   (let [[opts form] (cond (map? opts) [opts form]
+                           (map? form) [form opts]
+                           :else       [opts form])
+         opts (cond-> opts
+                (not (contains? opts :label)) (assoc :label (list 'quote form)))]
+     `((! ~opts) ~form))))
+
+(comment
+  ((! {:label 'hi}) #(+ 2 3))
+  (spy 5)
+  (spy (+ 2 3))
+  (spy {} (+ 2 3))
+  (spy {:when odd?} (+ 2 3))
+  (spy {:when odd?} (+ 2 4))
+  (spy {:label 'add} (+ (- 2 1) (- 3 1)))
+  (spy {:view pr-str} (+ 2 3))
+  (spy (if (odd? 1) 1 2))
+  (def times2 (! {:times 2}))
+  (times2 (+ 2 3))
+  (spy {:meta? true} ^::hi `x)
+  (spy {:printer #(fipp.edn/pprint %&)} (range 0 100))
+  (spy 123 {:label 'last})
+  )
