@@ -488,17 +488,3 @@ If (kf x) return nil, falls back to positional index.
               ([v] (aset o (int 0) v))
               ([retf swapf] (let [v (box), ret (retf v)] (box (swapf v)) ret))))))
 
-(defmulti scalar?
-  "
-State if argument is considered to be a scalar. A scalar can usually be
-represented as a literal but not all literals are scalars – e.g. :foo vs []."
-  type)
-
-(let [base-scalar? (some-fn boolean? number? string? keyword? symbol? char?)]
-  (defmethod scalar? :default [x]
-    (or (nil? x)
-      (boolean (base-scalar? x)))))
-
-#_(defmethod scalar? #?(:clj java.util.Date, :cljs js/Date) [x] true) ; #inst - opt in
-#_(defmethod scalar? #?(:clj java.util.UUID, :cljs UUID) [x] true)    ; #uuid - opt in
-
