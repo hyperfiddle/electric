@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-forms3
   #?(:cljs (:require-macros hyperfiddle.electric-forms3))
   (:require [contrib.data :refer [index-by auto-props qualify]]
-            [contrib.str :refer [pprint-str]]
+            [dustingetz.str :refer [pprint-str]]
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]

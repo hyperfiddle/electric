@@ -2,8 +2,7 @@
   ; depends on electric by data namespace, c-f "electric"
   (:require [clojure.string :as str]
             [contrib.data :as data]
-            #?(:cljs [contrib.stacktrace :as st])
-            [contrib.str]))
+            #?(:cljs [contrib.stacktrace :as st])))
 
 (defn ->id []
   #?(:clj  (java.util.UUID/randomUUID)

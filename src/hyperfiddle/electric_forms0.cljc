@@ -2,7 +2,7 @@
   "Deprecated in favor of forms3"
   #?(:cljs (:require-macros hyperfiddle.electric-forms0))
   (:require [contrib.data :refer [index-by auto-props qualify]]
-            [contrib.str :refer [pprint-str]]
+            [dustingetz.str :refer [pprint-str]]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]))
 
