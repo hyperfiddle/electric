@@ -1,4 +1,5 @@
 (ns hyperfiddle.electric.debug3
+  ; depends on electric by data namespace, c-f "electric"
   (:require [clojure.string :as str]
             [contrib.data :as data]
             #?(:cljs [contrib.stacktrace :as st])
