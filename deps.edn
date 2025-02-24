@@ -1,6 +1,7 @@
 {:paths ["src"]
  :deps  {com.cognitect/transit-clj  {:mvn/version "1.0.333"}
          com.cognitect/transit-cljs {:mvn/version "0.8.280"}
+         com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-SNAPSHOT"}
          com.hyperfiddle/rcf        {:mvn/version "20220926-202227"}
          missionary/missionary      {:mvn/version "b.43"}
          fipp/fipp                  {:mvn/version "0.6.26"}
