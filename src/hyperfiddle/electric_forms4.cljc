@@ -226,6 +226,43 @@ accept the previous token and retain the new one."
         (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
                                                     (* row-height (- record-count limit)) 0) "px")}}))))))
 
+(e/defn TablePicker!2
+  ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
+  [k authoritative-v record-count Row
+   & {:keys [Validate row-height column-count as]
+      :or {Validate (e/fn [_]), row-height 24, column-count 1, as :table}
+      :as props}]
+  (Picker! k authoritative-v
+    (e/fn PickerBody [selected-index]
+      (dom/props (dissoc props :Validate :row-height :column-count :as))
+      (dom/props {:class ["hyperfiddle-electric-forms4__table-picker" (css-slugify k)], #_#_:style {:height "96px"}})
+      (dom/props {:style {:--row-height (str row-height "px")
+                          :--record-count record-count
+                          :--column-count column-count}})
+
+      (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
+        (dom/props {:style {:--offset offset, :--limit limit}})
+        (dom/div (dom/props {:class "padder"}))
+        (LatestEdit
+          (e/for [index (IndexRing ; render all rows even when record-count < limit
+                          (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
+                          offset)]
+            (dom/tr
+              (dom/props {:role "radio"
+                          :style {:--row-index index}
+                          :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
+              (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+              ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
+              (Row index)
+              (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
+                                        (dom/On "click" identity nil) ;;
+                                        (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
+                (e/When t {::token t, ::value index})))))))
+    :as as
+    :Validate Validate
+    props))
+
+
 ;;; Edit/action -> command mapping
 
 (defn token-v [token-map] (dissoc token-map ::token ::validation))
@@ -648,3 +685,29 @@ accept the previous token and retain the new one."
 #_(defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel
         (catch Exception e# (doto ::fail (prn e#)))))
+
+
+(def css
+  "
+
+.hyperfiddle-electric-forms4__table-picker {display:grid; grid-template-columns: repeat(var(--column-count), 1fr); }
+.hyperfiddle-electric-forms4__table-picker {height: 100%; overflow: hidden; min-height: calc(2 * var(--row-height)); }
+.hyperfiddle-electric-forms4__table-picker {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
+.hyperfiddle-electric-forms4__table-picker {grid-auto-rows: var(--row-height);}
+.hyperfiddle-electric-forms4__table-picker {overflow-y: scroll; overflow-x: hidden; position: relative;}
+
+.hyperfiddle-electric-forms4__table-picker .padder {position: absolute; width: 1px; z-index: -1;}
+.hyperfiddle-electric-forms4__table-picker .padder { height: calc(var(--record-count) * var(--row-height)); min-height: 100%;}
+
+.hyperfiddle-electric-forms4__table-picker tr {display: contents;}
+.hyperfiddle-electric-forms4__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
+
+/* cosmetic defaults */
+.hyperfiddle-electric-forms4__table-picker tr[data-row-stripe='0'] td { background-color: #f2f2f2; }
+
+.hyperfiddle-electric-forms4__table-picker tr:hover:has(*) td { background-color: #ddd; }
+.hyperfiddle-electric-forms4__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
+.hyperfiddle-electric-forms4__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+"
+)
+
