@@ -226,7 +226,7 @@ accept the previous token and retain the new one."
         (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
                                                     (* row-height (- record-count limit)) 0) "px")}}))))))
 
-(e/defn TablePicker!2
+(e/defn TablePicker!2 ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k authoritative-v record-count Row
    & {:keys [Validate row-height column-count as]
@@ -235,8 +235,8 @@ accept the previous token and retain the new one."
   (Picker! k authoritative-v
     (e/fn PickerBody [selected-index]
       (dom/props (dissoc props :Validate :row-height :column-count :as))
-      (dom/props {:class ["hyperfiddle-electric-forms4__table-picker" (css-slugify k)], #_#_:style {:height "96px"}})
-      (dom/props {:style {:--row-height (str row-height "px")
+      (dom/props {:class ["hyperfiddle-electric-forms4__table-picker" (css-slugify k)]
+                  :style {:--row-height (str row-height "px")
                           :--record-count record-count
                           :--column-count column-count}})
 
@@ -262,6 +262,29 @@ accept the previous token and retain the new one."
     :Validate Validate
     props))
 
+(def table-picker-css ; exported at end of file
+  "
+
+.hyperfiddle-electric-forms4__table-picker {display:grid; grid-template-columns: repeat(var(--column-count), 1fr); }
+.hyperfiddle-electric-forms4__table-picker {height: 100%; overflow: hidden; min-height: calc(2 * var(--row-height)); }
+.hyperfiddle-electric-forms4__table-picker {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
+.hyperfiddle-electric-forms4__table-picker {grid-auto-rows: var(--row-height);}
+.hyperfiddle-electric-forms4__table-picker {overflow-y: scroll; overflow-x: hidden; position: relative;}
+
+.hyperfiddle-electric-forms4__table-picker .padder {position: absolute; width: 1px; z-index: -1;}
+.hyperfiddle-electric-forms4__table-picker .padder { height: calc(var(--record-count) * var(--row-height)); min-height: 100%;}
+
+.hyperfiddle-electric-forms4__table-picker tr {display: contents;}
+.hyperfiddle-electric-forms4__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
+
+/* cosmetic defaults */
+.hyperfiddle-electric-forms4__table-picker tr[data-row-stripe='0'] td { background-color: #f2f2f2; }
+
+.hyperfiddle-electric-forms4__table-picker tr:hover:has(*) td { background-color: #ddd; }
+.hyperfiddle-electric-forms4__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
+.hyperfiddle-electric-forms4__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+"
+)
 
 ;;; Edit/action -> command mapping
 
@@ -687,27 +710,4 @@ accept the previous token and retain the new one."
         (catch Exception e# (doto ::fail (prn e#)))))
 
 
-(def css
-  "
-
-.hyperfiddle-electric-forms4__table-picker {display:grid; grid-template-columns: repeat(var(--column-count), 1fr); }
-.hyperfiddle-electric-forms4__table-picker {height: 100%; overflow: hidden; min-height: calc(2 * var(--row-height)); }
-.hyperfiddle-electric-forms4__table-picker {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
-.hyperfiddle-electric-forms4__table-picker {grid-auto-rows: var(--row-height);}
-.hyperfiddle-electric-forms4__table-picker {overflow-y: scroll; overflow-x: hidden; position: relative;}
-
-.hyperfiddle-electric-forms4__table-picker .padder {position: absolute; width: 1px; z-index: -1;}
-.hyperfiddle-electric-forms4__table-picker .padder { height: calc(var(--record-count) * var(--row-height)); min-height: 100%;}
-
-.hyperfiddle-electric-forms4__table-picker tr {display: contents;}
-.hyperfiddle-electric-forms4__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
-
-/* cosmetic defaults */
-.hyperfiddle-electric-forms4__table-picker tr[data-row-stripe='0'] td { background-color: #f2f2f2; }
-
-.hyperfiddle-electric-forms4__table-picker tr:hover:has(*) td { background-color: #ddd; }
-.hyperfiddle-electric-forms4__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
-.hyperfiddle-electric-forms4__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-"
-)
-
+(def css (str table-picker-css)) ; exports
