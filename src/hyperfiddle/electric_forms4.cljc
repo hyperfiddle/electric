@@ -248,10 +248,8 @@ accept the previous token and retain the new one."
                           (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
                           offset)]
             (dom/tr
-              (dom/props {:role "radio"
-                          :style {:--row-index index}
-                          :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
-              (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+              (dom/props {:style {:--row-index index}
+                          :role "radio" :tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
               ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
               (Row index)
               (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
@@ -278,7 +276,7 @@ accept the previous token and retain the new one."
 .hyperfiddle-electric-forms4__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
 
 /* cosmetic defaults */
-.hyperfiddle-electric-forms4__table-picker tr[data-row-stripe='0'] td { background-color: #f2f2f2; }
+.hyperfiddle-electric-forms4__table-picker tr:nth-child(even) td { background-color: #f2f2f2; }
 
 .hyperfiddle-electric-forms4__table-picker tr:hover:has(*) td { background-color: #ddd; }
 .hyperfiddle-electric-forms4__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
