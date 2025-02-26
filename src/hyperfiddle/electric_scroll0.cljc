@@ -21,7 +21,7 @@
              (m/relieve {}))))
 
 #?(:cljs (defn resize-observer [node]
-           (m/relieve {}
+           (->>
              (m/observe (fn [!] (! [(.-clientHeight node)
                                     (.-clientWidth node)])
                           (let [obs (new js/ResizeObserver
@@ -29,7 +29,9 @@
                                         (let [content-box-size (-> entries (aget 0) .-contentBoxSize (aget 0))]
                                           (! [(.-blockSize content-box-size)
                                               (.-inlineSize content-box-size)]))))]
-                            (.observe obs node) #(.unobserve obs node)))))))
+                            (.observe obs node) #(.unobserve obs node))))
+             (mx/throttle 100) ; Optimization – (un)mounting rows is expensive. 100ms is usually considered "minimum human-perceptible latency".
+             (m/relieve {}))))
 
 #?(:cljs (defn compute-overquery [overquery-factor record-count offset limit]
            (let [q-limit (* limit overquery-factor)
