@@ -1540,26 +1540,24 @@ T T T -> (EXPR T)
     (when-some [^objects channel (aget remote remote-slot-channel)]
       (channel-output-event channel))))
 
-;; is expr always a slot ? if true, we can specialize to ports
-(deftype Incseq [peer expr]
-  IFn
-  (#?(:clj invoke :cljs -invoke) [_ step done]
-    (let [busy (enter peer)]
-      (deps expr run input-attach (peer-site peer))
-      ;; TODO request
-      (exit peer busy)
-      ((->flow expr) step
-       #(let [busy (enter peer)]
-          (deps expr run input-detach (peer-site peer))
-          ;; TODO request
-          (exit peer busy)
-          (done))))))
+(defn attach-deps [peer expr]
+  (let [busy (enter peer)]
+    (deps expr run input-attach (peer-site peer))
+    (exit peer busy)))
 
-(defn incseq-expr [^Incseq incseq]
-  (.-expr incseq))
+(defn detach-deps [peer expr]
+  (let [busy (enter peer)]
+    (deps expr run input-detach (peer-site peer))
+    (exit peer busy)))
 
 (defn incseq [^Frame frame expr]
-  (->Incseq (frame-peer frame) expr))
+  (let [peer (frame-peer frame)]
+    (m/sample {}
+      (m/observe
+        (fn [!] (! nil)
+          (attach-deps peer expr)
+          #(detach-deps peer expr)))
+      (->flow expr))))
 
 (defn frame-result-slot [^Frame frame]
   (let [^objects nodes (.-nodes frame)]

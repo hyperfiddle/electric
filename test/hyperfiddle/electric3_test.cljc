@@ -2386,11 +2386,11 @@
       % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       % := '[join 0 transferring]
-      % := '[join 0 terminating]
-      % := '[join 0 terminated]
       % := '[join 0 transferred Cancelled]
       % := '[join 0 cancelling]
       % := '[join 0 cancelled]
+      % := '[join 0 terminating]
+      % := '[join 0 terminated]
       (tap ::done), % := ::done)))
 
 (tests
@@ -2414,11 +2414,11 @@
       % := '[join 0 cancelling]
       % := '[join 0 cancelled]
       % := '[join 0 transferring]
-      % := '[join 0 terminating]
-      % := '[join 0 terminated]
       % := '[join 0 transferred Cancelled]
       % := '[join 0 cancelling]
       % := '[join 0 cancelled]
+      % := '[join 0 terminating]
+      % := '[join 0 terminated]
       (tap ::done), % := ::done)))
 
 ;; if we don't type hint the call to `fooBar` in the compiler the tests blow up on the inference warning.
