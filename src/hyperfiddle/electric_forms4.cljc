@@ -196,39 +196,6 @@ accept the previous token and retain the new one."
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k authoritative-v record-count Row
-   & {:keys [Validate row-height]
-      :or {Validate (e/fn [_]), row-height 24}
-      :as props}]
-  (dom/div
-    (dom/props {:class ["Viewport" (css-slugify k)], #_#_:style {:height "96px"}}) ; TODO cleanup
-    (dom/props (dissoc props :Validate :row-height))
-    (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
-      (e/amb
-        (Picker! k authoritative-v
-          (e/fn PickerBody [selected-index]
-            (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}})
-            (LatestEdit
-              (e/for [index (IndexRing limit offset)] ; render all rows even when record-count < limit
-                (dom/tr
-                  (dom/props {:role "radio"
-                              :style {:--order (inc index)}
-                              :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
-                  (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
-                  ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
-                  (Row index)
-                  (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
-                                            (dom/On "click" identity nil) ;;
-                                            (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
-                    (e/When t {::token t, ::value index}))))))
-          :as :table
-          :Validate Validate
-          props)
-        (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
-                                                    (* row-height (- record-count limit)) 0) "px")}}))))))
-
-(e/defn TablePicker!2 ; TODO G: might have damaged optimal siting – verify
-  ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
-  [k authoritative-v record-count Row
    & {:keys [Validate row-height column-count as]
       :or {Validate (e/fn [_]), row-height 24, column-count 1, as :table}
       :as props}]
