@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-forms5
   #?(:cljs (:require-macros hyperfiddle.electric-forms5))
-  (:require [contrib.data :refer [index-by auto-props qualify]]
-            [contrib.str :refer [pprint-str]]
+  (:require [contrib.data :refer [auto-props qualify]]
+            [dustingetz.str :refer [pprint-str]]
             [clojure.set :as set]
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
@@ -538,7 +538,7 @@ accept the previous token and retain the new one."
            show-buttons (cond
                           (boolean? show-buttons) show-buttons
                           (nil? show-buttons) false
-                          (= ::smart (qualify show-buttons)) (and (not clean?) (not auto-submit)))
+                          (= ::smart (qualify show-buttons)) (and (not (zero? dirty-count)) (not auto-submit)))
 
            [form-t form-v :as form]
            (merge-edits edits)
@@ -668,3 +668,22 @@ accept the previous token and retain the new one."
    (Update (F (Unparse x)) ::value Parse)))
 
 (e/defn Parse [F edit] (Update edit 1 F))
+
+(defmacro try-ok [& body] ; fixme inject sentinel
+  `(try ~@body ::ok ; sentinel
+        (catch Exception e# (doto ::fail (prn e#)))))
+
+(e/declare effects* #_{})
+
+(e/defn Service [forms]
+  (e/client ; client bias, t doesn't transfer
+    (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
+    (e/for [[t form guess] forms]
+      (let [[effect & args] form
+            Effect ((or effects* {}) effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
+            res (e/Apply Effect args)] ; effect handlers span client and server
+        (prn 'final-res res)
+        (case res
+          nil (prn `res-was-nil-stop!)
+          ::ok (t) ; sentinel, any other value is an error
+          (t ::rejected))))))
