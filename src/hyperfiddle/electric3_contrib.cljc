@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric3-contrib
-  "Experimental operators under consideration for inclusion in electric core"
+  "Experimental operators under consideration for inclusion in Electric core"
   (:require [contrib.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
