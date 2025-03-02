@@ -49,9 +49,6 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 - v3 live tutorial: https://electric.hyperfiddle.net/
 - v3 starter app: not yet generally available, [request early access here](https://www.hyperfiddle.net/early-access.html)
 
-**Electric v2** readme, docs, tutorial links: https://github.com/hyperfiddle/electric/tree/v2
-
-
 # Documentation
 - [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
 - [Talk: Electric Clojure: compiler managed datasync for rich web apps (Getz 2023)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-compiler-managed-datasync-for-rich-web-apps-Getz-2023-e089a8c0caeb456daaf2f9675e3ac4e7)
