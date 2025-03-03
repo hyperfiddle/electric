@@ -399,9 +399,10 @@ accept the previous token and retain the new one."
           (when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
           (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
             (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
-              ((edits-t)) ; immediately detach edits – clears user input.
+              (edits-t) ; immediately detach edits – clears user input.
               [(stop-err-propagation submit-q) [directive edits-kvs]])))))))
 
+#_
 (defn invert-fields-to-form [field-edits]
   (when (seq field-edits)
     {::token (let [tokens (map ::token field-edits)]
@@ -412,6 +413,7 @@ accept the previous token and retain the new one."
      ::value (not-empty (into {} (map (juxt ::name ::value)) field-edits))  ; collect fields into form, retain until commit/discard
      ::validation (not-empty (remove nil? (map ::validation field-edits)))}))
 
+#_
 (comment
 
   (invert-fields-to-form merge [])
@@ -523,6 +525,13 @@ accept the previous token and retain the new one."
                                             parsed-form-v)
                                 :margin 80)))))))))
 
+(def nogenesis identity)
+
+(defn build-genesis! [genesis]
+  (case genesis
+    (true false nil) identity
+    (fn [& _] (genesis))))
+
 (e/defn Form!*
   ([value Fields ; concurrent edits are what give us dirty tracking
     & {:as props}]
@@ -530,7 +539,7 @@ accept the previous token and retain the new one."
      (let [{::keys [debug discard ; TODO implement discard
                     show-buttons auto-submit genesis
                     Parse Unparse]}
-           (auto-props props {::debug false ::show-buttons true ::genesis false ::Parse Identity, ::Unparse Identity})
+           (auto-props props {::debug false ::show-buttons true ::genesis nil ::Parse Identity, ::Unparse Identity})
            unparsed-value (Unparse value)
            edits (e/as-vec (Fields unparsed-value))
            dirty-count (count edits)
@@ -545,7 +554,10 @@ accept the previous token and retain the new one."
 
            merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
-           parsed-form-v (Parse merged-form-v-with-unparsed-v)
+           genesis! (build-genesis! genesis)
+           !tempid (atom (e/snapshot (genesis! form-t))) ; generate one tempid per commit, not per edit
+
+           parsed-form-v (Parse merged-form-v-with-unparsed-v (e/watch !tempid))
 
            validation-message (not-empty (ex-message parsed-form-v))
 
@@ -557,7 +569,7 @@ accept the previous token and retain the new one."
 
            ?cs (FormSubmit! ::commit [form-t parsed-form-v]
                  :label "commit"
-                 :disabled (e/Reconcile (or clean? validation-message)) ; FIXME reconcile shouldn't be necessary
+                 :disabled (e/Reconcile (or (zero? dirty-count) validation-message)) ; FIXME reconcile shouldn't be necessary
                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                  :show-button show-buttons
                  :genesis genesis)
@@ -572,23 +584,22 @@ accept the previous token and retain the new one."
              ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
                              ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
                              (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
-                         (case genesis
-                           true (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                                  (case (token) (e/amb)) ; discard now and swallow cmd, we're done
-                                  nil ; FIXME not sure what this code path should do?
-                                  #_[token ; its a t
-                                     (nth discard 0) ; command
-                                     (nth discard 1)]) ; prediction
+                         (if genesis
+                           (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
+                             (case (token) (e/amb)) ; discard now and swallow cmd, we're done
+                             nil ; FIXME not sure what this code path should do?
+                             #_[token ; its a t
+                                (nth discard 0) ; command
+                                (nth discard 1)]) ; prediction
 
                                         ; reset form and BOTH buttons, cancelling any in-flight commit
-                           false
                            (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))]
                              (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
                                (case (t) (e/amb)) ; discard now and swallow cmd, we're done
                                nil ; FIXME not sure what this code path should do?
                                #_[t
-                                (nth discard 0) ; command
-                                (nth discard 1)]))))
+                                  (nth discard 0) ; command
+                                  (nth discard 1)]))))
              ::commit (let [tempid token]
                         #_(reset! !form-validation validation-message)
                         (if validation-message
@@ -597,6 +608,7 @@ accept the previous token and retain the new one."
                               (e/amb))
                           (do
                             (when genesis (reset-active-form-input! dom/node))
+                            (reset! !tempid (genesis! token)) ; ensure one tempid per commit
                             [(unify-t tempid (fn ([] (reset! !tx-rejected-error nil))
                                                ([err] (reset! !tx-rejected-error err))))
                              parsed-form-v])))))
@@ -660,14 +672,21 @@ accept the previous token and retain the new one."
             (token res)))
         command))))
 
+#_
 (e/defn Update [m k F] (assoc m k (F (get m k))))
 
+#_
 (e/defn Intercept
   ([F x Parse] (Update (F x) ::value Parse))
   ([F x Unparse Parse]
    (Update (F (Unparse x)) ::value Parse)))
 
-(e/defn Parse [F edit] (Update edit 1 F))
+(e/defn Parse "Map over an edit, supposedly turning an edit into a command. See `Unparse`."
+  [F edit] (e/for [[t x] edit] [t (F x)]))
+
+(e/defn Unparse
+  "Turn a command into a plain value, loosing the ACK token. Supposedly turning a command into an optimistic record. See `Parse`."
+  [F command] (e/for [command command] (F (get command 1)))) ; looses token
 
 (defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel
@@ -687,3 +706,62 @@ accept the previous token and retain the new one."
           nil (prn `res-was-nil-stop!)
           ::ok (t) ; sentinel, any other value is an error
           (t ::rejected))))))
+
+;; -----
+
+(defn- now! [& _] #?(:clj (new java.util.Date) :cljs (new js/Date)))
+
+(e/defn OptimisticView ; Experimental
+  "Model a collection of authoritative records (supposedly from remote db) +
+next expected records (expected to become authoritative in the near future,
+supposedly local optimistic guesses).
+
+Return expected records + authoritative records layered over (matched by keyfn),
+effectively overwriting the corresponding expected ones (authoritative has
+precedence over expected). When an authoritative record is retracted, the view
+reflects it. When an optimistic records is removed, the view retains it,
+potentially forever, expecting an authoritative record to overwrite it, idealy
+asap.
+
+Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
+ update between the time an async tx got accepted and the time db queries rerun
+ and transfer new diff from server to client. Otherwise local optimistic guess
+ might retract before authoritative value is received from server, resulting in
+ a blink.
+"
+  ([key-fn authoritative-recs expected-recs]
+   (OptimisticView key-fn now! compare authoritative-recs expected-recs)) ; wrong - ordering by time is not guaranteed to reflect authoritative-recs ordering.
+  ([key-fn sort-key-fn comparator authoritative-recs expected-recs]
+   ;; Not a perfect impl. No e/as-vec (good thing) but still maintain a piece of state and still contains an e/watch and e/diff-by.
+   (let [!index (atom {:kvs {}, :order (sorted-map-by comparator) :rev-order {}})] ; maintain order separately, a single sorted map is not enough to model order + direct access on arbitrary key.
+
+     ;; 1. save expected records
+     (e/for [expected expected-recs]
+       (let [k      (key-fn expected)
+             sort-k (sort-key-fn expected)]
+         (swap! !index #(-> % (update :kvs assoc k expected) (update :order assoc sort-k k) (update :rev-order assoc k sort-k)))
+         ;; no cleanup on unmount, we potentially retain expected forever.
+         ))
+
+     ;; 2. overwrite by authoritatives, cleanup on removal.
+     (e/for [authoritative authoritative-recs] ; defaulting to time ordering is wrong, e/for doesn't guarantee branches mount order.
+       (let [k      (key-fn authoritative)
+             sort-k (sort-key-fn)]
+         (swap! !index (fn [{:keys [rev-order] :as index}]
+                         (let [sort-k (get rev-order k sort-k)]
+                           (-> index
+                             (update :kvs assoc k authoritative)
+                             (update :order assoc sort-k k)
+                             (update :rev-order assoc k sort-k)))))
+         (e/on-unmount #(swap! !index (fn [{:keys [rev-order] :as index}]
+                                        (let [sort-k (get rev-order k sort-k)]
+                                          (-> index
+                                            (update :kvs dissoc k)
+                                            (update :order dissoc sort-k)
+                                            (update :rev-order dissoc k))))))))
+     (let [{:keys [kvs order]} (e/watch !index)]
+       (e/diff-by key-fn         ; ugly
+         (map kvs (vals order))) ; ugly
+       ))))
+
+
