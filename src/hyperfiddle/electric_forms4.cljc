@@ -597,11 +597,11 @@ accept the previous token and retain the new one."
   ;; uninterpreted commands for an other program to consume. 
   [effects commands]
   (e/client ; client bias, t doesn't transfer
-    (prn `Interpreter (e/Count commands) 'commands (e/as-vec commands))
+    ;; (prn `Interpreter (e/Count commands) 'commands (e/as-vec commands))
     (e/for [{::keys [token name value guess] :as command} commands]
       (if-let [Effect (effects name)]
         (let [[name value :as res] (interpret-result token (Effect value))]
-          (prn 'final-res res)
+          ;; (prn 'final-res res)
           (e/When res
             (Interpreter effects (assoc command ::name name, ::value value) )))
         command))))
