@@ -354,6 +354,14 @@ accept the previous token and retain the new one."
     (reset! !latest table) ; intentional race
     (e/When (not= ::nil latest) latest)))
 
+(e/defn Token* [v]
+  (let [!x (atom [nil nil])
+        step (fn [v] (when v
+                       (swap! !x assoc 0 (fn ([] (swap! !x assoc 0 nil 1 nil))
+                                           ([err] (swap! !x assoc 0 nil 1 err))))))]
+    (step v)
+    (e/watch !x)))
+
 (e/defn FormSubmit! ; dom/node must be a form
   [directive [edits-t edits-kvs :as edits] & {:keys [disabled show-button auto-submit genesis] :as props}]
   (e/client
@@ -407,12 +415,13 @@ accept the previous token and retain the new one."
               ;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
-              [t _err] #_(if auto-submit (e/Token edits) (e/Token submit-event))
-              (Latest (e/amb (e/Token submit-event) (e/When auto-submit (e/Token edits))))]
+              ;; [t _err] #_(if auto-submit (e/Token edits) (e/Token submit-event))
+              t (stop-err-propagation (Latest (e/amb (first (Token* submit-event)) ; new token on each submit
+                                                (first (e/Token (and auto-submit edits))))))]
           btn-t ; force let branch to force-mount button
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-            [(unify-t t edits-t (Amb->nil btn-t)) [directive edits-kvs]]))
+            [(unify-t t (e/Reconcile ((e/capture-fn) (unify-t edits-t (Amb->nil btn-t))))) [directive edits-kvs]]))
         (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
           (when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
           (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
@@ -549,7 +558,7 @@ accept the previous token and retain the new one."
                                   (nth discard 0) ; command
                                   (nth discard 1)]))))
              ::commit (let [tempid token
-                            tempid (if tracked-token (unify-t tracked-token tempid) tempid)]
+                            tempid (if tracked-token (unify-t tempid tracked-token) tempid)]
                         #_(reset! !form-validation validation-message)
                         (if validation-message
                           (do (tempid ; err value gets dropped, but form won't reset.
