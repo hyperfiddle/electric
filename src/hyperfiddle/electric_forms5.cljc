@@ -76,11 +76,11 @@ Simple uncontrolled checkbox, e.g.
   (not (instance? #?(:clj Throwable, :cljs js/Error) x)))
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
-                v & {:keys [maxlength type Parse Unparse] :as props
-                     :or {maxlength 100, type "text", Parse Identity, Unparse (Lift str)}}]
+                v & {:keys [as maxlength name type Parse Unparse] :as props
+                     :or {as :input, maxlength 100, type "text", Parse Identity, Unparse (Lift str)}}]
   (e/client
-    (dom/input
-      (dom/props (-> props (dissoc :parse :Parse :Unparse) (assoc :maxLength maxlength :type type)))
+    (dom/element as
+      (dom/props (-> props (dissoc :as :parse :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
       (let [e (dom/On "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
@@ -94,6 +94,17 @@ Simple uncontrolled checkbox, e.g.
         (when waiting? (dom/props {:aria-busy true}))
         (e/When waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
           [t {field-name parsed-v}])))))  ; edit request, bubbles upward to interpreter
+
+(e/defn Output [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
+                v & {:keys [Unparse] :as props :or {Unparse (Lift str)}}]
+  (e/client
+    (dom/output
+      (dom/props (dissoc props :Unparse))
+      (dom/props {:for (str field-name)}) ; TODO support multiple values – https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/for
+      (dom/text (Unparse v)))))
+
+(e/defn Textarea! [field-name v & props]
+  (Input! field-name v :as :textarea props))
 
 (defn unify-t ; unify-token ; WIP
   ([]  (constantly nil))
@@ -337,6 +348,12 @@ accept the previous token and retain the new one."
   (when (e/Some? table)
     table))
 
+(e/defn Latest [table]  ; Experimental
+  (let [!latest (atom ::nil)
+        latest (e/watch !latest)]
+    (reset! !latest table) ; intentional race
+    (e/When (not= ::nil latest) latest)))
+
 (e/defn FormSubmit! ; dom/node must be a form
   [directive [edits-t edits-kvs :as edits] & {:keys [disabled show-button auto-submit genesis] :as props}]
   (e/client
@@ -379,7 +396,7 @@ accept the previous token and retain the new one."
     ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
-    (let [submit-handler #(do (.preventDefault %) #_(js/console.log "submit" (hash %) (event-is-from-this-form? %) (clj->js {:node dom/node :currentTarget (.-currentTarget %) :e %}))
+    (let [submit-handler #(do (.preventDefault %) (js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
                               (when (and (not disabled) (event-is-from-this-form? %)) %))]
       (if-not genesis
         ;; Regular tx submit – txs are sequential.
@@ -390,7 +407,8 @@ accept the previous token and retain the new one."
               ;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
-              [t _err] (if auto-submit (e/Token edits) (e/Token submit-event))]
+              [t _err] #_(if auto-submit (e/Token edits) (e/Token submit-event))
+              (Latest (e/amb (e/Token submit-event) (e/When auto-submit (e/Token edits))))]
           btn-t ; force let branch to force-mount button
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
@@ -440,97 +458,14 @@ accept the previous token and retain the new one."
                                (catch #?(:clj Throwable, :cljs :default) _
                                  cmd))))))
 
-#_
-(e/defn Form!*
-  ([#_field-edits ; aggregate form state - implies circuit controls, i.e. no control dirty state
-    name edits ; concurrent edits are what give us dirty tracking
-    & {:as props}]
-   (e/client
-     (let [{::keys [debug commit ; :commit fn must be side-effect free, :debug true will call :commit on every edit and present the result to the user
-                    discard show-buttons auto-submit genesis
-                    Parse Unparse]}
-           (auto-props props {::debug false ::show-buttons true ::genesis false ::Parse Identity, ::Unparse Identity})
-           form-name name
-           edits       (e/as-vec edits)
-           dirty-count (count edits)
-           clean? (zero? dirty-count)
-           show-buttons (cond
-                          (boolean? show-buttons) show-buttons
-                          (nil? show-buttons) false
-                          (= ::smart (qualify show-buttons)) (and (not clean?) (not auto-submit)))
-
-           [form-t form-v :as form]
-           (merge-edits edits)
-
-           parsed-form-v (Parse form-v)
-
-           validation-message (not-empty (ex-message parsed-form-v))
-
-           !form-validation (atom ::nil)
-           form-validation (e/watch !form-validation)
-
-           !tx-rejected-error (atom nil)
-           tx-rejected-error (e/watch !tx-rejected-error)
-
-           ?cs (FormSubmit! ::commit [form-t parsed-form-v]
-                 :label "commit"
-                 :disabled (e/Reconcile (or clean? validation-message)) ; FIXME reconcile shouldn't be necessary
-                 :auto-submit auto-submit ; (when auto-submit dirty-form)
-                 :show-button show-buttons
-                 :genesis genesis)
-           ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled clean? :label "discard" :show-button show-buttons)]
-       (dom/p (dom/props {:data-role "errormessage"})
-              (when (not= form-validation ::nil) (dom/text form-validation))
-              (when tx-rejected-error (dom/text tx-rejected-error)))
-       (e/amb
-         (e/for [[token [directive parsed-form-v] :as _edit] (e/amb ?cs ?d)] ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
-           (case directive ; does order of burning matter?
-             ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-             ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
-                             ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
-                             (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
-                         (case genesis
-                           true (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                                  (case (token) (e/amb)) ; discard now and swallow cmd, we're done
-                                  nil ; FIXME not sure what this code path should do?
-                                  #_[token ; its a t
-                                     (nth discard 0) ; command
-                                     (nth discard 1)]) ; prediction
-
-                                        ; reset form and BOTH buttons, cancelling any in-flight commit
-                           false
-                           (let [t (after-ack token #(do (clear-commits) (reset! !form-validation ::nil)))]
-                             (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                               (case (t) (e/amb)) ; discard now and swallow cmd, we're done
-                               nil ; FIXME not sure what this code path should do?
-                               #_[t
-                                (nth discard 0) ; command
-                                (nth discard 1)]))))
-             ::commit (let [tempid token]
-                        (reset! !form-validation validation-message)
-                        (if validation-message
-                          (do (tempid ; err value gets dropped, but form won't reset.
-                                ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
-                              (e/amb))
-                          (do
-                            (when genesis (reset-active-form-input! dom/node))
-                            [(unify-t tempid (fn ([] (reset! !tx-rejected-error nil))
-                                               ([err] (reset! !tx-rejected-error err))))
-                             {form-name parsed-form-v}])))))
-
-         (e/When debug
-           (dom/span (dom/text " " dirty-count " dirty"))
-           (dom/pre (dom/text (pprint-str (if (= :verbose debug)
-                                            {:form form-v, :parsed-form parsed-form-v, :validation validation-message}
-                                            parsed-form-v)
-                                :margin 80)))))))))
-
-(def nogenesis identity)
-
 (defn build-genesis! [genesis]
   (case genesis
     (true false nil) identity
     (fn [& _] (genesis))))
+
+(e/defn UnparseCommand [F]
+  (e/fn [[token command] error]
+    [token (F command)]))
 
 (e/defn Form!*
   ([value Fields ; concurrent edits are what give us dirty tracking
@@ -538,9 +473,21 @@ accept the previous token and retain the new one."
    (e/client
      (let [{::keys [debug discard ; TODO implement discard
                     show-buttons auto-submit genesis
-                    Parse Unparse]}
-           (auto-props props {::debug false ::show-buttons true ::genesis nil ::Parse Identity, ::Unparse Identity})
-           unparsed-value (Unparse value)
+                    Parse Unparse tempid]}
+           (auto-props props {::debug false ::show-buttons false ::genesis false})
+
+           next-tempid! (if tempid (fn [& _] (tempid)) identity)
+
+           cmd-mode? (some? Unparse)
+           auto-submit (if (some? auto-submit) auto-submit cmd-mode?)
+
+           !tx-rejected-error (atom nil)
+           tx-rejected-error (e/watch !tx-rejected-error)
+
+           Unparse (if cmd-mode? (UnparseCommand Unparse) (e/fn [x error] [nil [x nil]]))
+           [tracked-token [unparsed-value tempid]] (Unparse value tx-rejected-error)
+           Parse (or Parse (if cmd-mode? (e/fn [fields tempid] (second value)) (e/fn [fields tempid] fields)))
+
            edits (e/as-vec (Fields unparsed-value))
            dirty-count (count edits)
            clean? (empty? unparsed-value) #_(zero? dirty-count)
@@ -554,26 +501,26 @@ accept the previous token and retain the new one."
 
            merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
-           genesis! (build-genesis! genesis)
-           !tempid (atom (e/snapshot (genesis! form-t))) ; generate one tempid per commit, not per edit
+           ;; genesis! (build-genesis! genesis)
+           ;; !tempid (atom tempid) ; generate one tempid per commit, not per edit
 
-           parsed-form-v (Parse merged-form-v-with-unparsed-v (e/watch !tempid))
+           parsed-form-v (Parse merged-form-v-with-unparsed-v (or tempid (next-tempid! form-t)))
 
            validation-message (not-empty (ex-message parsed-form-v))
 
            #_#_!form-validation (atom ::nil)
            #_#_form-validation (e/watch !form-validation)
 
-           !tx-rejected-error (atom nil)
-           tx-rejected-error (e/watch !tx-rejected-error)
-
            ?cs (FormSubmit! ::commit [form-t parsed-form-v]
                  :label "commit"
-                 :disabled (e/Reconcile (or (zero? dirty-count) validation-message)) ; FIXME reconcile shouldn't be necessary
+                 :disabled (e/Reconcile (and (or (zero? dirty-count) validation-message) (not cmd-mode?))) ; FIXME reconcile shouldn't be necessary
                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                  :show-button show-buttons
                  :genesis genesis)
-           ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (zero? dirty-count) :label "discard" :show-button show-buttons)]
+           ?d (FormDiscard! ::discard [(or tracked-token form-t) parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard" :show-button show-buttons)]
+       #_(prn "unparsed" unparsed)
+       (dom/props {:aria-invalid (some-> tx-rejected-error)
+                   :aria-busy    (if (and auto-submit tracked-token) true nil)})
        (dom/p (dom/props {:data-role "errormessage"})
               (dom/text validation-message)
               (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -600,7 +547,8 @@ accept the previous token and retain the new one."
                                #_[t
                                   (nth discard 0) ; command
                                   (nth discard 1)]))))
-             ::commit (let [tempid token]
+             ::commit (let [tempid token
+                            tempid (if tracked-token (unify-t tracked-token tempid) tempid)]
                         #_(reset! !form-validation validation-message)
                         (if validation-message
                           (do (tempid ; err value gets dropped, but form won't reset.
@@ -608,7 +556,7 @@ accept the previous token and retain the new one."
                               (e/amb))
                           (do
                             (when genesis (reset-active-form-input! dom/node))
-                            (reset! !tempid (genesis! token)) ; ensure one tempid per commit
+                            ;; (reset! !tempid (next-tempid! token)) ; ensure one tempid per commit
                             [(unify-t tempid (fn ([] (reset! !tx-rejected-error nil))
                                                ([err] (reset! !tx-rejected-error err))))
                              parsed-form-v])))))
@@ -765,3 +713,52 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
        ))))
 
 
+(e/defn Reconcile-by ; Experimental
+  ([key-fn authoritative-recs commands]
+   (Reconcile-by key-fn now! compare Identity authoritative-recs commands)) ; wrong - ordering by time is not guaranteed to reflect authoritative-recs ordering.
+  ([key-fn Unparse authoritative-recs commands]
+   (Reconcile-by key-fn now! compare Unparse authoritative-recs commands))
+  ([key-fn sort-key-fn comparator Unparse authoritative-recs commands]
+   ;; Not a perfect impl. No e/as-vec (good thing) but still maintain a piece of state and still contains an e/watch and e/diff-by.
+   (let [!index (atom {:kvs {}, :order (sorted-map-by comparator) :rev-order {}})] ; maintain order separately, a single sorted map is not enough to model order + direct access on arbitrary key.
+
+     ;; 1. save expected records
+     (e/for [[t cmd :as command] commands]
+       (let [record (assoc (Unparse cmd) ::command command)
+             k      (key-fn record)
+             sort-k (sort-key-fn record)]
+         (prn "Reconcile-by record" record)
+         (swap! !index #(-> % (update :kvs assoc k record) (update :order assoc sort-k k) (update :rev-order assoc k sort-k)))
+         ;; no cleanup on unmount, we potentially retain record forever.
+         ))
+
+     ;; 2. overwrite by authoritatives, cleanup on removal.
+     (e/for [authoritative authoritative-recs] ; defaulting to time ordering is wrong, e/for doesn't guarantee branches mount order.
+       (let [k      (key-fn authoritative)
+             sort-k (sort-key-fn)]
+         (swap! !index (fn [{:keys [rev-order] :as index}]
+                         (let [sort-k (get rev-order k sort-k)]
+                           (-> index
+                             (update :kvs assoc k authoritative)
+                             (update :order assoc sort-k k)
+                             (update :rev-order assoc k sort-k)))))
+         (e/on-unmount #(swap! !index (fn [{:keys [rev-order] :as index}]
+                                        (let [sort-k (get rev-order k sort-k)]
+                                          (-> index
+                                            (update :kvs dissoc k)
+                                            (update :order dissoc sort-k)
+                                            (update :rev-order dissoc k))))))))
+     (let [{:keys [kvs order]} (e/watch !index)]
+       (e/diff-by key-fn         ; ugly
+         (map kvs (vals order))) ; ugly
+       ))))
+
+#_
+(e/defn TrackTx [command F]
+  (e/for [[t command] command]
+    (let [!err (atom nil)
+          err (e/watch !err)]
+      [(unify-t t (fn ([] (reset! !err nil))
+                    ([err] (reset! !err err))))
+       (F err)]
+      )))
