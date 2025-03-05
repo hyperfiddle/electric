@@ -753,12 +753,12 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
          (map kvs (vals order))) ; ugly
        ))))
 
-#_
-(e/defn TrackTx [command F]
-  (e/for [[t command] command]
-    (let [!err (atom nil)
-          err (e/watch !err)]
-      [(unify-t t (fn ([] (reset! !err nil))
-                    ([err] (reset! !err err))))
-       (F err)]
-      )))
+
+(e/defn TrackTx [F]
+  (let [!err (atom nil)
+        err (e/watch !err)
+        [t cmd] (F err)]
+    [(unify-t t (fn ([] (reset! !err nil))
+                  ([err] (reset! !err err))))
+     cmd]
+    ))
