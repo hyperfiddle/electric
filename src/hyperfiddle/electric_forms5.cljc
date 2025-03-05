@@ -517,7 +517,7 @@ accept the previous token and retain the new one."
                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                  :show-button show-buttons
                  :genesis genesis)
-           ?d (FormDiscard! ::discard [(or tracked-token form-t) parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard" :show-button show-buttons)]
+           ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard" :show-button show-buttons)]
        #_(prn "unparsed" unparsed)
        (dom/props {:aria-invalid (some-> tx-rejected-error)
                    :aria-busy    (if (and auto-submit tracked-token) true nil)})
@@ -540,7 +540,8 @@ accept the previous token and retain the new one."
                                 (nth discard 1)]) ; prediction
 
                                         ; reset form and BOTH buttons, cancelling any in-flight commit
-                           (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))]
+                           (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))
+                                 t (after-ack t #(when tracked-token (tracked-token ::discard)))]
                              (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
                                (case (t) (e/amb)) ; discard now and swallow cmd, we're done
                                nil ; FIXME not sure what this code path should do?
@@ -713,6 +714,18 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
        ))))
 
 
+(defn -add [index k sort-k record]
+  (-> index
+    (update :kvs assoc k record)
+    (update :order assoc sort-k k)
+    (update :rev-order assoc k sort-k)))
+
+(defn -remove [index k sort-k]
+  (-> index
+    (update :kvs dissoc k)
+    (update :order dissoc sort-k)
+    (update :rev-order dissoc k)))
+
 (e/defn Reconcile-by ; Experimental
   ([key-fn authoritative-recs commands]
    (Reconcile-by key-fn now! compare Identity authoritative-recs commands)) ; wrong - ordering by time is not guaranteed to reflect authoritative-recs ordering.
@@ -724,12 +737,11 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
 
      ;; 1. save expected records
      (e/for [[t cmd :as command] commands]
-       (let [record (assoc (Unparse cmd) ::command command)
+       (let [record (Unparse cmd)
              k      (key-fn record)
-             sort-k (sort-key-fn record)]
-         (prn "Reconcile-by record" record)
-         (swap! !index #(-> % (update :kvs assoc k record) (update :order assoc sort-k k) (update :rev-order assoc k sort-k)))
-         ;; no cleanup on unmount, we potentially retain record forever.
+             sort-k (sort-key-fn record)
+             t (unify-t (fn ([]) ([err] (when (= ::discard err) (swap! !index -remove k sort-k)))) t)]
+         (swap! !index -add k sort-k (assoc record ::command [t cmd]))
          ))
 
      ;; 2. overwrite by authoritatives, cleanup on removal.
@@ -738,16 +750,10 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
              sort-k (sort-key-fn)]
          (swap! !index (fn [{:keys [rev-order] :as index}]
                          (let [sort-k (get rev-order k sort-k)]
-                           (-> index
-                             (update :kvs assoc k authoritative)
-                             (update :order assoc sort-k k)
-                             (update :rev-order assoc k sort-k)))))
+                           (-add index k sort-k authoritative))))
          (e/on-unmount #(swap! !index (fn [{:keys [rev-order] :as index}]
                                         (let [sort-k (get rev-order k sort-k)]
-                                          (-> index
-                                            (update :kvs dissoc k)
-                                            (update :order dissoc sort-k)
-                                            (update :rev-order dissoc k))))))))
+                                          (-remove index k sort-k)))))))
      (let [{:keys [kvs order]} (e/watch !index)]
        (e/diff-by key-fn         ; ugly
          (map kvs (vals order))) ; ugly
