@@ -280,7 +280,9 @@ accept the previous token and retain the new one."
         [btn-t err] (e/Token event)]
     (#(if %1 %2 %3) btn-t
       [(unify-t btn-t tracked-token) err event node]
-      [tracked-token tracked-err (js/Object.) node])))
+      (#(if %1 %2 %3) tracked-token
+        [tracked-token tracked-err (js/Object.) node]
+        [nil nil nil node]))))
 
 (e/defn TxButton!
   ;; Like `Button!*` with extra semantic markup reflecting tx status.
