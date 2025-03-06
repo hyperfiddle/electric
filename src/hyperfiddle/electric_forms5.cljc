@@ -266,10 +266,21 @@ accept the previous token and retain the new one."
   [& {:keys [label] :as props}]
   (first (Button* props)))
 
-(e/defn Button!* [& {:keys [label] :as props}]
-  (let [[event node] (Button* props)
+(e/defn TrackTx [F]
+  (let [!err (atom nil)
+        err (e/watch !err)
+        [t & rest] (F err)]
+    (into [(#(when % (unify-t % (fn ([] (reset! !err nil))
+                           ([err] (reset! !err err))))) t)]
+      rest)))
+
+(e/defn Button!* [& {:keys [label token] :as props}]
+  (let [[event node] (Button* (dissoc props :token))
+        [tracked-token tracked-err] (TrackTx (e/fn [err] [token err]))
         [btn-t err] (e/Token event)]
-    [btn-t err event node]))
+    (#(if %1 %2 %3) btn-t
+      [(unify-t btn-t tracked-token) err event node]
+      [tracked-token tracked-err (js/Object.) node])))
 
 (e/defn TxButton!
   ;; Like `Button!*` with extra semantic markup reflecting tx status.
@@ -285,7 +296,7 @@ accept the previous token and retain the new one."
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
-    (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (some? btn-t))))})
+    (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (and (some? btn-t) (not (some? err))))))})
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
@@ -416,8 +427,8 @@ accept the previous token and retain the new one."
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
               ;; [t _err] #_(if auto-submit (e/Token edits) (e/Token submit-event))
-              t (stop-err-propagation (Latest (e/amb (first (Token* submit-event)) ; new token on each submit
-                                                (first (e/Token (and auto-submit edits))))))]
+              t (stop-err-propagation (Latest (first (e/amb (Token* submit-event) ; new token on each submit
+                                                       (e/When auto-submit (e/Token edits))))))]
           btn-t ; force let branch to force-mount button
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
@@ -472,6 +483,7 @@ accept the previous token and retain the new one."
     (true false nil) identity
     (fn [& _] (genesis))))
 
+#_
 (e/defn UnparseCommand [F]
   (e/fn [[token command] error]
     [token (F command)]))
@@ -482,20 +494,22 @@ accept the previous token and retain the new one."
    (e/client
      (let [{::keys [debug discard ; TODO implement discard
                     show-buttons auto-submit genesis
-                    Parse Unparse tempid]}
+                    Parse Unparse tempid attach]}
            (auto-props props {::debug false ::show-buttons false ::genesis false})
 
            next-tempid! (if tempid (fn [& _] (tempid)) identity)
 
-           cmd-mode? (some? Unparse)
-           auto-submit (if (some? auto-submit) auto-submit cmd-mode?)
-
            !tx-rejected-error (atom nil)
            tx-rejected-error (e/watch !tx-rejected-error)
 
-           Unparse (if cmd-mode? (UnparseCommand Unparse) (e/fn [x error] [nil [x nil]]))
-           [tracked-token [unparsed-value tempid]] (Unparse value tx-rejected-error)
-           Parse (or Parse (if cmd-mode? (e/fn [fields tempid] (second value)) (e/fn [fields tempid] fields)))
+           ;; Unparse (if cmd-mode? (UnparseCommand Unparse) (e/fn [x error] [nil [x nil]]))
+           Unparse (or Unparse (e/fn [x] [x nil]))
+           [tracked-token tracked-cmd] attach
+           [unparsed-value tempid] (Unparse value #_tx-rejected-error)
+           cmd-mode? (some? attach)
+           auto-submit (if (some? auto-submit) auto-submit cmd-mode?)
+           ;; Parse (or Parse (if cmd-mode? (e/fn [fields tempid] (second value)) (e/fn [fields tempid] fields)))
+           Parse (or Parse (e/fn [fields tempid] fields))
 
            edits (e/as-vec (Fields unparsed-value))
            dirty-count (count edits)
@@ -522,14 +536,12 @@ accept the previous token and retain the new one."
 
            ?cs (FormSubmit! ::commit [form-t parsed-form-v]
                  :label "commit"
+                 :token tracked-token
                  :disabled (e/Reconcile (and (or (zero? dirty-count) validation-message) (not cmd-mode?))) ; FIXME reconcile shouldn't be necessary
                  :auto-submit auto-submit ; (when auto-submit dirty-form)
                  :show-button show-buttons
                  :genesis genesis)
            ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard" :show-button show-buttons)]
-       #_(prn "unparsed" unparsed)
-       (dom/props {:aria-invalid (some-> tx-rejected-error)
-                   :aria-busy    (if (and auto-submit tracked-token) true nil)})
        (dom/p (dom/props {:data-role "errormessage"})
               (dom/text validation-message)
               (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -557,8 +569,7 @@ accept the previous token and retain the new one."
                                #_[t
                                   (nth discard 0) ; command
                                   (nth discard 1)]))))
-             ::commit (let [tempid token
-                            tempid (if tracked-token (unify-t tempid tracked-token) tempid)]
+             ::commit (let [tempid token]
                         #_(reset! !form-validation validation-message)
                         (if validation-message
                           (do (tempid ; err value gets dropped, but form won't reset.
@@ -639,12 +650,8 @@ accept the previous token and retain the new one."
   ([F x Unparse Parse]
    (Update (F (Unparse x)) ::value Parse)))
 
-(e/defn Parse "Map over an edit, supposedly turning an edit into a command. See `Unparse`."
+(e/defn Parse "Map over an edit, supposedly turning an edit into a command."
   [F edit] (e/for [[t x] edit] [t (F x)]))
-
-(e/defn Unparse
-  "Turn a command into a plain value, loosing the ACK token. Supposedly turning a command into an optimistic record. See `Parse`."
-  [F command] (e/for [command command] (F (get command 1)))) ; looses token
 
 (defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel
@@ -767,13 +774,3 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
        (e/diff-by key-fn         ; ugly
          (map kvs (vals order))) ; ugly
        ))))
-
-
-(e/defn TrackTx [F]
-  (let [!err (atom nil)
-        err (e/watch !err)
-        [t cmd] (F err)]
-    [(unify-t t (fn ([] (reset! !err nil))
-                  ([err] (reset! !err err))))
-     cmd]
-    ))
