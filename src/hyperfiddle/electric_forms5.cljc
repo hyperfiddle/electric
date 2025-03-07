@@ -153,7 +153,7 @@ accept the previous token and retain the new one."
     (case (e/Count edits)
       0 (reset! !latest nil)
       (swap! !latest (fn [[old-t _old-kv] [_new-t _new-kv :as new]] (when old-t (old-t)) new) edits))
-    (e/When latest latest)))
+    (e/Reconcile (e/When latest latest))))
 
 (e/defn Picker!
   [k selected-v Body &
@@ -304,8 +304,8 @@ accept the previous token and retain the new one."
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
     (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
 
-(e/defn Button! [value & {:keys [Parse] :or {Parse Identity} :as props}] ; User friendly API answering "what does the button do when clicked: it returns [t (Parse value)], ∅ otherwise."
-  [(first (TxButton! (dissoc props :Parse))) (Parse value)])
+(e/defn Button! [command & {:keys [Parse] :or {Parse Identity} :as props}] ; User friendly API answering "what does the button do when clicked: it returns [t (Parse value)], ∅ otherwise."
+  [(first (TxButton! (dissoc props :Parse))) (Parse command)])
 
 ;;; Forms
 
@@ -338,6 +338,15 @@ accept the previous token and retain the new one."
       (e/When t
         [(unify-t t edits-t) [directive edits-kvs]] ; edits-kvs is unused, but command shape matches FormSubmit for consistency
         ))))
+
+
+;; (e/defn DiscardButton! []
+;;   (FormDiscard!))
+
+;; (e/declare *tracked-token*)
+
+;; (e/defn SubmitButton! [& {:as props}]
+;;   (Button! [::commit] (merge {:token *tracked-token*, :type :submit} props)))
 
 #?(:cljs
    (defn event-submit-form! [^js e]
@@ -464,6 +473,13 @@ accept the previous token and retain the new one."
   := [_ {:a "a", :b "b"} ["invalid a" "invalid b"]]
   )
 
+(def form-command? #{::commit ::discard})
+
+(defn split-edits-from-commands [edits]
+  (prn "edits" edits)
+  (let [form-command? (fn [[t x]] (and (vector? x) (form-command? (first x))))]
+    [(remove form-command? edits)
+     (filter form-command? edits)]))
 
 (defn merge-edits [edits]
   [(->> (map first edits) ; extract all tokens
@@ -521,8 +537,8 @@ accept the previous token and retain the new one."
                           (nil? show-buttons) false
                           (= ::smart (qualify show-buttons)) (and (not (zero? dirty-count)) (not auto-submit)))
 
-           [form-t form-v :as form]
-           (merge-edits edits)
+           [edits commands] (split-edits-from-commands edits)
+           [form-t form-v :as form] (merge-edits edits)
 
            merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
@@ -548,41 +564,42 @@ accept the previous token and retain the new one."
               (dom/text validation-message)
               (when tx-rejected-error (dom/text tx-rejected-error)))
        (e/amb
-         (e/for [[token [directive parsed-form-v] :as _edit] (e/amb ?cs ?d)] ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
-           (case directive ; does order of burning matter?
-             ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-             ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
-                             ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
-                             (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
-                         (if genesis
-                           (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                             (case (token) (e/amb)) ; discard now and swallow cmd, we're done
-                             nil ; FIXME not sure what this code path should do?
-                             #_[token ; its a t
-                                (nth discard 0) ; command
-                                (nth discard 1)]) ; prediction
+         (e/for [[token [directive captured-parsed-form-v] :as _edit] (e/diff-by (comp first second) (e/as-vec (e/amb ?d (LatestEdit (e/amb ?cs (e/diff-by first commands))))))] ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
+           (let [parsed-form-v (or captured-parsed-form-v parsed-form-v)]
+             (case directive ; does order of burning matter?
+               ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
+               ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
+                               ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
+                               (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
+                           (if genesis
+                             (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
+                               (case (token) (e/amb)) ; discard now and swallow cmd, we're done
+                               nil ; FIXME not sure what this code path should do?
+                               #_[token ; its a t
+                                  (nth discard 0) ; command
+                                  (nth discard 1)]) ; prediction
 
                                         ; reset form and BOTH buttons, cancelling any in-flight commit
-                           (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))
-                                 t (after-ack t #(when tracked-token (tracked-token ::discard)))]
-                             (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                               (case (t) (e/amb)) ; discard now and swallow cmd, we're done
-                               nil ; FIXME not sure what this code path should do?
-                               #_[t
-                                  (nth discard 0) ; command
-                                  (nth discard 1)]))))
-             ::commit (let [tempid token]
-                        #_(reset! !form-validation validation-message)
-                        (if validation-message
-                          (do (tempid ; err value gets dropped, but form won't reset.
-                                ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
-                              (e/amb))
-                          (do
-                            (when genesis (reset-active-form-input! dom/node))
-                            ;; (reset! !tempid (next-tempid! token)) ; ensure one tempid per commit
-                            [(unify-t tempid (fn ([] (reset! !tx-rejected-error nil))
-                                               ([err] (reset! !tx-rejected-error err))))
-                             parsed-form-v])))))
+                             (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))
+                                   t (after-ack t #(when tracked-token (tracked-token ::discard)))]
+                               (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
+                                 (case (t) (e/amb)) ; discard now and swallow cmd, we're done
+                                 nil ; FIXME not sure what this code path should do?
+                                 #_[t
+                                    (nth discard 0) ; command
+                                    (nth discard 1)]))))
+               ::commit (let [tempid token]
+                          #_(reset! !form-validation validation-message)
+                          (if validation-message
+                            (do (tempid ; err value gets dropped, but form won't reset.
+                                  ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
+                                (e/amb))
+                            ;; (do (reset! !tempid (next-tempid! token))) ; ensure one tempid per commit
+                            (do
+                              (when genesis (reset-active-form-input! dom/node))
+                              [(unify-t tempid (fn ([] (reset! !tx-rejected-error nil))
+                                                 ([err] (reset! !tx-rejected-error err))))
+                               parsed-form-v]))))))
 
          (e/When debug
            (dom/span (dom/text " " dirty-count " dirty"))
