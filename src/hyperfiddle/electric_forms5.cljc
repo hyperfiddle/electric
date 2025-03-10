@@ -268,10 +268,16 @@ accept the previous token and retain the new one."
 
 ;;; Buttons
 
+#?(:cljs
+   (defn- handle-button-click [^js event]
+     (when (and (= "submit" (.-type (.-target event))) (= "true" (.getAttribute (.-target event) "data-tx"))) ; no native submit if Button! has a command
+       (.preventDefault event))
+     event))
+
 (e/defn Button* [{:keys [label] :as props}]
   (dom/button (dom/text label)
               (dom/props (dissoc props :label))
-              [(dom/On "click" identity nil) dom/node]))
+              [(dom/On "click" handle-button-click nil) dom/node]))
 
 (e/defn Button "Simple button, return latest click event or nil."
   [& {:keys [label] :as props}]
@@ -342,7 +348,7 @@ accept the previous token and retain the new one."
 (e/declare current-edit) ; [edit-t edit-kvs]
 
 (e/defn FormDiscard! ; dom/node must be a form
-  [directive [edits-t edits-kvs] & {:keys [show-button] :as props}]
+  [directive [edits-t edits-kvs] & {:as props}]
   (e/client
     ;; reset form on <ESC>
     (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
@@ -352,8 +358,11 @@ accept the previous token and retain the new one."
         [(unify-t t edits-t) [directive edits-kvs]] ; edits-kvs is unused, but command shape matches FormSubmit for consistency
         ))))
 
+(e/declare *disabled-commit)
+(e/declare *disabled-discard)
+
 (e/defn DiscardButton! [& {:as props}]
-  (Button! [::discard] :type :reset :label "discard" props))
+  (Button! [::discard] :type :reset :label "discard" :disabled *disabled-discard props))
 
 #?(:cljs
    (defn event-submit-form! [^js e]
@@ -392,11 +401,10 @@ accept the previous token and retain the new one."
     (e/watch !x)))
 
 (e/defn FormSubmit! ; dom/node must be a form
-  [directive [edits-t edits-kvs :as edits] & {:keys [disabled #_show-button auto-submit genesis] :as props}]
+  [directive [edits-t edits-kvs :as edits] & {:keys [disabled auto-submit genesis] :as props}]
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
-    (prn "disabled" disabled)
     (when (not disabled)
       (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
@@ -447,7 +455,6 @@ accept the previous token and retain the new one."
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
             [(unify-t t edits-t) [directive edits-kvs]]))
         (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
-          #_(when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
           (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
             (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
               (edits-t) ; immediately detach edits – clears user input.
@@ -458,9 +465,9 @@ accept the previous token and retain the new one."
 
 (e/defn SubmitButton! [& {:keys [genesis] :as props}]
   (if genesis
-    (do (Button :type :submit :label "commit" props) ; do not track tx
+    (do (Button :type :submit :label "commit" :disabled *disabled-commit (dissoc props :genesis)) ; do not track tx
         (e/amb))
-    (Button! [::commit] :type :button :label "commit" :token *tracked-token props)))
+    (Button! [::commit] :type :submit :label "commit" :token *tracked-token :data-command true :disabled *disabled-commit (dissoc props :genesis))))
 
 (def form-command? #{::commit ::discard})
 
@@ -477,25 +484,13 @@ accept the previous token and retain the new one."
    (into {} (map second) edits) ; merge all kvs.
    ])
 
-(defn debug-cleanup-form-edit [[_cmd & _args :as form-edit]]
-  (when form-edit
-    (update form-edit 0 (fn [cmd]
-                          (try (contrib.data/unqualify cmd)
-                               (catch #?(:clj Throwable, :cljs :default) _
-                                 cmd))))))
-
-(defn build-genesis! [genesis]
-  (case genesis
-    (true false nil) identity
-    (fn [& _] (genesis))))
-
 (e/defn Form!*
   ([value Fields ; concurrent edits are what give us dirty tracking
     & {:as props}]
    (e/client
      (let [{::keys [debug discard ; TODO implement discard
                     show-buttons auto-submit genesis
-                    Parse Unparse tempid attach]}
+                    Parse Unparse tempid]}
            (auto-props props {::debug false ::show-buttons false ::genesis false})
 
            next-tempid! (if tempid (fn [& _] (tempid)) identity)
@@ -503,14 +498,16 @@ accept the previous token and retain the new one."
            !tx-rejected-error (atom nil)
            tx-rejected-error (e/watch !tx-rejected-error)
 
-           ;; Unparse (if cmd-mode? (UnparseCommand Unparse) (e/fn [x error] [nil [x nil]]))
-           Unparse (or Unparse (e/fn [x] [x nil]))
-           [tracked-token tracked-cmd] attach]
-       (binding [*tracked-token tracked-token]
-         (let [[unparsed-value tempid] (Unparse value #_tx-rejected-error)
-               cmd-mode? (some? attach)
-               ;; auto-submit (if (some? auto-submit) auto-submit cmd-mode?)
-               ;; Parse (or Parse (if cmd-mode? (e/fn [fields tempid] (second value)) (e/fn [fields tempid] fields)))
+           cmd-mode? (some? Unparse)
+           ;; Unparse (or Unparse (e/fn [x] [x nil]))
+           [tracked-token tracked-cmd] (when cmd-mode? value)
+           !disabled-commit (atom false)
+           !disabled-discard (atom false)
+           ]
+       (binding [*tracked-token tracked-token
+                 *disabled-commit (e/watch !disabled-commit)
+                 *disabled-discard (e/watch !disabled-discard)]
+         (let [[unparsed-value tempid] (if cmd-mode? (Unparse tracked-cmd) [value nil])
                Parse (or Parse (e/fn [fields tempid] fields))
 
                edits (e/as-vec (e/amb (Fields unparsed-value)
@@ -527,14 +524,11 @@ accept the previous token and retain the new one."
 
                validation-message (not-empty (ex-message parsed-form-v))
 
-               ?cs (FormSubmit! ::submit ; named ::submit instead of ::commit for debugging
-                     [form-t parsed-form-v]
-                     :label "commit"
-                     :disabled (and (or (zero? dirty-count) validation-message) (not cmd-mode?))
-                     :auto-submit auto-submit ; (when auto-submit dirty-form)
-                     ;; :show-button show-buttons
-                     :genesis genesis)
-               ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard")]
+               ?cs (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
+               ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
+           (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not cmd-mode?)))
+           (reset! !disabled-discard (and (zero? dirty-count) (not cmd-mode?)))
+           #_(prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message)
                   (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -567,7 +561,7 @@ accept the previous token and retain the new one."
                                      #_[t
                                         (nth discard 0) ; command
                                         (nth discard 1)]))))
-                   (::submit ::commit) ; same thing, two names - to debug action origin
+                   ::commit
                    (if validation-message
                      (do (token ; err value gets dropped, but form won't reset.
                            ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
@@ -591,10 +585,7 @@ accept the previous token and retain the new one."
   `(dom/form ; for form events. e.g. submit, reset, invalid, etc…
      #_(dom/props kwargs) ; todo select dom props vs stage props
      (let [props# ~props]
-       (Form!* ~value ~Fields (dissoc props#))
-       #_(FormStatus
-         (Form!* ~name ~fields1 (dissoc props# :Accepted :Rejected :Busy)) ; place fields inside dom/form
-         (select-keys props# [:Accepted :Rejected :Busy])))))
+       (Form!* ~value ~Fields (dissoc props#)))))
 
 (defn interpret-result [token result]
   (when-some [[command value] result]
@@ -641,62 +632,6 @@ accept the previous token and retain the new one."
 
 ;; -----
 
-(defn- now! [& _] #?(:clj (new java.util.Date) :cljs (new js/Date)))
-
-(e/defn OptimisticView ; Experimental
-  "Model a collection of authoritative records (supposedly from remote db) +
-next expected records (expected to become authoritative in the near future,
-supposedly local optimistic guesses).
-
-Return expected records + authoritative records layered over (matched by keyfn),
-effectively overwriting the corresponding expected ones (authoritative has
-precedence over expected). When an authoritative record is retracted, the view
-reflects it. When an optimistic records is removed, the view retains it,
-potentially forever, expecting an authoritative record to overwrite it, idealy
-asap.
-
-Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
- update between the time an async tx got accepted and the time db queries rerun
- and transfer new diff from server to client. Otherwise local optimistic guess
- might retract before authoritative value is received from server, resulting in
- a blink.
-"
-  ([key-fn authoritative-recs expected-recs]
-   (OptimisticView key-fn now! compare authoritative-recs expected-recs)) ; wrong - ordering by time is not guaranteed to reflect authoritative-recs ordering.
-  ([key-fn sort-key-fn comparator authoritative-recs expected-recs]
-   ;; Not a perfect impl. No e/as-vec (good thing) but still maintain a piece of state and still contains an e/watch and e/diff-by.
-   (let [!index (atom {:kvs {}, :order (sorted-map-by comparator) :rev-order {}})] ; maintain order separately, a single sorted map is not enough to model order + direct access on arbitrary key.
-
-     ;; 1. save expected records
-     (e/for [expected expected-recs]
-       (let [k      (key-fn expected)
-             sort-k (sort-key-fn expected)]
-         (swap! !index #(-> % (update :kvs assoc k expected) (update :order assoc sort-k k) (update :rev-order assoc k sort-k)))
-         ;; no cleanup on unmount, we potentially retain expected forever.
-         ))
-
-     ;; 2. overwrite by authoritatives, cleanup on removal.
-     (e/for [authoritative authoritative-recs] ; defaulting to time ordering is wrong, e/for doesn't guarantee branches mount order.
-       (let [k      (key-fn authoritative)
-             sort-k (sort-key-fn)]
-         (swap! !index (fn [{:keys [rev-order] :as index}]
-                         (let [sort-k (get rev-order k sort-k)]
-                           (-> index
-                             (update :kvs assoc k authoritative)
-                             (update :order assoc sort-k k)
-                             (update :rev-order assoc k sort-k)))))
-         (e/on-unmount #(swap! !index (fn [{:keys [rev-order] :as index}]
-                                        (let [sort-k (get rev-order k sort-k)]
-                                          (-> index
-                                            (update :kvs dissoc k)
-                                            (update :order dissoc sort-k)
-                                            (update :rev-order dissoc k))))))))
-     (let [{:keys [kvs order]} (e/watch !index)]
-       (e/diff-by key-fn         ; ugly
-         (map kvs (vals order))) ; ugly
-       ))))
-
-
 (defn -add [index k sort-k record]
   (-> index
     (update :kvs assoc k record)
@@ -710,34 +645,38 @@ Use case: Prevent optimistic row blink on tx accepted. We retain optimistic
     (update :rev-order dissoc k)))
 
 (e/defn Reconcile-by ; Experimental
-  ([key-fn authoritative-recs commands]
-   (Reconcile-by key-fn now! compare Identity authoritative-recs commands)) ; wrong - ordering by time is not guaranteed to reflect authoritative-recs ordering.
-  ([key-fn Unparse authoritative-recs commands]
-   (Reconcile-by key-fn now! compare Unparse authoritative-recs commands))
-  ([key-fn sort-key-fn comparator Unparse authoritative-recs commands]
+  ([identify sort-key-fn authoritative-recs commands]
+   (Reconcile-by identify identify sort-key-fn authoritative-recs commands))
+  ([identify-record identify-command sort-key-fn authoritative-recs commands]
+   (Reconcile-by identify-record identify-command sort-key-fn sort-key-fn authoritative-recs commands))
+  ([identify-record identify-command sort-record-key-fn sort-command-keyfn authoritative-recs commands]
+   (Reconcile-by identify-record identify-command sort-record-key-fn sort-command-keyfn compare authoritative-recs commands))
+  ([identify-record identify-command sort-record-key-fn sort-command-keyfn comparator authoritative-recs commands]
    ;; Not a perfect impl. No e/as-vec (good thing) but still maintain a piece of state and still contains an e/watch and e/diff-by.
+
    (let [!index (atom {:kvs {}, :order (sorted-map-by comparator) :rev-order {}})] ; maintain order separately, a single sorted map is not enough to model order + direct access on arbitrary key.
 
      ;; 1. save expected records
-     (e/for [[t cmd :as command] commands]
-       (let [record (Unparse cmd)
-             k      (key-fn record)
-             sort-k (sort-key-fn record)
+     (e/for [[t cmd] commands]
+       (let [k      (identify-command cmd)
+             sort-k (sort-command-keyfn cmd)
              t (unify-t (fn ([]) ([err] (when (= ::discard err) (swap! !index -remove k sort-k)))) t)]
-         (swap! !index -add k sort-k (assoc record ::command [t cmd]))
+         (swap! !index -add k sort-k [nil [t cmd]])
          ))
 
      ;; 2. overwrite by authoritatives, cleanup on removal.
      (e/for [authoritative authoritative-recs] ; defaulting to time ordering is wrong, e/for doesn't guarantee branches mount order.
-       (let [k      (key-fn authoritative)
-             sort-k (sort-key-fn)]
+       (let [k      (identify-record authoritative)
+             sort-k (sort-record-key-fn authoritative)]
          (swap! !index (fn [{:keys [rev-order] :as index}]
-                         (let [sort-k (get rev-order k sort-k)]
-                           (-add index k sort-k authoritative))))
+                         (let [prev-sort-k (get rev-order k sort-k)]
+                           (-> (-remove index k prev-sort-k)
+                             (-add k sort-k [authoritative nil])))))
          (e/on-unmount #(swap! !index (fn [{:keys [rev-order] :as index}]
                                         (let [sort-k (get rev-order k sort-k)]
                                           (-remove index k sort-k)))))))
      (let [{:keys [kvs order]} (e/watch !index)]
-       (e/diff-by key-fn         ; ugly
-         (map kvs (vals order))) ; ugly
+       (e/diff-by                       ; ugly
+         (fn [[record command]] (if record (identify-record record) (identify-command (second command))))
+         (map kvs (vals order)))        ; ugly
        ))))
