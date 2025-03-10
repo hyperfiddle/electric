@@ -288,13 +288,14 @@ accept the previous token and retain the new one."
   (let [[event node] (Button* (dissoc props :token))
         [tracked-token tracked-err] (TrackTx (e/fn [err] [token err]))
         [btn-t err] (e/Token event)]
-    (#(if %1 %2 %3) btn-t
-      [(unify-t btn-t tracked-token) err event node]
-      (#(if %1 %2 %3) tracked-token
+    (#(if %1 %2 %3) ; FIXME using electric `if` crashes client with "sub is null @ Propagator$bufferize:145"
+      (or btn-t ; user click has priority over controlled button (don't damage user input)
+        err) ; don't rerun with `token` when user click tx fails
+      (e/for [event (e/diff-by identity (e/as-vec event))] ; BUT user click still reruns tx, for each user click
+        [((e/capture-fn) (unify-t token btn-t)) err event node]) ; emit both tokens - but prevent `btn-t` turning nil to trigger a propagation with `token`
+      (if token ; Button is controlled only
         [tracked-token tracked-err (js/Object.) node]
         [nil nil nil node]))))
-
-(defn xor [a b] (or (and a (not b)) (and (not a) b)))
 
 (e/defn TxButton!
   ;; Like `Button!*` with extra semantic markup reflecting tx status.
@@ -481,7 +482,7 @@ accept the previous token and retain the new one."
 (e/declare *tracked-token)
 
 (e/defn SubmitButton! [& {:as props}]
-  (Button! [::commit] :type :submit :label "commit" :token *tracked-token props))
+  (Button! [::commit] :type :button :label "commit" :token *tracked-token props))
 
 #_
 (defn invert-fields-to-form [field-edits]
@@ -508,7 +509,6 @@ accept the previous token and retain the new one."
 (def form-command? #{::commit ::discard})
 
 (defn split-edits-from-commands [edits]
-  #_(prn "edits" edits)
   (let [form-command? (fn [[t x]] (and (vector? x) (form-command? (first x))))]
     [(remove form-command? edits)
      (filter form-command? edits)]))
@@ -562,13 +562,11 @@ accept the previous token and retain the new one."
                ;; Parse (or Parse (if cmd-mode? (e/fn [fields tempid] (second value)) (e/fn [fields tempid] fields)))
                Parse (or Parse (e/fn [fields tempid] fields))
 
-               edits (e/as-vec (Fields unparsed-value))
+               edits (e/as-vec (e/amb (Fields unparsed-value)
+                                 (e/When show-buttons
+                                   (e/amb (SubmitButton!) (DiscardButton!)))))
+               EDITS edits
                dirty-count (count edits)
-               clean? (empty? unparsed-value) #_(zero? dirty-count)
-               show-buttons (cond
-                              (boolean? show-buttons) show-buttons
-                              (nil? show-buttons) false
-                              (= ::smart (qualify show-buttons)) (and (not (zero? dirty-count)) (not auto-submit)))
 
                [edits commands] (split-edits-from-commands edits)
                [form-t form-v :as form] (merge-edits edits)
@@ -585,7 +583,8 @@ accept the previous token and retain the new one."
                #_#_!form-validation (atom ::nil)
                #_#_form-validation (e/watch !form-validation)
 
-               ?cs (FormSubmit! ::commit [form-t parsed-form-v]
+               ?cs (FormSubmit! ::submit ; named ::submit instead of ::commit for debugging
+                     [form-t parsed-form-v]
                      :label "commit"
                      :disabled (e/Reconcile (and (or (zero? dirty-count) validation-message) (not cmd-mode?))) ; FIXME reconcile shouldn't be necessary
                      :auto-submit auto-submit ; (when auto-submit dirty-form)
@@ -599,10 +598,7 @@ accept the previous token and retain the new one."
              (e/for [[token [directive captured-parsed-form-v] :as _edit]
                      (e/diff-by (comp first second) ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
                        (e/as-vec (e/amb ?d
-                                   (LatestEdit2 (e/amb ?cs
-                                                  (e/diff-by (comp first second) (doto commands (prn "command")))
-                                                  #_(e/When show-buttons
-                                                    (e/amb (SubmitButton!) (DiscardButton!))))
+                                   (LatestEdit2 (e/amb ?cs (e/diff-by (comp first second) commands))
                                      genesis))))]
                (let [parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))]
                  (case directive ; does order of burning matter?
@@ -627,13 +623,14 @@ accept the previous token and retain the new one."
                                      #_[t
                                         (nth discard 0) ; command
                                         (nth discard 1)]))))
-                   ::commit (if validation-message
-                              (do (token ; err value gets dropped, but form won't reset.
-                                    ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
-                                  (e/amb))
-                              [(unify-t token (fn ([] (reset! !tx-rejected-error nil))
-                                                ([err] (reset! !tx-rejected-error err))))
-                               parsed-form-v]))))
+                   (::submit ::commit) ; same thing, two names - useful to track action origin
+                   (if validation-message
+                     (do (token ; err value gets dropped, but form won't reset.
+                           ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
+                         (e/amb))
+                     [(unify-t token (fn ([] (reset! !tx-rejected-error nil))
+                                       ([err] (reset! !tx-rejected-error err))))
+                      parsed-form-v]))))
 
              (e/When debug
                (dom/span (dom/text " " dirty-count " dirty"))
