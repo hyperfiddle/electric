@@ -143,7 +143,8 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
           [t {k parsed-v}]))
       (e/When label (dom/label (dom/props {:for id}) (dom/text (label k)))))))
 
-(e/defn LatestEdit "
+(e/defn LatestEdit ; TODO ideally remove
+  "
 Implement radio single-select behavior by retaining only the token from the most recently touched
 input[type=radio], unselecting/clearing all other input[type=radio] by accepting their tokens.
 The pattern is general, i.e. not specific to just radios: every time a new concurrent token arrives,
@@ -156,7 +157,7 @@ accept the previous token and retain the new one."
       (swap! !latest (fn [[old-t _old-kv] [_new-t _new-kv :as new]] (when old-t (old-t)) new) edits))
     (e/Reconcile (e/When latest latest))))
 
-(e/defn LatestEdit2
+(e/defn LatestEdit2 ; TODO ideally remove
   [edits debug]
   (let [!latest (atom nil)
         latest (e/watch !latest)]
@@ -306,7 +307,7 @@ accept the previous token and retain the new one."
   - button[data-tx-status=accepted] : tx success
   - button:disabled{...} "
   [& {:keys [disabled type token] :or {type :button} :as props}]
-  (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this
+  (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this ; checked on March 10 2025, still required
                                  (Button!* (-> props (assoc :type type) (dissoc :disabled))))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
@@ -340,40 +341,19 @@ accept the previous token and retain the new one."
 
 (e/declare current-edit) ; [edit-t edit-kvs]
 
-#_
-(e/defn FormDiscard! ; dom/node must be a form
-  [directive [edits-t edits-kvs] & {:keys [show-button] :as props}]
-  (e/client
-    ;; reset form on <ESC>
-    (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
-    ;; Render an <input type=reset>, natively resetting form on click.
-    (e/When show-button (Button (-> props (assoc :type :reset) (dissoc :show-button))))
-    ;; Handle form reset
-    (let [[t _err] (e/Token (dom/On "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil)) ; TODO render error for failed custom :discard command, if any.
-          #_(Directive! directive edits)]
-      (e/When t
-        [(unify-t t edits-t) [directive edits-kvs]] ; edits-kvs is unused, but command shape matches FormSubmit for consistency
-        ))))
-
 (e/defn FormDiscard! ; dom/node must be a form
   [directive [edits-t edits-kvs] & {:keys [show-button] :as props}]
   (e/client
     ;; reset form on <ESC>
     (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
     ;; Handle form reset
-    (let [[t _err] (e/Token (dom/On "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil)) ; TODO render error for failed custom :discard command, if any.
-          #_(Directive! directive edits)]
+    (let [[t _err] (e/Token (dom/On "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil))] ; TODO render error for failed custom :discard command, if any.
       (e/When t
         [(unify-t t edits-t) [directive edits-kvs]] ; edits-kvs is unused, but command shape matches FormSubmit for consistency
         ))))
 
 (e/defn DiscardButton! [& {:as props}]
   (Button! [::discard] :type :reset :label "discard" props))
-
-;; (e/declare *tracked-token*)
-
-;; (e/defn SubmitButton! [& {:as props}]
-;;   (Button! [::commit] (merge {:token *tracked-token*, :type :submit} props)))
 
 #?(:cljs
    (defn event-submit-form! [^js e]
@@ -416,7 +396,8 @@ accept the previous token and retain the new one."
   (e/client
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
-    (when (and #_(not show-button) (not disabled))
+    (prn "disabled" disabled)
+    (when (not disabled)
       (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
                                    (= "Enter" (.-key e))
@@ -453,24 +434,18 @@ accept the previous token and retain the new one."
     ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
-    (let [submit-handler #(do (.preventDefault %) (js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
+    (let [submit-handler #(do (.preventDefault %) #_(js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
                               (when (and (not disabled) (event-is-from-this-form? %)) %))]
       (if-not genesis
         ;; Regular tx submit – txs are sequential.
-        (let [;; We forward tx-status to submit button, so we need a handle to propagate token state. Triggering "submit" is not
-              ;; enough. Unlike discard which is a simple <button type=reset> natively triggering a "reset" event on form, because
-              ;; we don't render success/failure (could be revisited).
-              ;; [btn-t _] (when show-button (TxButton! (-> props (assoc :type :submit) (dissoc :auto-submit :show-button :genesis))))
-              ;; Submit is the only authoritative event.
+        (let [;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
-              ;; [t _err] #_(if auto-submit (e/Token edits) (e/Token submit-event))
               t (stop-err-propagation (Latest (first (e/amb (Token* submit-event) ; new token on each submit
                                                        (e/When auto-submit (e/Token edits))))))]
-          ;; btn-t ; force let branch to force-mount button
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
           (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-            [(unify-t t (e/Reconcile ((e/capture-fn) (unify-t edits-t #_(Amb->nil btn-t))))) [directive edits-kvs]]))
+            [(unify-t t edits-t) [directive edits-kvs]]))
         (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
           #_(when show-button (Button (-> props (assoc :type :submit, #_#_:data-role "genesis") (dissoc :auto-submit :show-button :genesis))))
           (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
@@ -481,30 +456,11 @@ accept the previous token and retain the new one."
 
 (e/declare *tracked-token)
 
-(e/defn SubmitButton! [& {:as props}]
-  (Button! [::commit] :type :button :label "commit" :token *tracked-token props))
-
-#_
-(defn invert-fields-to-form [field-edits]
-  (when (seq field-edits)
-    {::token (let [tokens (map ::token field-edits)]
-               (fn token ; fresh if ts changes (should fields be disabled when commit pending?)
-                 ([] (doseq [t tokens] (t)))
-                 ([_err] #_(doseq [t tokens] (t err ::keep)))))
-     ::name ::form
-     ::value (not-empty (into {} (map (juxt ::name ::value)) field-edits))  ; collect fields into form, retain until commit/discard
-     ::validation (not-empty (remove nil? (map ::validation field-edits)))}))
-
-#_
-(comment
-
-  (invert-fields-to-form merge [])
-  (invert-fields-to-form merge [[#() {:a "a"}] [#() {:b "b"}]])
-  := [_ {:a "a", :b "b"}]
-
-  (invert-fields-to-form merge [[#() {:a "a"} "invalid a"] [#() {:b "b"} "invalid b"]])
-  := [_ {:a "a", :b "b"} ["invalid a" "invalid b"]]
-  )
+(e/defn SubmitButton! [& {:keys [genesis] :as props}]
+  (if genesis
+    (do (Button :type :submit :label "commit" props) ; do not track tx
+        (e/amb))
+    (Button! [::commit] :type :button :label "commit" :token *tracked-token props)))
 
 (def form-command? #{::commit ::discard})
 
@@ -533,11 +489,6 @@ accept the previous token and retain the new one."
     (true false nil) identity
     (fn [& _] (genesis))))
 
-#_
-(e/defn UnparseCommand [F]
-  (e/fn [[token command] error]
-    [token (F command)]))
-
 (e/defn Form!*
   ([value Fields ; concurrent edits are what give us dirty tracking
     & {:as props}]
@@ -564,8 +515,7 @@ accept the previous token and retain the new one."
 
                edits (e/as-vec (e/amb (Fields unparsed-value)
                                  (e/When show-buttons
-                                   (e/amb (SubmitButton!) (DiscardButton!)))))
-               EDITS edits
+                                   (e/amb (SubmitButton! :genesis genesis) (DiscardButton!)))))
                dirty-count (count edits)
 
                [edits commands] (split-edits-from-commands edits)
@@ -573,24 +523,18 @@ accept the previous token and retain the new one."
 
                merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
-               ;; genesis! (build-genesis! genesis)
-               ;; !tempid (atom tempid) ; generate one tempid per commit, not per edit
-
                parsed-form-v (Parse merged-form-v-with-unparsed-v (or tempid (next-tempid! form-t)))
 
                validation-message (not-empty (ex-message parsed-form-v))
 
-               #_#_!form-validation (atom ::nil)
-               #_#_form-validation (e/watch !form-validation)
-
                ?cs (FormSubmit! ::submit ; named ::submit instead of ::commit for debugging
                      [form-t parsed-form-v]
                      :label "commit"
-                     :disabled (e/Reconcile (and (or (zero? dirty-count) validation-message) (not cmd-mode?))) ; FIXME reconcile shouldn't be necessary
+                     :disabled (and (or (zero? dirty-count) validation-message) (not cmd-mode?))
                      :auto-submit auto-submit ; (when auto-submit dirty-form)
                      ;; :show-button show-buttons
                      :genesis genesis)
-               ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard" #_#_:show-button show-buttons)]
+               ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled (and (zero? dirty-count) (not cmd-mode?)) :label "discard")]
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message)
                   (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -623,7 +567,7 @@ accept the previous token and retain the new one."
                                      #_[t
                                         (nth discard 0) ; command
                                         (nth discard 1)]))))
-                   (::submit ::commit) ; same thing, two names - useful to track action origin
+                   (::submit ::commit) ; same thing, two names - to debug action origin
                    (if validation-message
                      (do (token ; err value gets dropped, but form won't reset.
                            ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
@@ -652,24 +596,6 @@ accept the previous token and retain the new one."
          (Form!* ~name ~fields1 (dissoc props# :Accepted :Rejected :Busy)) ; place fields inside dom/form
          (select-keys props# [:Accepted :Rejected :Busy])))))
 
-
-#_
-(e/defn FormStatus [edits & {:keys [Busy Accepted Rejected]
-                             :or {Busy (e/fn [])
-                                  Accepted (e/fn [])
-                                  Rejected (e/fn [err])}}]
-  (let [busy? (pos? (e/Count edits))
-        !last-state (atom nil)]
-    (when busy? (Busy)) ; Busy can happen in parallel in case of re-submit
-    (let [[state message] (e/watch !last-state)]
-      (case state
-        ::accepted (Accepted)
-        ::rejected (Rejected message)
-        ()))
-    (update edits ::token unify-t (fn ([] (reset! !last-state [::accepted]))
-                                    ([err] (reset! !last-state [::rejected err]))))))
-
-
 (defn interpret-result [token result]
   (when-some [[command value] result]
     (case command
@@ -690,15 +616,6 @@ accept the previous token and retain the new one."
             ::ok (token)
             (token res)))
         command))))
-
-#_
-(e/defn Update [m k F] (assoc m k (F (get m k))))
-
-#_
-(e/defn Intercept
-  ([F x Parse] (Update (F x) ::value Parse))
-  ([F x Unparse Parse]
-   (Update (F (Unparse x)) ::value Parse)))
 
 (e/defn Parse "Map over an edit, supposedly turning an edit into a command."
   [F edit] (e/for [[t x] edit] [t (F x)]))
