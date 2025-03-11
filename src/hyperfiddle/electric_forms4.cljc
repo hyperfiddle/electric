@@ -151,7 +151,7 @@ accept the previous token and retain the new one."
                                                 (identity authoritative-v)) ; HACK prevent a crash if `authoritative-v` binding is (e/server ...)
                          ::validation nil})
         {::keys [token value validation]} (e/watch !selected)]
-    (dom/With-element as
+    (dom/With-element (e/Reconcile as)
       (e/fn []
         (dom/props {:role "radiogroup", :data-errormessage (not-empty (str (Validate value)))})
         (reset! !selected (Body value))
