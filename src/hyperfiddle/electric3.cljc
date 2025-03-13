@@ -475,9 +475,13 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
     ([t] (join (task->incseq t)))
     ([t init-v] (input (initialized t init-v)))))
 
+#?(:clj (cc/defn -offload [tsk executor]
+          (flow->incseq (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
+                                   (catch Cancelled _ (m/amb)))))))
+
 (hyperfiddle.electric3/defn Offload
-  ([f!]   (server (f!)))
-  ([f! _] (server (f!))))
+  ([f!]          ($ Offload f! m/blk))
+  ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
 
 (hyperfiddle.electric3/declare ^{:doc "Bound to the HTTP request of the page in which the current Electric program is running."}
   http-request)
