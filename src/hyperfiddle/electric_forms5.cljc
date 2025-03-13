@@ -110,15 +110,16 @@ Simple uncontrolled checkbox, e.g.
   (Input! field-name v :as :textarea props))
 
 (defn unify-t ; unify-token ; WIP
-  ([]  (constantly nil))
-  ([t] (or t (constantly nil)))
-  ([t1 t2] (comp first (juxt (unify-t t1) (unify-t t2))))
+  ([]  (fn token [& _])) ; constantly nil, but named "token" when printing
+  ([t] (or t (unify-t)))
+  ([t1 t2] (let [ts (juxt (unify-t t1) (unify-t t2))] ; (comp first (juxt (unify-t t1) (unify-t t2))) but named "token" when printing
+             (fn token [& args] (first (apply ts args)))))
   ([t1 t2 & ts] (reduce unify-t (unify-t t1 t2) ts)))
 
 (defn after-ack "
 proxy token t such that callback f! will run once the token is ack'ed. E.g. to ack many tokens at once."
   [t1 f!]
-  (unify-t t1 (fn proxy-token [& [_err]] (f!))))
+  (unify-t t1 (fn token [& [_err]] (f!))))
 ;; chaining f after t or t after f is just `comp`
 
 (defn debug-t "dev/debug only - (unify-t token (debug-t \"message\"))"
@@ -416,8 +417,11 @@ accept the previous token and retain the new one."
 (e/defn Schedule [f] (e/Task (-schedule f)))
 
 (e/defn FormSubmit! ; dom/node must be a form
-  [directive [edits-t edits-kvs :as edits] & {:keys [disabled auto-submit genesis] :as props}]
+  [directive [edits-t edits-kvs :as edits] & {:keys [disabled auto-submit genesis token command] :as props}]
   (e/client
+    ;; form submit controlled from the outside (controlled form)
+    #_(when token (.requestSubmit dom/node))
+
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (not disabled)
@@ -468,13 +472,22 @@ accept the previous token and retain the new one."
               submit-event (dom/On "submit" submit-handler nil)
               t #_(stop-err-propagation) ; why was this here?
               (Latest (first (e/amb (Token* submit-event) ; new token on each submit
+                               (e/When token [token nil])
                                #_(e/When (and auto-submit
-                                         ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
-                                 (e/Token edits-kvs)))))]
+                                           ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
+                                   (e/Token edits-kvs)))))]
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
-          (e/When (and t edits-t) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-            [(unify-t t edits-t) [directive edits-kvs]]))
-        ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
+          (e/Reconcile
+            (let [x (#(cond ; FIXME using electric `cond` crashes client with "sub is null @ Propagator$bufferize:145"
+                        (and t edits-t) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
+                        [(unify-t t edits-t token) [directive edits-kvs]]
+
+                        token
+                        [t [directive command]]
+
+                        () nil))]
+              (e/When x x))))
+        ;; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
         (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
           ;; (e/When edits-t) ;; FIXME this conditional should probably be added here - to be tested.
           (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
@@ -543,7 +556,7 @@ accept the previous token and retain the new one."
                [form-t form-v :as form] (merge-edits edits)
 
                keyed-commands (collect-commands commands)
-               [commit-t _] (Latest (::commit keyed-commands))
+               [commit-t _ :as commit] (Latest (::commit keyed-commands))
                [discard-t _] (::discard keyed-commands) ; supposed instant
 
                merged-form-v-with-unparsed-v (merge unparsed-value form-v)
@@ -552,11 +565,11 @@ accept the previous token and retain the new one."
 
                validation-message (not-empty (ex-message parsed-form-v))
 
-               ?cs (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
+               ?cs (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :auto-submit auto-submit :genesis genesis :token tracked-token :command tracked-cmd)
                ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
            (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not cmd-mode?)))
            (reset! !disabled-discard (and (zero? dirty-count) (not cmd-mode?)))
-           #_(prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
+           (prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message)
                   (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -564,9 +577,10 @@ accept the previous token and retain the new one."
              (e/for [[token [directive captured-parsed-form-v] :as _edit]
                      (e/diff-by (comp first second) ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
                        (e/as-vec (e/amb ?d
-                                   (LatestEdit2 (e/amb ?cs #_(e/diff-by (comp first second) commands))
+                                   (LatestEdit2 (e/amb ?cs #_(e/When (and tracked-token commit) commit) ; interpret controlled "commit" button as submit
+                                                  )
                                      genesis))))]
-               #_(prn "_edit" _edit)
+               (prn "_edit" _edit)
                (let [parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))]
                  (case directive ; does order of burning matter?
                    ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
