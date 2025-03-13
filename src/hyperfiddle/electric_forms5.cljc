@@ -472,7 +472,7 @@ accept the previous token and retain the new one."
               submit-event (dom/On "submit" submit-handler nil)
               t #_(stop-err-propagation) ; why was this here?
               (Latest (first (e/amb (Token* submit-event) ; new token on each submit
-                               (e/When token [token nil])
+                               #_(e/When token [token nil])
                                #_(e/When (and auto-submit
                                            ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
                                    (e/Token edits-kvs)))))]
@@ -483,7 +483,7 @@ accept the previous token and retain the new one."
                         [(unify-t t edits-t token) [directive edits-kvs]]
 
                         token
-                        [t [directive command]]
+                        [token [directive command]]
 
                         () nil))]
               (e/When x x))))
@@ -569,7 +569,7 @@ accept the previous token and retain the new one."
                ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
            (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not cmd-mode?)))
            (reset! !disabled-discard (and (zero? dirty-count) (not cmd-mode?)))
-           (prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
+           #_(prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message)
                   (when tx-rejected-error (dom/text tx-rejected-error)))
@@ -580,7 +580,7 @@ accept the previous token and retain the new one."
                                    (LatestEdit2 (e/amb ?cs #_(e/When (and tracked-token commit) commit) ; interpret controlled "commit" button as submit
                                                   )
                                      genesis))))]
-               (prn "_edit" _edit)
+               #_(prn "_edit" _edit)
                (let [parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))]
                  (case directive ; does order of burning matter?
                    ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
@@ -589,22 +589,12 @@ accept the previous token and retain the new one."
                                    ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
                                    (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
                                (if genesis
-                                 (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                                   (case (token) (e/amb)) ; discard now and swallow cmd, we're done
-                                   nil ; FIXME not sure what this code path should do?
-                                   #_[token ; its a t
-                                      (nth discard 0) ; command
-                                      (nth discard 1)]) ; prediction
-
-                                        ; reset form and BOTH buttons, cancelling any in-flight commit
-                                 (let [t (after-ack token #(do (clear-commits) #_(reset! !form-validation ::nil)))
-                                       t (after-ack t #(when tracked-token (tracked-token ::discard)))]
-                                   (if-not discard ; user wants to run an effect on discard (todomvc item special case, genesis discard is always local!)
-                                     (case (t) (e/amb)) ; discard now and swallow cmd, we're done
-                                     nil ; FIXME not sure what this code path should do?
-                                     #_[t
-                                        (nth discard 0) ; command
-                                        (nth discard 1)]))))
+                                 (do (token) (e/amb)) ; discard now and swallow cmd, we're done
+                                 ;; reset form and BOTH buttons, cancelling any in-flight commit
+                                 (let [token (after-ack token clear-commits)
+                                       token (after-ack token #(when tracked-token (tracked-token ::discard)))]
+                                   (token)
+                                   (e/amb))))
                    ::commit
                    (let [token (unify-t token commit-t)]
                      (if validation-message
