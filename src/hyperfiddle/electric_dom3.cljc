@@ -420,16 +420,22 @@ input's value, use `EventListener`."
 #?(:cljs (def listen events/listen))
 #?(:cljs (def listen-some events/listen-some))
 
+(defn on* [v events]
+  (m/ap
+    (let [mbx (m/mbx)]
+      (m/amb=
+        (do (m/?> (i/latest-product mbx v)) (m/amb))
+        (m/? (m/?> (m/seed (repeat mbx))))
+        (m/?> events)))))
+
 (e/defn On*
   #_([event-type f v]      (On* node event-type f v {}))
   #_([event-type f v opts] (On* node event-type f v opts))
   ([node event-type f v opts]
    (e/client
-     (e/input (let [!v (m/mbx)]
-                (r/do!
-                  (!v v)     ; not just init-v, can be controlled v e.g. from db
-                  (mx/mix (mx/poll-task !v) ; don't rebuild flow when v updates
-                    (events/listen node event-type ((e/capture-fn) f) opts))))))))
+     (e/input
+       (on* (e/pure v)        ; not just init-v, can be controlled v e.g. from db
+         (events/listen node event-type ((e/capture-fn) f) opts)))))) ; don't rebuild flow when v updates
 
 (defmacro On
   ([event-type f v]      `(On node ~event-type ~f ~v {}))
