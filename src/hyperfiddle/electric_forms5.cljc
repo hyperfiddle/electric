@@ -6,7 +6,8 @@
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
-            [hyperfiddle.electric-scroll0 :refer [Scroll-window IndexRing]]))
+            [hyperfiddle.electric-scroll0 :refer [Scroll-window IndexRing]]
+            [missionary.core :as m]))
 
 ;;; Simple controlled inputs (dataflow circuits)
 
@@ -79,6 +80,7 @@ Simple uncontrolled checkbox, e.g.
                 v & {:keys [as maxlength name type Parse Unparse] :as props
                      :or {as :input, maxlength 100, type "text", Parse Identity, Unparse (Lift str)}}]
   (e/client
+    v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (dom/element as
       (dom/props (-> props (dissoc :as :parse :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
       (let [e (dom/On "input" identity nil) [t err] (e/Token e) ; reuse token until commit
@@ -86,7 +88,7 @@ Simple uncontrolled checkbox, e.g.
             waiting? (some? t)
             error? (some? err)
             dirty? (or editing? waiting? error?)
-            unparsed-v (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v))) ; user input has precedence
+            unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
             parsed-v (Parse (subs unparsed-v 0 maxlength))]
         (SetValidity parsed-v)
         (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; todo - submit must reset input while focused
@@ -119,10 +121,15 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
   (unify-t t1 (fn proxy-token [& [_err]] (f!))))
 ;; chaining f after t or t after f is just `comp`
 
+(defn debug-t "dev/debug only - (unify-t token (debug-t \"message\"))"
+  [message]
+  (partial prn message))
+
 (e/defn Checkbox! [k checked & {:keys [id type label Parse Unparse] :as props
                                 :or {id (random-uuid), type :checkbox, Parse Identity, Unparse (Lift boolean)}}]
   ; todo esc?
   (e/client
+    checked ; ensure v is consumed to prevent surprising side effects on commit discard (lazy let)
     (e/amb
       (let [[e t err input-node]
             (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :Parse :Unparse))
@@ -132,7 +139,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
             waiting? (some? t)
             error? (some? err)
             dirty? (or editing? waiting? error?)
-            unparsed-v (if waiting? ((fn [] (-> e .-target .-checked))) (Unparse checked)) ; user input has precedence
+            unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-checked))) (Unparse checked))) ; user input has precedence
             parsed-v (Parse unparsed-v)]
         (SetValidity input-node parsed-v)
         (when (or (not dirty?) (#{"radio" :radio} type)) ; Radio's "don't damage user input" behavior handled at radiogroup level.
@@ -268,16 +275,16 @@ accept the previous token and retain the new one."
 
 ;;; Buttons
 
-#?(:cljs
-   (defn- handle-button-click [^js event]
-     (when (and (= "submit" (.-type (.-target event))) (= "true" (.getAttribute (.-target event) "data-tx"))) ; no native submit if Button! has a command
-       (.preventDefault event))
-     event))
+;; #?(:cljs
+;;    (defn- handle-button-click [^js event]
+;;      (when (and (= "submit" (.-type (.-target event))) (= "true" (.getAttribute (.-target event) "data-command"))) ; no native submit if Button! has a command
+;;        (.preventDefault event))
+;;      event))
 
 (e/defn Button* [{:keys [label] :as props}]
   (dom/button (dom/text label)
               (dom/props (dissoc props :label))
-              [(dom/On "click" handle-button-click nil) dom/node]))
+              [(dom/On "click" identity #_handle-button-click nil) dom/node]))
 
 (e/defn Button "Simple button, return latest click event or nil."
   [& {:keys [label] :as props}]
@@ -365,9 +372,14 @@ accept the previous token and retain the new one."
   (Button! [::discard] :type :reset :label "discard" :disabled *disabled-discard props))
 
 #?(:cljs
-   (defn event-submit-form! [^js e]
+   (defn event-submit-form! [disabled ^js e]
      ;; (js/console.log "submit form" {:type (.-type e), :currentTarget (.-currentTarget e), :target (.-target e), :submitter (.-submitter e)}) ; debug why form got submitted
-     (some-> e .-target .-form .requestSubmit)))
+     (when-not disabled
+       (when-let [form (some-> e .-target .-form)]
+         (if-let [submit-btn (some (fn [element] (and (= "submit" (.-type element)) element)) (.-elements form))]
+           (when (.checkValidity form)
+             (.click submit-btn))
+           (.requestSubmit form))))))
 
 (defn event-is-from-this-form?
   "State if an event intercepted by an event listener on a form (event's
@@ -400,6 +412,9 @@ accept the previous token and retain the new one."
     (step v)
     (e/watch !x)))
 
+(defn -schedule "run f after current propagation turn" [f] (m/sp (m/? (m/sleep 0)) (f)))
+(e/defn Schedule [f] (e/Task (-schedule f)))
+
 (e/defn FormSubmit! ; dom/node must be a form
   [directive [edits-t edits-kvs :as edits] & {:keys [disabled auto-submit genesis] :as props}]
   (e/client
@@ -411,7 +426,7 @@ accept the previous token and retain the new one."
                                    (= "Enter" (.-key e))
                                    (= "INPUT" (.-nodeName (.-target e))))
                              (.preventDefault e) ; prevent native form submission
-                             (event-submit-form! e) ; fire submit event
+                             (event-submit-form! disabled e) ; fire submit event
                              nil)) nil))
     (when (and auto-submit (not genesis)) ; Simulate autosubmit
       ;; G: auto-submit + genesis is not a thing. Only known use case is "Create new row" in a masterlist view.
@@ -420,46 +435,52 @@ accept the previous token and retain the new one."
       ;;    therefore submit buttons, and get the "auto-submit" behavior for free, since they are themselves the submit
       ;;    affordance. Therefore the only use case for auto-submit + genesis has no user input to "auto submit" and collapses to
       ;;    just "genesis".
-      (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
-                         (.preventDefault e)
-                         #_(js/console.log "change" dom/node)
-                         (when (and (event-is-from-this-form? e) ; not from a nested form
-                                 (instance? js/HTMLInputElement (.-target e))
-                                 (= "checkbox" (.. e -target -type)))
-                           ;; (js/console.log "change" (hash e) e)
-                           ;; (pause!)
-                           (event-submit-form! e)) e) nil)
-      ;; all inputs but checkboxes
-      (dom/On "input"  (fn [e]
-                         ;; (js/console.log "input" dom/node)
-                         (when (and (event-is-from-this-form? e) ; not from a nested form
-                                 (instance? js/HTMLInputElement (.-target e))
-                                 (not= "checkbox" (.. e -target -type)))
-                           ;; (js/console.log "input" e)
-                           (event-submit-form! e)) e) nil))
+      (let [event (e/amb
+                    (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
+                                       (.preventDefault e)
+                                       #_(js/console.log "change" dom/node)
+                                       (when (and (event-is-from-this-form? e) ; not from a nested form
+                                               (instance? js/HTMLInputElement (.-target e))
+                                               (= "checkbox" (.. e -target -type)))
+                                         ;; (js/console.log "change" (hash e) e)
+                                         e)) nil)
+                    ;; all inputs but checkboxes
+                    (dom/On "input"  (fn [e]
+                                       ;; (js/console.log "input" dom/node)
+                                       (when (and (event-is-from-this-form? e) ; not from a nested form
+                                               (instance? js/HTMLInputElement (.-target e))
+                                               (not= "checkbox" (.. e -target -type)))
+                                         ;; (js/console.log "input" e)
+                                         e)) nil))]
+        (Schedule #(event-submit-form! disabled event))
+        event))
 
     ;; We handle form validation manually, disable native browser submit prevention on invalid form.
     ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
-    (let [submit-handler #(do (.preventDefault %) #_(js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
+    (let [submit-handler #(do (.preventDefault %) (js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
                               (when (and (not disabled) (event-is-from-this-form? %)) %))]
       (if-not genesis
         ;; Regular tx submit – txs are sequential.
         (let [;; Submit is the only authoritative event.
               ;; Native browser navigation must always be prevented
               submit-event (dom/On "submit" submit-handler nil)
-              t (stop-err-propagation (Latest (first (e/amb (Token* submit-event) ; new token on each submit
-                                                       (e/When auto-submit (e/Token edits))))))]
+              t #_(stop-err-propagation) ; why was this here?
+              (Latest (first (e/amb (Token* submit-event) ; new token on each submit
+                               #_(e/When (and auto-submit
+                                         ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
+                                 (e/Token edits-kvs)))))]
           submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
-          (e/When (and t edits) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
+          (e/When (and t edits-t) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
             [(unify-t t edits-t) [directive edits-kvs]]))
-        (do ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
-          (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
-            (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
-              (edits-t) ; immediately detach edits – clears user input.
-              (reset-active-form-input! dom/node)
-              [(stop-err-propagation submit-q) [directive edits-kvs]])))))))
+        ; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
+        (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
+          ;; (e/When edits-t) ;; FIXME this conditional should probably be added here - to be tested.
+          (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
+            (edits-t) ; immediately detach edits – clears user input.
+            (reset-active-form-input! dom/node)
+            [(stop-err-propagation submit-q) [directive edits-kvs]]))))))
 
 (e/declare *tracked-token)
 
@@ -467,7 +488,7 @@ accept the previous token and retain the new one."
   (if genesis
     (do (Button :type :submit :label "commit" :disabled *disabled-commit (dissoc props :genesis)) ; do not track tx
         (e/amb))
-    (Button! [::commit] :type :submit :label "commit" :token *tracked-token :data-command true :disabled *disabled-commit (dissoc props :genesis))))
+    (Button! [::commit] :type :submit :label "commit" :token *tracked-token :disabled *disabled-commit (dissoc props :genesis))))
 
 (def form-command? #{::commit ::discard})
 
@@ -478,11 +499,14 @@ accept the previous token and retain the new one."
 
 (defn merge-edits [edits]
   [(->> (map first edits) ; extract all tokens
-     (reduce unify-t) ; unify them into a single ack-all, fan-out token
+     (reduce unify-t nil) ; unify them into a single ack-all, fan-out token
      (stop-err-propagation) ; severs fan-out of err path, as we cannot report form failure at field level.
      )
-   (into {} (map second) edits) ; merge all kvs.
+   (not-empty (into {} (map second) edits)) ; merge all kvs.
    ])
+
+(defn directive [[t [directive & args] :as command]] directive)
+(defn collect-commands [commands] (into {} (map (juxt directive identity)) commands))
 
 (e/defn Form!*
   ([value Fields ; concurrent edits are what give us dirty tracking
@@ -518,6 +542,10 @@ accept the previous token and retain the new one."
                [edits commands] (split-edits-from-commands edits)
                [form-t form-v :as form] (merge-edits edits)
 
+               keyed-commands (collect-commands commands)
+               [commit-t _] (Latest (::commit keyed-commands))
+               [discard-t _] (::discard keyed-commands) ; supposed instant
+
                merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
                parsed-form-v (Parse merged-form-v-with-unparsed-v (or tempid (next-tempid! form-t)))
@@ -536,12 +564,14 @@ accept the previous token and retain the new one."
              (e/for [[token [directive captured-parsed-form-v] :as _edit]
                      (e/diff-by (comp first second) ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
                        (e/as-vec (e/amb ?d
-                                   (LatestEdit2 (e/amb ?cs (e/diff-by (comp first second) commands))
+                                   (LatestEdit2 (e/amb ?cs #_(e/diff-by (comp first second) commands))
                                      genesis))))]
+               #_(prn "_edit" _edit)
                (let [parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))]
                  (case directive ; does order of burning matter?
                    ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-                   ::discard (let [clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
+                   ::discard (let [token (unify-t token discard-t commit-t)
+                                   clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
                                    ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
                                    (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
                                (if genesis
@@ -562,13 +592,14 @@ accept the previous token and retain the new one."
                                         (nth discard 0) ; command
                                         (nth discard 1)]))))
                    ::commit
-                   (if validation-message
-                     (do (token ; err value gets dropped, but form won't reset.
-                           ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
-                         (e/amb))
-                     [(unify-t token (fn ([] (reset! !tx-rejected-error nil))
-                                       ([err] (reset! !tx-rejected-error err))))
-                      parsed-form-v]))))
+                   (let [token (unify-t token commit-t)]
+                     (if validation-message
+                       (do (token ; err value gets dropped, but form won't reset.
+                             ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
+                           (e/amb))
+                       [(unify-t token (fn ([] (reset! !tx-rejected-error nil))
+                                         ([err] (reset! !tx-rejected-error err))))
+                        parsed-form-v])))))
 
              (e/When debug
                (dom/span (dom/text " " dirty-count " dirty"))
@@ -620,7 +651,7 @@ accept the previous token and retain the new one."
 (e/defn Service [forms]
   (e/client ; client bias, t doesn't transfer
     (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
-    (e/for [[t form guess] forms]
+    (e/for [[t form guess] (e/diff-by first (e/as-vec forms))] ; reboot on new token
       (let [[effect & args] form
             Effect ((or effects* {}) effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
             res (e/Apply Effect args)] ; effect handlers span client and server
@@ -680,3 +711,22 @@ accept the previous token and retain the new one."
          (fn [[record command]] (if record (identify-record record) (identify-command (second command))))
          (map kvs (vals order)))        ; ugly
        ))))
+
+#_
+(defmacro elet "eager let - because lazy let makes mount/unmount hard to debug - ideally only for debugging"
+  {:clj-kondo/lint-as 'clojure.core/let}
+  [bindings & body]
+  (let [pairs (partition 2 bindings)
+        syms (take (count pairs) (repeatedly gensym))
+        lefts (map first pairs)
+        rights (map second pairs)]
+    `(let [~@(mapcat identity (interleave (map vector syms rights)
+                                (map vector lefts syms)))]
+       ~@syms
+       ~@body)))
+
+#_(elet [a 1
+         [b a' :as bb] [2 a]
+         {foo ::foo} {::foo "foo"}
+         {::keys [bar]} {::bar "bar"}]
+    [a b a' bb foo bar])
