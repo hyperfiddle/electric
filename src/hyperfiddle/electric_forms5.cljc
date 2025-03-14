@@ -9,6 +9,31 @@
             [hyperfiddle.electric-scroll0 :refer [Scroll-window IndexRing]]
             [missionary.core :as m]))
 
+
+(e/defn Inspect-diffs [f! form x] (f! form (e/input (e/pure x))) x)
+
+(defn inspect-diff [form diff]
+  (cond (hyperfiddle.incseq/empty-diff? diff) (println "  empty" form '=> diff)
+        (= (:degree diff) (:grow diff)) (println "  mount" form '=> diff)
+        (= (:degree diff) (:shrink diff)) (println "unmount" form '=> diff)
+        () (println "       " form '=> diff)))
+
+(defmacro let-diag "eager let - because lazy let makes mount/unmount hard to debug - ideally only for debugging"
+  {:clj-kondo/lint-as 'clojure.core/let}
+  [bindings & body]
+  (let [pairs (partition 2 bindings)
+        ;; syms (take (count pairs) (repeatedly gensym))
+        lefts (map first pairs)
+        rights (map second pairs)]
+    `(let [~@(mapcat identity (interleave #_(map vector syms rights) (map (fn [left right] [left `(Inspect-diffs inspect-diff '~left ~right)]) lefts rights)))]
+       ;; ~@syms
+       ~@body)))
+
+
+(comment
+  (let-diag [a 1, [a b] [a 2]] [a a b])
+  )
+
 ;;; Simple controlled inputs (dataflow circuits)
 
 (e/defn Input [v & {:keys [maxlength type parse] :as props
