@@ -14,6 +14,7 @@
 
 (defn inspect-diff [form diff]
   (cond (hyperfiddle.incseq/empty-diff? diff) (println "  empty" form '=> diff)
+        (and (= 1 (:grow diff) (:shrink diff)) (= (:permutation diff) {0 1, 1 0})) (println "SHRINK/GROW" form '=> diff)
         (= (:degree diff) (:grow diff)) (println "  mount" form '=> diff)
         (= (:degree diff) (:shrink diff)) (println "unmount" form '=> diff)
         () (println "       " form '=> diff)))
