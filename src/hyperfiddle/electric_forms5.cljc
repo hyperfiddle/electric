@@ -648,6 +648,7 @@ accept the previous token and retain the new one."
 
 (defmacro try-ok [& body] ; fixme inject sentinel
   `(try ~@body ::ok ; sentinel
+        (catch InterruptedException e# ::interrupted)
         (catch Exception e# (doto ::fail (prn e#)))))
 
 (e/declare effects* #_{})
@@ -661,7 +662,8 @@ accept the previous token and retain the new one."
             res (e/Apply Effect args)] ; effect handlers span client and server
         (prn 'final-res res)
         (case res
-          nil (prn `res-was-nil-stop!)
+          nil (prn `res-was-nil-stop!) ; FIXME is it valid to ever return nil?
+          ::interrupted (prn ::interrupted effect)
           ::ok (t) ; sentinel, any other value is an error
           (t ::rejected))))))
 
