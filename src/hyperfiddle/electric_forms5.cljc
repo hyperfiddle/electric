@@ -416,8 +416,14 @@ accept the previous token and retain the new one."
 (defn -schedule "run f after current propagation turn" [f] (m/sp (m/? (m/sleep 0)) (f)))
 (e/defn Schedule [f] (e/Task (-schedule f)))
 
-(e/defn FormSubmit! ; dom/node must be a form
-  [directive [edits-t edits-kvs :as edits] & {:keys [disabled auto-submit genesis token command] :as props}]
+#?(:cljs
+   (defn form-submit-handler [disabled ^js event]
+     (.preventDefault event)
+     (js/console.log "submit" (clj->js {:hash (hash event), :from-this-form (event-is-from-this-form? event), :disabled disabled :node dom/node :currentTarget (.-currentTarget event) :e event}))
+     (when (and (not disabled) (event-is-from-this-form? event))
+       event)))
+
+(e/defn FormSubmitCommon! [& {:keys [disabled auto-submit genesis]}]
   (e/client
     ;; form submit controlled from the outside (controlled form)
     #_(when token (.requestSubmit dom/node))
@@ -462,38 +468,44 @@ accept the previous token and retain the new one."
     ;; We handle form validation manually, disable native browser submit prevention on invalid form.
     ;; Also hide native validation UI.
     (dom/On "invalid" #(.preventDefault %) nil {:capture true})
+    (e/amb)))
 
-    (let [submit-handler #(do (.preventDefault %) (js/console.log "submit" (clj->js {:hash (hash %), :from-this-form (event-is-from-this-form? %), :disabled disabled :node dom/node :currentTarget (.-currentTarget %) :e %}))
-                              (when (and (not disabled) (event-is-from-this-form? %)) %))]
-      (if-not genesis
-        ;; Regular tx submit – txs are sequential.
-        (let [;; Submit is the only authoritative event.
-              ;; Native browser navigation must always be prevented
-              submit-event (dom/On "submit" submit-handler nil)
-              t #_(stop-err-propagation) ; why was this here?
-              (Latest (first (e/amb (Token* submit-event) ; new token on each submit
-                               #_(e/When token [token nil])
-                               #_(e/When (and auto-submit
-                                           ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
-                                   (e/Token edits-kvs)))))]
-          submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
-          (e/Reconcile
-            (let [x (#(cond ; FIXME using electric `cond` crashes client with "sub is null @ Propagator$bufferize:145"
-                        (and t edits-t) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
-                        [(unify-t t edits-t token) [directive edits-kvs]]
 
-                        token
-                        [token [directive command]]
+(e/defn FormSubmit! ; dom/node must be a form
+  [directive [edits-t edits-kvs] & {:keys [disabled token command]}]
+  ;; Regular tx submit – txs are sequential.
+  (e/client
+    (let [;; Submit is the only authoritative event.
+          ;; Native browser navigation must always be prevented
+          submit-event (dom/On "submit" (partial form-submit-handler disabled) nil)
+          t #_(stop-err-propagation) ; FIXME why was this here?
+          (Latest (first (e/amb (Token* submit-event) ; new token on each submit
+                           #_(e/When token [token nil])
+                           #_(e/When (and auto-submit
+                                       ((fn [_ disabled] (and (not disabled) (.checkValidity dom/node))) edits-kvs disabled))
+                               (e/Token edits-kvs)))))]
+      submit-event ; always force-mount submit event handler, even if auto-submit=true, to prevent browser hard navigation on submit.
+      (e/Reconcile
+        (let [x (#(cond ; FIXME using electric `cond` crashes client with "sub is null @ Propagator$bufferize:145"
+                    (and t edits-t) ; in principle submit button should be disabled if edits = ∅. But semantics must be valid nonetheless.
+                    [(unify-t t edits-t token) [directive edits-kvs]]
 
-                        () nil))]
-              (e/When x x))))
-        ;; Genesis case – parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
-        (e/for [[submit-q _err] (dom/On-all "submit" submit-handler nil)]
-          ;; (e/When edits-t) ;; FIXME this conditional should probably be added here - to be tested.
-          (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
-            (edits-t) ; immediately detach edits – clears user input.
-            (reset-active-form-input! dom/node)
-            [(stop-err-propagation submit-q) [directive edits-kvs]]))))))
+                    token
+                    [token [directive command]]
+
+                    () nil))]
+          (e/When x x))))))
+
+(e/defn FormSubmitGenesis! ; dom/node must be a form
+  [directive edits & {:keys [disabled]}]
+  ;; parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
+  (e/client
+    (e/for [[submit-q _err] (dom/On-all "submit" (partial form-submit-handler disabled) nil)]
+      ;; (e/When edits-t) ;; FIXME this conditional should probably be added here - to be tested.
+      (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
+        (edits-t) ; immediately detach edits – clears user input.
+        (reset-active-form-input! dom/node)
+        [(stop-err-propagation submit-q) [directive edits-kvs]]))))
 
 (e/declare *tracked-token)
 
@@ -550,9 +562,9 @@ accept the previous token and retain the new one."
                edits (e/as-vec (e/amb (Fields unparsed-value)
                                  (e/When show-buttons
                                    (e/amb (SubmitButton! :genesis genesis) (DiscardButton!)))))
-               dirty-count (count edits)
 
                [edits commands] (split-edits-from-commands edits)
+               dirty-count (count edits)
                [form-t form-v :as form] (merge-edits edits)
 
                keyed-commands (collect-commands commands)
@@ -565,8 +577,11 @@ accept the previous token and retain the new one."
 
                validation-message (not-empty (ex-message parsed-form-v))
 
-               ?cs (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :auto-submit auto-submit :genesis genesis :token tracked-token :command tracked-cmd)
+               ?cs (if genesis
+                     (FormSubmitGenesis! ::commit [form-t parsed-form-v] :disabled *disabled-commit)
+                     (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :token tracked-token :command tracked-cmd))
                ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
+           (FormSubmitCommon! :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
            (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not cmd-mode?)))
            (reset! !disabled-discard (and (zero? dirty-count) (not cmd-mode?)))
            #_(prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
