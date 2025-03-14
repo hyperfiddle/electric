@@ -423,10 +423,11 @@ accept the previous token and retain the new one."
      (when (and (not disabled) (event-is-from-this-form? event))
        event)))
 
-(e/defn FormSubmitCommon! [& {:keys [disabled auto-submit genesis]}]
+(e/defn FormSubmitHelper! [& {:keys [disabled auto-submit genesis]}]
   (e/client
-    ;; form submit controlled from the outside (controlled form)
-    #_(when token (.requestSubmit dom/node))
+    ;; We handle form validation manually, disable native browser submit prevention on invalid form.
+    ;; Also hide native validation UI.
+    (dom/On "invalid" #(.preventDefault %) nil {:capture true})
 
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
@@ -463,15 +464,11 @@ accept the previous token and retain the new one."
                                          ;; (js/console.log "input" e)
                                          e)) nil))]
         (Schedule #(event-submit-form! disabled event))
-        event))
-
-    ;; We handle form validation manually, disable native browser submit prevention on invalid form.
-    ;; Also hide native validation UI.
-    (dom/On "invalid" #(.preventDefault %) nil {:capture true})
-    (e/amb)))
+        event)))
+  (e/amb))
 
 
-(e/defn FormSubmit! ; dom/node must be a form
+(e/defn FormSubmitSequential! ; dom/node must be a form
   [directive [edits-t edits-kvs] & {:keys [disabled token command]}]
   ;; Regular tx submit – txs are sequential.
   (e/client
@@ -496,7 +493,7 @@ accept the previous token and retain the new one."
                     () nil))]
           (e/When x x))))))
 
-(e/defn FormSubmitGenesis! ; dom/node must be a form
+(e/defn FormSubmitConcurrent! ; dom/node must be a form
   [directive edits & {:keys [disabled]}]
   ;; parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
   (e/client
@@ -533,103 +530,109 @@ accept the previous token and retain the new one."
 (defn directive [[t [directive & args] :as command]] directive)
 (defn collect-commands [commands] (into {} (map (juxt directive identity)) commands))
 
+(e/defn InterpretCommit! [[token [_commit parsed-form-v] :as _edit] commit-t form-valid?]
+  (let [#_#_parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))
+        token (unify-t token commit-t)]
+    (e/Reconcile
+      (if-not form-valid?
+        (do (token ; err value gets dropped, but form won't reset.
+              ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
+            (e/amb))
+        (let [[token err] (TrackTx (e/fn [err] [token err]))]
+          [[token parsed-form-v] err])))))
+
+(e/defn InterpretDiscard! [[token [_discard & _ :as _edit]] discard-t commit-t all-commits genesis tracked-token]
+  (let [token (unify-t token discard-t commit-t)
+        clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
+        ;; FIXME bug workaround - ensure commits are burnt all at once, not one after the other. Crashes otherwise.
+        (partial (fn [ts] (doseq [t ts] (t))) (map first all-commits))]
+    (e/Reconcile
+      (if genesis
+        (do (token) (e/amb)) ; discard now and swallow cmd, we're done
+        ;; reset form and BOTH buttons, cancelling any in-flight commit
+        (let [token (-> token (after-ack clear-commits) (after-ack #(when tracked-token (tracked-token ::discard))))]
+          (token)
+          (e/amb))))))
+
+(e/defn FormActions! [[form-t parsed-form-v] form-valid? commit-t discard-t genesis auto-submit tracked-token tracked-cmd]
+  (FormSubmitHelper! :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
+  (let [?commits (if genesis
+                   (FormSubmitConcurrent! ::commit [form-t parsed-form-v] :disabled *disabled-commit) ; not supported: controlled form with genesis
+                   (FormSubmitSequential! ::commit [form-t parsed-form-v] :disabled *disabled-commit :token tracked-token :command tracked-cmd)) ; eventually controlled
+        ?discards (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
+    (e/for [[_token [directive _] :as edit]
+            (e/diff-by (comp first second) ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
+              (e/as-vec (e/amb ?discards
+                          (LatestEdit2 (e/amb ?commits #_(e/When (and tracked-token commit) commit) ; interpret controlled "commit" button as submit
+                                         )
+                            genesis))))]
+      #_(prn "_edit" _edit)
+      (case directive ; does order of burning matter?
+        ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
+        ::discard (InterpretDiscard! edit discard-t commit-t (e/as-vec ?commits) genesis tracked-token)
+        ::commit (InterpretCommit! edit commit-t form-valid?)))))
+
+(e/defn FormDebugHelper [debug & {:syms [dirty-count unparsed-value form-v merged-form-v-with-unparsed-v parsed-form-v validation-message]}]
+  (e/When debug
+    (dom/span (dom/text " " dirty-count " dirty"))
+    (dom/pre (dom/text (pprint-str (if (= :verbose debug)
+                                     {:unparsed unparsed-value
+                                      :fields form-v,
+                                      :form merged-form-v-with-unparsed-v
+                                      :parsed-form parsed-form-v
+                                      :validation validation-message}
+                                     parsed-form-v)
+                         :margin 80)))
+    (e/amb)))
+
+(defmacro map-shorthand
+  "(map-shorthand a b c) => {'a a, 'b b, 'c c}. Destructure with {:syms [a b c]}"
+  [& symbolic-vals]
+  (assert (every? symbol? symbolic-vals))
+  (into {} (map vector (map #(list 'quote %) symbolic-vals) symbolic-vals)))
+
 (e/defn Form!*
-  ([value Fields ; concurrent edits are what give us dirty tracking
-    & {:as props}]
+  ([value Fields & {:keys [debug show-buttons auto-submit genesis Parse Unparse tempid #_discard] ; TODO implement discard
+                    :or {debug false, show-buttons false, genesis false}}]
    (e/client
-     (let [{::keys [debug discard ; TODO implement discard
-                    show-buttons auto-submit genesis
-                    Parse Unparse tempid]}
-           (auto-props props {::debug false ::show-buttons false ::genesis false})
+     (let [next-tempid! (if tempid (fn [& _] (tempid)) identity)
 
-           next-tempid! (if tempid (fn [& _] (tempid)) identity)
+           [tracked-token tracked-cmd] (when Unparse value)
+           [unparsed-value tempid] (if Unparse (Unparse tracked-cmd) [value nil])
+           Parse (or Parse (e/fn [fields tempid] fields))
 
-           !tx-rejected-error (atom nil)
-           tx-rejected-error (e/watch !tx-rejected-error)
-
-           cmd-mode? (some? Unparse)
-           ;; Unparse (or Unparse (e/fn [x] [x nil]))
-           [tracked-token tracked-cmd] (when cmd-mode? value)
            !disabled-commit (atom false)
            !disabled-discard (atom false)
-           ]
-       (binding [*tracked-token tracked-token
-                 *disabled-commit (e/watch !disabled-commit)
-                 *disabled-discard (e/watch !disabled-discard)]
-         (let [[unparsed-value tempid] (if cmd-mode? (Unparse tracked-cmd) [value nil])
-               Parse (or Parse (e/fn [fields tempid] fields))
+           edits (binding ; dynamic scope because correct defaults must be injected in user-customizable commit/discard affordances - see SubmitButton! and DiscardButton!
+                     [*tracked-token tracked-token
+                      *disabled-commit (e/watch !disabled-commit)
+                      *disabled-discard (e/watch !disabled-discard)]
+                   (e/as-vec (e/amb (Fields unparsed-value) ; concurrent edits are what give us dirty tracking
+                               (e/When show-buttons
+                                 (e/amb (SubmitButton! :genesis genesis) (DiscardButton!))))))
 
-               edits (e/as-vec (e/amb (Fields unparsed-value)
-                                 (e/When show-buttons
-                                   (e/amb (SubmitButton! :genesis genesis) (DiscardButton!)))))
+           [edits commands] (split-edits-from-commands edits)
+           dirty-count (count edits)
+           [form-t form-v] (merge-edits edits)
 
-               [edits commands] (split-edits-from-commands edits)
-               dirty-count (count edits)
-               [form-t form-v :as form] (merge-edits edits)
+           keyed-commands (collect-commands commands)
+           [commit-t _] (Latest (::commit keyed-commands))
+           [discard-t _] (::discard keyed-commands) ; supposed instant
 
-               keyed-commands (collect-commands commands)
-               [commit-t _ :as commit] (Latest (::commit keyed-commands))
-               [discard-t _] (::discard keyed-commands) ; supposed instant
+           merged-form-v-with-unparsed-v (merge unparsed-value form-v)
 
-               merged-form-v-with-unparsed-v (merge unparsed-value form-v)
+           parsed-form-v (Parse merged-form-v-with-unparsed-v (or tempid (next-tempid! form-t)))
 
-               parsed-form-v (Parse merged-form-v-with-unparsed-v (or tempid (next-tempid! form-t)))
-
-               validation-message (not-empty (ex-message parsed-form-v))
-
-               ?cs (if genesis
-                     (FormSubmitGenesis! ::commit [form-t parsed-form-v] :disabled *disabled-commit)
-                     (FormSubmit! ::commit [form-t parsed-form-v] :disabled *disabled-commit :token tracked-token :command tracked-cmd))
-               ?d (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
-           (FormSubmitCommon! :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
-           (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not cmd-mode?)))
-           (reset! !disabled-discard (and (zero? dirty-count) (not cmd-mode?)))
-           #_(prn "debug" {:cmd-mode cmd-mode?, :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
+           validation-message (not-empty (ex-message parsed-form-v))]
+       #_(prn "debug" {:Unparse (some? Unparse), :tracked-token tracked-token, :tracked-cmd tracked-cmd :unparsed-value unparsed-value, :tempid tempid} )
+       (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not Unparse)))
+       (reset! !disabled-discard (and (zero? dirty-count) (not Unparse)))
+       (e/amb
+         (let [[cmd err] (FormActions! [form-t parsed-form-v] (empty? validation-message) commit-t discard-t genesis auto-submit tracked-token tracked-cmd)]
            (dom/p (dom/props {:data-role "errormessage"})
-                  (dom/text validation-message)
-                  (when tx-rejected-error (dom/text tx-rejected-error)))
-           (e/amb
-             (e/for [[token [directive captured-parsed-form-v] :as _edit]
-                     (e/diff-by (comp first second) ; ouch! simplify. ; cs and d have form semantics – they really are <input type="submit"|"reset"… >
-                       (e/as-vec (e/amb ?d
-                                   (LatestEdit2 (e/amb ?cs #_(e/When (and tracked-token commit) commit) ; interpret controlled "commit" button as submit
-                                                  )
-                                     genesis))))]
-               #_(prn "_edit" _edit)
-               (let [parsed-form-v (or captured-parsed-form-v (e/snapshot parsed-form-v))]
-                 (case directive ; does order of burning matter?
-                   ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-                   ::discard (let [token (unify-t token discard-t commit-t)
-                                   clear-commits ; clear all concurrent commits, though there should only ever be up to 1.
-                                   ;; FIXME bug workaround - ensure commits are burnt all at once, calling `(tempids)` should work but crashes the app for now.
-                                   (partial (fn [ts] (doseq [t ts] (t))) (map first (e/as-vec ?cs)))]
-                               (if genesis
-                                 (do (token) (e/amb)) ; discard now and swallow cmd, we're done
-                                 ;; reset form and BOTH buttons, cancelling any in-flight commit
-                                 (let [token (after-ack token clear-commits)
-                                       token (after-ack token #(when tracked-token (tracked-token ::discard)))]
-                                   (token)
-                                   (e/amb))))
-                   ::commit
-                   (let [token (unify-t token commit-t)]
-                     (if validation-message
-                       (do (token ; err value gets dropped, but form won't reset.
-                             ::invalid) ; controls interpret ::invalid as "validation error", not tx-rejected
-                           (e/amb))
-                       [(unify-t token (fn ([] (reset! !tx-rejected-error nil))
-                                         ([err] (reset! !tx-rejected-error err))))
-                        parsed-form-v])))))
-
-             (e/When debug
-               (dom/span (dom/text " " dirty-count " dirty"))
-               (dom/pre (dom/text (pprint-str (if (= :verbose debug)
-                                                {:unparsed unparsed-value
-                                                 :fields form-v,
-                                                 :form merged-form-v-with-unparsed-v
-                                                 :parsed-form parsed-form-v
-                                                 :validation validation-message}
-                                                parsed-form-v)
-                                    :margin 80)))))))))))
+                  (dom/text validation-message err))
+           cmd)
+         (FormDebugHelper debug (map-shorthand dirty-count unparsed-value form-v merged-form-v-with-unparsed-v parsed-form-v validation-message)))))))
 
 (defmacro Form! [value Fields & {:as props}] ; note - the fields must be nested under this form - which is fragile and unobvious
   `(dom/form ; for form events. e.g. submit, reset, invalid, etc…
