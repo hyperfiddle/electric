@@ -1,19 +1,31 @@
 (ns hyperfiddle.incseq.perm-impl
   (:refer-clojure :exclude [cycle])
-  (:require [hyperfiddle.rcf :refer [tests]]
-            [clojure.set]))
+  (:require [clojure.set]))
 
 (def inverse clojure.set/map-invert)
 
+(defn transposition [i j]
+  {i j, j i})
+
 (defn cycle
-  ([_] {})
-  ([i & js] (zipmap `(~i ~@js) `(~@js ~i))))
+  ([xs]
+   (let [n (count xs)
+         f (nth xs 0)]
+     (loop [j f
+            i 1
+            p (transient {})]
+       (let [k (nth xs i)
+             i (unchecked-inc i)
+             p (assoc! p j k)]
+         (if (< i n)
+           (recur k i p)
+           (persistent! (assoc! p k f))))))))
 
 (defn rotation [i j]
   (case (compare i j)
-    -1 (apply cycle (range i (inc j) +1))
+    -1 (cycle (range i (inc j) +1))
     0 {}
-    +1 (apply cycle (range i (dec j) -1))))
+    +1 (cycle (range i (dec j) -1))))
 
 (defn split-swap [i l r]
   (let [l (int l)
@@ -80,12 +92,12 @@
 
 (defn recompose [cycles]
   (->> cycles
-    (eduction (map (partial apply cycle)))
+    (eduction (map cycle))
     (reduce compose (compose))))
 
 (defn split-long-swap [o l c r]
   (->> (range o (+ o (min l r)))
-    (eduction (map (fn [i] (cycle i (+ l c i)))))
+    (eduction (map (fn [i] (transposition i (+ l c i)))))
     (reduce compose {})
     (compose
       (case (compare l r)

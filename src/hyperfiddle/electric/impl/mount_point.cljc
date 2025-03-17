@@ -561,7 +561,7 @@ Mounting a block generates a grow for each active item having this block's frame
                               w2 (if-some [b (aget buffer k2)]
                                    (block-weight b) 0)]
                           (swap-indices call i j)
-                          (recur (p/compose p (p/cycle i j))
+                          (recur (p/compose p (p/transposition i j))
                             (if (nil? i1)
                               q (if (nil? i2)
                                   q (p/compose (p/split-long-swap i1 w1 (- i2 i1 w1) w2)

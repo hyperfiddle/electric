@@ -164,10 +164,11 @@
                                               l (aget counts k)
                                               o (compute-offset counts k 0)
                                               s (aget counts 1)]
-                                          (p/compose
-                                            (->> (range o (unchecked-add-int o l))
-                                              (eduction (map (fn [i] (p/cycle i (unchecked-add-int s i)))))
-                                              (reduce p/compose {})) q))))
+                                          (if (zero? s)
+                                            q (p/compose
+                                                (->> (range o (unchecked-add o l))
+                                                  (eduction (map (fn [i] (p/transposition i (unchecked-add s i)))))
+                                                  (reduce p/compose {})) q)))))
                                     q (sort (keys change)))
                                (let [[i j] (first p)
                                      k2 (index-in-counts counts (max i j))
@@ -177,7 +178,7 @@
                                      o2 (compute-offset counts k2 l1)
                                      o1 (compute-offset counts k1 l2)]
                                  (swap-buffer buffer i j)
-                                 (recur (p/compose p (p/cycle i j))
+                                 (recur (p/compose p (p/transposition i j))
                                    (p/compose (p/split-long-swap o1 l1
                                                 (unchecked-subtract-int
                                                   (unchecked-subtract-int o2 o1)

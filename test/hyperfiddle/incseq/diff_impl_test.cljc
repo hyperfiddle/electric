@@ -44,7 +44,7 @@
         {:grow 2
          :degree 5
          :shrink 2
-         :permutation (p/compose (p/cycle 2 4) (p/cycle 1 3))
+         :permutation (p/compose (p/transposition 2 4) (p/transposition 1 3))
          :change {0 :f, 1 :g, 2 :h}
          :freeze #{}})))
 
