@@ -562,11 +562,13 @@ accept the previous token and retain the new one."
   ;; parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
   (e/client
     (e/for [[submit-q _err] (dom/On-all "submit" (partial form-submit-handler disabled) nil)]
-      ;; (e/When edits-t) ;; FIXME this conditional should probably be added here - to be tested.
-      (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach edits before any reference to edits, or spending the edits token would loop into this branch and cause a crash.
-        (edits-t) ; immediately detach edits – clears user input.
-        (reset-active-form-input! dom/node)
-        [(stop-err-propagation submit-q) [directive edits-kvs]]))))
+      (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach current edit.
+        (e/Reconcile
+          (if edits-t ;; FIXME this conditional should probably be added here - to be tested.
+            (do (edits-t) ; immediately detach edits – clears user input.
+                (reset-active-form-input! dom/node)
+                [(stop-err-propagation submit-q) [directive edits-kvs]])
+            (do (submit-q) (e/amb))))))))
 
 (e/declare *tracked-token)
 
