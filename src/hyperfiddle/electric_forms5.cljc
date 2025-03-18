@@ -10,55 +10,6 @@
             [missionary.core :as m]
             [hyperfiddle.electric-forms5.tokens :as t]))
 
-
-#_
-(defmacro elet "eager let - because lazy let makes mount/unmount hard to debug - ideally only for debugging"
-  {:clj-kondo/lint-as 'clojure.core/let}
-  [bindings & body]
-  (let [pairs (partition 2 bindings)
-        syms (take (count pairs) (repeatedly gensym))
-        lefts (map first pairs)
-        rights (map second pairs)]
-    `(let [~@(mapcat identity (interleave (map vector syms rights)
-                                (map vector lefts syms)))]
-       ~@syms
-       ~@body)))
-
-#_(elet [a 1
-         [b a' :as bb] [2 a]
-         {foo ::foo} {::foo "foo"}
-         {::keys [bar]} {::bar "bar"}]
-    [a b a' bb foo bar])
-
-#_
-(e/defn Inspect-diffs [f! form x] (f! form (e/input (e/pure x))) x)
-
-#_
-(defn inspect-diff [form diff]
-  (cond (hyperfiddle.incseq/empty-diff? diff) nil #_(println "  empty" form '=> "degree" (select-keys diff [:degree]))
-        (and (= 1 (:grow diff) (:shrink diff)) (= (:permutation diff) {0 1, 1 0})) (println "SHRINK/GROW" form '=> (select-keys diff [:degree :change]))
-        (= (:degree diff) (:grow diff)) (println "  mount" form '=> (select-keys diff [:degree :change]))
-        (= (:degree diff) (:shrink diff)) (println "unmount" form '=> diff)
-        () (println " change" form '=> (select-keys diff [:change]))))
-
-#_
-(defmacro let-diag "eager let - because lazy let makes mount/unmount hard to debug - ideally only for debugging"
-  {:clj-kondo/lint-as 'clojure.core/let}
-  [bindings & body]
-  (let [pairs (partition 2 bindings)
-        ;; syms (take (count pairs) (repeatedly gensym))
-        lefts (map first pairs)
-        rights (map second pairs)]
-    `(let [~@(mapcat identity (interleave #_(map vector syms rights) (map (fn [left right] [left `(Inspect-diffs inspect-diff '~left ~right)]) lefts rights)))]
-       ;; ~@syms
-       ~@body)))
-
-
-#_
-(comment
-  (let-diag [a 1, [a b] [a 2]] [a a b])
-  )
-
 ;;; Simple controlled inputs (dataflow circuits)
 
 (e/defn Input [v & {:keys [maxlength type parse] :as props
@@ -123,7 +74,8 @@ Simple uncontrolled checkbox, e.g.
 
 (e/defn Identity [a] a)
 (e/defn Lift [f] (e/fn [& args] (apply f args)))
-(defn form-valid? [x] ; works for all edits - control or form - "edit-valid?" name was judged less natural.
+
+#_ (defn form-valid? [x] ; works for all edits - control or form - "edit-valid?" name was judged less natural.
   (not (instance? #?(:clj Throwable, :cljs js/Error) x)))
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
@@ -141,13 +93,13 @@ Simple uncontrolled checkbox, e.g.
             unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
             parsed-v (Parse (subs unparsed-v 0 maxlength))]
         (SetValidity parsed-v)
-        (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; todo - submit must reset input while focused
+        (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; TODO - submit must reset input while focused
         (when error? (dom/props {:aria-invalid true})) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
         (when waiting? (dom/props {:aria-busy true}))
         (e/When waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
           [t {field-name parsed-v}])))))  ; edit request, bubbles upward to interpreter
 
-(e/defn Output [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
+(e/defn Output [field-name ; fields are named like the DOM <input name=...> - for coordination with form containers
                 v & {:keys [Unparse] :as props :or {Unparse (Lift str)}}]
   (e/client
     (dom/output
@@ -159,56 +111,10 @@ Simple uncontrolled checkbox, e.g.
 (e/defn Textarea! [field-name v & props]
   (Input! field-name v :as :textarea props))
 
-#_
-(defn token
-  ([] (token `noop-token))
-  ([label] (token label (constantly nil)))
-  ([label f & fs]
-   (with-meta (fn token [& args] (doseq [f (cons f fs)] (apply f args)))
-     {:children (cons f fs)
-      :label label})))
-
-;; #?(:cljs
-;;    (deftype Token [meta children]
-;;      IFn
-;;      (-invoke [this] (run! (fn [t] (t)) children) nil)
-;;      (-invoke [this err] (run! (fn [t] (t err)) children) nil)
-;;      IWithMeta (-with-meta [this new-meta] (if (identical? new-meta meta) this (Token. new-meta children)))
-;;      IMeta (-meta [this] (.-meta this))))
-
-;; #?(:clj
-;;    (deftype Token [meta children]
-;;      clojure.lang.IFn
-;;      (invoke [this] (run! (fn [t] (t)) children) nil)
-;;      (invoke [this err] (run! (fn [t] (t err)) children) nil)
-;;      clojure.lang.IObj (withMeta [this new-meta] (if (= meta new-meta) this (Token. new-meta children)))
-;;      clojure.lang.IMeta (meta [this] (.-meta this))))
-
-#_
-(defn ->token [& tokens] (->Token nil tokens))
-
-#_
-(defn token-children [token] (if (instance? Token token) (.-children token) ()))
-#_
-(defn token-tree [token]
-  [(:label (meta token)) (hash token) (map token-tree (token-children token))])
-#_
-(defn label-token [label token] (with-meta token {:label label}))
-
-#_
-(defn unify-t ; unify-token ; WIP
-  ([]  (label-token "noop-token" (->token (fn token [& _])))) ; constantly nil, but named "token" when printing
-  ([t] (or t (unify-t)))
-  ([t1 t2] ; (comp first (juxt (unify-t t1) (unify-t t2))) but named "token" when printing
-   (label-token "unify-t" (->token (unify-t t1) (unify-t t2))))
-  ([t1 t2 & ts] (label-token "unify-t" (apply ->token (unify-t t1) (unify-t t2) (map unify-t ts)))))
-
 (defn after-ack "
 proxy token t such that callback f! will run once the token is ack'ed. E.g. to ack many tokens at once."
   [t1 f!]
-  (t/token `after-ack t1 (fn after-ack [& [_err]] (f!)))
-  #_(label-token "after-ack" (unify-t t1 (fn token [& [_err]] (f!)))))
-;; chaining f after t or t after f is just `comp`
+  (t/token `after-ack t1 (fn after-ack [& [_err]] (f!))))
 
 (defn debug-t "dev/debug only - (unify-t token (debug-t \"message\"))"
   [message]
@@ -348,16 +254,10 @@ accept the previous token and retain the new one."
 
 ;;; Buttons
 
-;; #?(:cljs
-;;    (defn- handle-button-click [^js event]
-;;      (when (and (= "submit" (.-type (.-target event))) (= "true" (.getAttribute (.-target event) "data-command"))) ; no native submit if Button! has a command
-;;        (.preventDefault event))
-;;      event))
-
 (e/defn Button* [{:keys [label] :as props}]
   (dom/button (dom/text label)
               (dom/props (dissoc props :label))
-              [(dom/On "click" identity #_handle-button-click nil) dom/node]))
+              [(dom/On "click" identity nil) dom/node]))
 
 (e/defn Button "Simple button, return latest click event or nil."
   [& {:keys [label] :as props}]
@@ -371,28 +271,24 @@ accept the previous token and retain the new one."
                                            ([err] (reset! !err err))))) t)]
       rest)))
 
-(e/defn Token* [v]
-  (let [!x (atom [nil nil])
-        step (fn [v] (when v
-                       (swap! !x assoc 0 (t/token `Token* (fn ([] (swap! !x assoc 0 nil 1 nil))
-                                                            ([err] (swap! !x assoc 0 nil 1 err)))))))]
-    (step v)
-    (e/watch !x)))
+(defmacro reboot-by [keyfn sym & body]
+  `(e/for [~sym (e/diff-by ~keyfn (e/as-vec ~sym))] ~@body))
+
+(defmacro reboot-on [sym & body]
+  `(reboot-by identity ~sym ~@body))
 
 (defn button-strategy [user-t user-err controlled-t]
   (cond (or user-t user-err) ::user-has-precedence
         controlled-t         ::controlled
         :else                ::idle))
 
-(e/defn Button!* [& {:keys [label token] :as props}]
+(e/defn Button!* [& {:keys [token] :as props}]
   (let [[event node] (Button* (dissoc props :token))
         [tracked-token tracked-err] (TrackTx (e/fn [err] [token err]))
-        [btn-t btn-err] (e/for [event (e/diff-by identity (e/as-vec event))] (Token* event))]
+        [btn-t btn-err] (reboot-on event (e/Token event))]
     (e/Reconcile
       (case (button-strategy btn-t btn-err tracked-token)
-        ::user-has-precedence [(t/token `Button!*
-                                 (t/token 'btn-t (e/snapshot btn-t))
-                                 (t/token "tracked-token" token)) btn-err event node]
+        ::user-has-precedence [(t/token `Button!* (t/token 'btn-t (e/snapshot btn-t)) (t/token 'tracked-token token)) btn-err event node]
         ::controlled [tracked-token tracked-err (js/Object.) node]
         ::idle [nil nil nil node]))))
 
@@ -405,12 +301,10 @@ accept the previous token and retain the new one."
   - button[data-tx-status=accepted] : tx success
   - button:disabled{...} "
   [& {:keys [disabled type token] :or {type :button} :as props}]
-  (let [[btn-t err event node] (e/Reconcile ; HACK wtf? further props on node will unmount on first click without this ; checked on March 10 2025, still required
-                                 (Button!* (-> props (assoc :type type) (dissoc :disabled))))]
+  (let [[btn-t err event node] (Button!* (-> props (assoc :type type) (dissoc :disabled)))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
-    #_(prn "TxButton" (hash btn-t) btn-t err token)
     (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (and btn-t (nil? err)))))})
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
@@ -480,19 +374,13 @@ accept the previous token and retain the new one."
 
 (defn stop-err-propagation [tok] (when tok (fn ([] (tok)) ([_err]))))
 
-(e/defn Latest [table]  ; Experimental
-  (let [!latest (atom ::nil)
-        latest (e/watch !latest)]
-    (reset! !latest table) ; intentional race
-    (e/When (not= ::nil latest) latest)))
-
 (defn -schedule "run f after current propagation turn" [f] (m/sp (m/? (m/sleep 0)) (f)))
 (e/defn Schedule [f] (e/Task (-schedule f)))
 
 #?(:cljs
    (defn form-submit-handler [disabled ^js event]
      (.preventDefault event)
-     (js/console.log "submit" (clj->js {:hash (hash event), :from-this-form (event-is-from-this-form? event), :disabled disabled :node dom/node :currentTarget (.-currentTarget event) :e event}))
+     #_(js/console.log "submit" (clj->js {:hash (hash event), :from-this-form (event-is-from-this-form? event), :disabled disabled :node dom/node :currentTarget (.-currentTarget event) :e event}))
      (when (and (not disabled) (event-is-from-this-form? event))
        event)))
 
@@ -547,7 +435,7 @@ accept the previous token and retain the new one."
     (let [submit-event (dom/On "submit" (partial form-submit-handler disabled) nil) ; Submit is the only authoritative event.
           t (e/Reconcile
               (if submit-event ; user submit takes precedence over controlled form
-                (let [submit-t (first (Token* submit-event))]
+                (let [submit-t (first (reboot-on submit-event (e/Token submit-event)))]
                   (e/When submit-t ; if submit is acked, then tracked-token is too
                     (t/token "merge user submit with authoritative token"
                       (t/token 'submit-event submit-t)
@@ -559,7 +447,7 @@ accept the previous token and retain the new one."
 
 (e/defn FormSubmitConcurrent! ; dom/node must be a form
   [directive edits & {:keys [disabled]}]
-  ;; parallel racing txs. Button cannot report more than one tx status unambiguously. Use regular (non-tx) button to trigger submit.
+  ;; Parallel racing txs. Button cannot report more than one tx status unambiguously.
   (e/client
     (e/for [[submit-q _err] (dom/On-all "submit" (partial form-submit-handler disabled) nil)]
       (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach current edit.
@@ -573,10 +461,11 @@ accept the previous token and retain the new one."
 (e/declare *tracked-token)
 
 (e/defn SubmitButton! [& {:keys [genesis] :as props}]
-  (if genesis
-    (do (Button :type :submit :label "commit" :disabled *disabled-commit (dissoc props :genesis)) ; do not track tx
-        (e/amb))
-    (Button! [::commit] :type :submit :label "commit" :token *tracked-token :disabled *disabled-commit (dissoc props :genesis))))
+  (e/Reconcile
+    (if genesis
+      (do (Button :type :submit :label "commit" :disabled *disabled-commit (dissoc props :genesis)) ; do not track tx
+          (e/amb))
+      (Button! [::commit] :type :submit :label "commit" :token *tracked-token :disabled *disabled-commit (dissoc props :genesis)))))
 
 (def form-command? #{::commit ::discard})
 
@@ -619,18 +508,19 @@ accept the previous token and retain the new one."
 
 (e/defn FormActions! [[form-t parsed-form-v] form-valid? commit-t discard-t genesis auto-submit tracked-token tracked-cmd]
   (FormSubmitHelper! :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
-  (let [?commits (if (e/Reconcile genesis)
+  (let [?commits (if (e/Reconcile genesis) ; WTF - required as of March 18 2025 - otherwise FromSubmitSequential! blinks
                    (FormSubmitConcurrent! ::commit [form-t parsed-form-v] :disabled *disabled-commit) ; not supported: controlled form with genesis
                    (FormSubmitSequential! ::commit [form-t parsed-form-v] :disabled *disabled-commit :token tracked-token :command tracked-cmd)) ; eventually controlled
         ?discards (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
-    (e/Reconcile
+    (e/Reconcile ; FIXME not sure if required - March 18 2025
       (e/for [[_token [directive _] :as edit]
               (e/diff-by (comp first second) ; ouch! simplify
                 (e/as-vec (e/amb ?discards (LatestEdit2 (e/amb ?commits)))))]
-        (case directive ; does order of burning matter?
-          ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
-          ::discard (InterpretDiscard! edit discard-t commit-t (e/as-vec ?commits) genesis tracked-token)
-          ::commit (InterpretCommit! edit commit-t form-valid?))))))
+        (e/Reconcile
+          (case directive ; does order of burning matter?
+            ;; FIXME can't distinguish between successful commit or discarded busy commit. Button will turn green in both cases. Confusing UX.
+            ::discard (InterpretDiscard! edit discard-t commit-t (e/as-vec ?commits) genesis tracked-token)
+            ::commit (InterpretCommit! edit commit-t form-valid?)))))))
 
 (e/defn FormDebugHelper [debug & {:syms [dirty-count unparsed-value form-v merged-form-v-with-unparsed-v parsed-form-v validation-message]}]
   (e/When debug
@@ -692,7 +582,7 @@ accept the previous token and retain the new one."
            [form-t form-v] (merge-edits edits)
 
            keyed-commands (collect-commands commands)
-           [commit-t _] (Latest (::commit keyed-commands))
+           [commit-t _] (::commit keyed-commands)
            [discard-t _] (::discard keyed-commands) ; supposed instant
 
            merged-form-v-with-unparsed-v (merge unparsed-value form-v)
@@ -711,16 +601,7 @@ accept the previous token and retain the new one."
 
 (defmacro Form! [value Fields & {:as props}] ; note - the fields must be nested under this form - which is fragile and unobvious
   `(dom/form ; for form events. e.g. submit, reset, invalid, etc…
-     #_(dom/props kwargs) ; todo select dom props vs stage props
-     (let [props# ~props]
-       (Form!* ~value ~Fields (dissoc props#)))))
-
-(defn interpret-result [token result]
-  (when-some [[command value] result]
-    (case command
-      ::ok (do (token) nil)
-      ::rejected (do (token value) nil)
-      result)))
+     (Form!* ~value ~Fields ~props)))
 
 (e/defn Interpreter
   [effects commands]
@@ -736,6 +617,7 @@ accept the previous token and retain the new one."
             (token res)))
         command))))
 
+#_
 (e/defn Parse "Map over an edit, supposedly turning an edit into a command."
   [F edit] (e/for [[t x] edit] [t (F x)]))
 
