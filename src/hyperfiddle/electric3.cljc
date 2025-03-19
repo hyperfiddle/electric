@@ -530,7 +530,7 @@ Task -> continuous flow. State is [] before task completion, [result] after.
 
 (cc/defn offload-latch-stale
   ([<f] (offload-latch-stale <f m/blk))
-  ([<f executor] (i/diff-by {} (m/reductions {} [] (m/ap [(m/? (m/via-call executor (m/?> <f)))])))))
+  ([<f executor] (i/diff-by {} (m/reductions {} [] (m/ap (try [(m/? (m/via-call executor (m/?< <f)))] (catch InterruptedException _ (m/amb))))))))
 
 (hyperfiddle.electric3/defn Offload-reset "
 Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Switch back to

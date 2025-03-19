@@ -2779,3 +2779,15 @@
     % := :y
     (tap :done)
     % := :done))
+
+(tests
+  "Offload-latch"
+  (let [!a (atom 0)]
+    ((l/local {}
+       (let [a (e/watch !a)]
+         (tap (e/Offload-latch #(do (Thread/sleep 100) a)))))
+     tap tap)
+    % := 0
+    (swap! !a inc)
+    (swap! !a inc)
+    % := 2))
