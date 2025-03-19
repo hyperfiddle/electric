@@ -30,26 +30,8 @@
     (when (e/Some? x) (reset! !cache (e/as-vec x)))
     (e/diff-by {} (e/watch !cache))))
 
-(defn task-status "
-Task -> continuous flow. State is [] before task completion, [result] after.
-" [t] (m/reductions conj (m/ap (m/? t))))
-
-; Continuous flow of thunks -> incseq of 1 item containing result of the latest thunk executed via m/blk, or the empty incseq if it's still pending.
-(defn offload-clear-stale [<f]
-  (i/diff-by {} (m/cp (m/?< (task-status (m/via-call m/blk (m/?< <f)))))))
-
-(defn offload-latch-stale [<f]
-  (i/diff-by {} (m/reductions {} [] (m/ap [(m/? (m/via-call m/blk (m/?> <f)))]))))
-
-(e/defn Offload-reset "
-Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Switch back to
-(e/amb) again when f changes while awaiting the next result."
-  [f] (e/join (offload-clear-stale (e/join (i/items (e/pure f))))))
-
-(e/defn Offload-latch "
-Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Buffer the latest
-result while awaiting subsequent values of f, such that intermediate pending states are not seen."
-  [f] (e/join (offload-latch-stale (e/join (i/items (e/pure f))))))
+(e/defn ^:deprecated Offload-reset "Deprecated. Promoted to `e/Offload-reset`." [f] (e/Offload-reset f))
+(e/defn ^:deprecated Offload-latch "Deprecated. Promoted to `e/Offload-latch`." [f] (e/Offload-latch f))
 
 #?(:clj (defonce *tap nil)) ; for repl & survive refresh
 #?(:clj (def >tap (m/signal

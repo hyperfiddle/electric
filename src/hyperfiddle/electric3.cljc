@@ -519,13 +519,41 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
     ([t] (join (task->incseq t)))
     ([t init-v] (input (initialized t init-v)))))
 
-#?(:clj (cc/defn -offload [tsk executor]
-          (flow->incseq (m/ap (try (m/? (m/via-call executor (m/?< (mx/poll-task tsk))))
-                                   (catch Cancelled _ (m/amb)))))))
+(cc/defn task-status "
+Task -> continuous flow. State is [] before task completion, [result] after.
+" [t] (m/reductions conj (m/ap (m/? t))))
+
+;; Continuous flow of thunks -> incseq of 1 item containing result of the latest thunk executed via m/blk, or the empty incseq if it's still pending.
+(cc/defn offload-clear-stale
+  ([<f] (offload-clear-stale <f m/blk))
+  ([<f executor] (i/diff-by {} (m/cp (m/?< (task-status (m/via-call executor (m/?< <f))))))))
+
+(cc/defn offload-latch-stale
+  ([<f] (offload-latch-stale <f m/blk))
+  ([<f executor] (i/diff-by {} (m/reductions {} [] (m/ap [(m/? (m/via-call executor (m/?> <f)))])))))
+
+(hyperfiddle.electric3/defn Offload-reset "
+Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Switch back to
+(e/amb) again when f changes while awaiting the next result."
+  ([f!]          (join (offload-clear-stale (join (i/items (pure f!))))))
+  ([f! executor] (join (offload-clear-stale (join (i/items (pure f!))) executor))))
+
+(hyperfiddle.electric3/defn Offload-latch "
+Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Buffer the latest
+result while awaiting subsequent values of f, such that intermediate pending states are not seen."
+  ([f!]          (join (offload-latch-stale (join (i/items (pure f!))))))
+  ([f! executor] (join (offload-latch-stale (join (i/items (pure f!))) executor))))
 
 (hyperfiddle.electric3/defn Offload
-  ([f!]          ($ Offload f! m/blk))
-  ([f! executor] (server (let [mbx (m/mbx)] (mbx f!) (join (-offload mbx executor))))))
+  "Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Buffer the latest
+result while awaiting subsequent values of f, such that intermediate pending states are not seen."
+  ;; G: I chose e/Offload-latch as default impl because:
+  ;;  - e/Offload behaved like e/Offload-latch (no intermediate amb)
+  ;;  - only know use case for e/Offload-reset is "show spinner while task is pending".
+  ;;    - Pending model for v3 is still WIP.
+  ;;    - today a naive UI will blink - confusing to newcomers
+  ([f!]          (Offload-latch f!))
+  ([f! executor] (Offload-latch f! executor)))
 
 (hyperfiddle.electric3/declare ^{:doc "Bound to the HTTP request of the page in which the current Electric program is running."}
   http-request)
