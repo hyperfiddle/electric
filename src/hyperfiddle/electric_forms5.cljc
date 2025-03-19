@@ -8,7 +8,7 @@
             [hyperfiddle.electric-dom3 :as dom]
             [hyperfiddle.electric-scroll0 :refer [Scroll-window IndexRing]]
             [missionary.core :as m]
-            [hyperfiddle.electric-tokens :as t]))
+            [hyperfiddle.incseq]))
 
 ;;; Simple controlled inputs (dataflow circuits)
 
@@ -43,21 +43,27 @@
         (dom/On "change" #(-> % .-target .-checked parse) checked)) ; checked passes through
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
-;;; Simple uncontrolled inputs (sugar for the unvarying literal case)
+(defn -noempty [<x] (m/eduction (remove hyperfiddle.incseq/empty-diff?) <x))
+(e/defn Swallow-empty-diffs [x] (e/join (-noempty (e/pure x))))
 
+;;; Simple uncontrolled inputs (sugar for the unvarying literal case)
 (e/defn Input* "
 Simple uncontrolled input, e.g.
 
     (parse-long (Input 42 :maxlength 100))"
   [init-v & {:as props}]
-  (e/client (e/with-cycle [v init-v] (Input v props))))
+  (e/client
+    (Swallow-empty-diffs ; FIXME wart - empty diffs caused by e/with-cycle
+      (e/with-cycle [v init-v] (Input v props)))))
 
 (e/defn Checkbox* "
 Simple uncontrolled checkbox, e.g.
 
     (Checkbox false :label \"debug\")"
   [init-v & {:as props}]
-  (e/client (e/with-cycle [v init-v] (Checkbox v props))))
+  (e/client
+    (Swallow-empty-diffs ; FIXME wart - empty diffs caused by e/with-cycle
+      (e/with-cycle [v init-v] (Checkbox v props)))))
 
 (e/defn SetValidity
   ([throwable] (SetValidity dom/node throwable))
