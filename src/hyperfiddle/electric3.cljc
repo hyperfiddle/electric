@@ -390,10 +390,53 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
   #_(second (e/diff-by first (map-indexed vector (e/as-vec xs)))) ; same ?
   (diff-by {} (as-vec xs))) ; force all items to collide such that the diff algorithm fallbacks on position
 
+;; ------ Tokens ------
+(cc/defn token-call [children & args]
+  (doseq [f children]
+    (try (when f (cc/apply f args))
+         (catch #?(:clj Throwable, :cljs :default) err
+           (prn "Token call failed" {:name name, :child f, :args args} err)
+           (throw err)))))
+
+(cc/defn token->string [t] (str "#<" `Token (some->> t :name pr-str (str " ")) ">"))
+
+#?(:clj
+   (defrecord TokenImpl [name children]
+     clojure.lang.IFn
+     (invoke [this] (token-call children))
+     (invoke [this err] (token-call children err))
+     Object
+     (toString [this] (token->string this)))
+   :cljs
+   (defrecord TokenImpl [name children]
+     cljs.core/IFn
+     (-invoke [this] (token-call children))
+     (-invoke [this err] (token-call children err))
+     cljs.core/IPrintWithWriter
+     (-pr-writer [this writer opts]
+       (-write writer (str this)))
+     Object
+     (toString [this] (token->string this))))
+
+#?(:clj (defmethod print-method TokenImpl [t ^java.io.Writer writer] (.write writer (token->string t))))
+
+(cc/defn ->Token
+  ([] (->Token `empty-token))
+  ([name & children]
+   (let [t (->TokenImpl name children)]
+     (with-meta t
+       {::children children
+        ::name name
+        ::hash (hash t)                 ; (hash (with-meta f …)) ≠ (hash f)
+        `clojure.core.protocols/datafy meta}))))
+
+(cc/defn token? [x] (instance? TokenImpl x))
+
 (let [->token (cc/fn [!t]
-                (cc/fn token
-                  ([] (reset! !t [nil nil]) nil) ; success, burn token
-                  ([err] (reset! !t [nil err]) nil))) ; failed attempt burns token, user must interact again
+                (->Token nil
+                  (cc/fn token
+                    ([] (reset! !t [nil nil]) nil) ; success, burn token
+                    ([err] (reset! !t [nil err]) nil)))) ; failed attempt burns token, user must interact again
       step (cc/fn [!x v on?]
              (when (on? v)
                (let [[t err] @!x]
@@ -405,6 +448,7 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
     ([v on?] (let [!x (atom [nil nil])] ; single watch for consistency
                (step !x v on?)
                (watch !x))))) ; route error to call site
+;; --------------------
 
 (cc/defn capture-fn
   "Captures variability of a function under a stable identity.
