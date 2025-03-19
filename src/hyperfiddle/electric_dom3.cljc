@@ -321,7 +321,7 @@
 ;; Note `(do a b c)` expands to (e/amb (e/drain a) (e/drain b) c), e/drain returns ∅.
 (defn element*
   ([tag forms] (element* nil tag forms))
-  ([ns tag forms] `($ With-element ~ns ~tag (e/fn [] (do ~@forms)))))
+  ([ns tag forms] `($ With-element ~ns ~tag (e/fn [] ~@forms))))
 
 (defmacro element
   "Mount a new DOM Element of type `tag` in the current `node` and run `body` in
