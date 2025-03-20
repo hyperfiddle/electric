@@ -12,25 +12,25 @@
 
 ;;; Simple controlled inputs (dataflow circuits)
 
-(e/defn Input [v & {:keys [maxlength type parse] :as props
-                    :or {maxlength 100 type "text" parse identity}}]
+(e/defn Input [v & {:keys [maxlength type] :as props
+                    :or {maxlength 100 type "text"}}]
   (e/client
     (dom/input
-      (dom/props (-> props (dissoc :parse) (assoc :maxLength maxlength :type type)))
+      (dom/props (-> props (assoc :maxLength maxlength :type type)))
       (when-not (dom/Focused?)  ; "don't damage user input"
         (set! (.-value dom/node) (str v)))
       ;; event handler can't be guarded by focus – <input type=number> renders a
       ;; ↑↓ mouse control over the text input to increment/decrement a number.
       ;; Clicking those buttons don't focus the input.
-      (dom/On "input" #(-> % .-target .-value (subs 0 maxlength) parse) (str v)) ; (str v) passes through
+      (dom/On "input" #(-> % .-target .-value (subs 0 maxlength)) (str v)) ; (str v) passes through
       )))
 
-(e/defn Checkbox [checked & {:keys [id type label parse] :as props
-                             :or {type "checkbox" id (random-uuid) parse identity}}]
+(e/defn Checkbox [checked & {:keys [id type label] :as props
+                             :or {type "checkbox" id (random-uuid)}}]
   (e/client
     (e/amb
       (dom/input (dom/props {:type type, :id id})
-        (dom/props (dissoc props :id :label :parse :type))
+        (dom/props (dissoc props :id :label :type))
         ;; Dataflow circuit Checkbox won't track user focused state - unlike Input and transactional Checkbox!.
         ;; Because:
         ;;  - "don't damage user input" is well defined for tx controls (token span), not so much for a dataflow checkbox.
@@ -39,8 +39,8 @@
         ;; Alternatives:
         ;;  - browser-specific behavior
         ;;  - ?
-        (set! (.-checked dom/node) checked)
-        (dom/On "change" #(-> % .-target .-checked parse) checked)) ; checked passes through
+        (set! (.-checked dom/node) (boolean checked))
+        (dom/On "change" #(-> % .-target .-checked) (boolean checked))) ; checked passes through
       (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 (defn -noempty [<x] (m/eduction (remove hyperfiddle.incseq/empty-diff?) <x))
@@ -90,7 +90,7 @@ Simple uncontrolled checkbox, e.g.
   (e/client
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (dom/element as
-      (dom/props (-> props (dissoc :as :parse :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
+      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
       (let [e (dom/On "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
@@ -133,7 +133,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
     checked ; ensure v is consumed to prevent surprising side effects on commit discard (lazy let)
     (e/amb
       (let [[e t err input-node]
-            (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :parse :Parse :Unparse))
+            (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :Parse :Unparse))
                        (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
             editing? (dom/Focused? input-node) ; never true on Safari (MacOs and iOS)
