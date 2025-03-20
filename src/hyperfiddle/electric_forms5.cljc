@@ -91,7 +91,7 @@ Simple uncontrolled checkbox, e.g.
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (dom/element as
       (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
-      (let [e (dom/On "input" identity nil) [t err] (e/Token e) ; reuse token until commit
+      (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
             error? (some? err)
@@ -134,7 +134,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
     (e/amb
       (let [[e t err input-node]
             (dom/input (dom/props {:type type, :id id}) (dom/props (dissoc props :id :label :Parse :Unparse))
-                       (let [e (dom/On "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
+                       (let [e (dom/On* "change" identity nil) [t err] (e/Token e)] ; single txn, no concurrency
                          [e t err dom/node]))
             editing? (dom/Focused? input-node) ; never true on Safari (MacOs and iOS)
             waiting? (some? t)
@@ -248,8 +248,8 @@ accept the previous token and retain the new one."
                   ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
                   (Row index)
                   (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
-                                            (dom/On "click" identity nil) ;;
-                                            (dom/On "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
+                                            (dom/On* "click" identity nil) ;;
+                                            (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
                     (e/When t [t index]))))))
           :as :table
           :Parse Parse
@@ -263,7 +263,7 @@ accept the previous token and retain the new one."
 (e/defn Button* [{:keys [label] :as props}]
   (dom/button (dom/text label)
               (dom/props (dissoc props :label))
-              [(dom/On "click" identity nil) dom/node]))
+              [(dom/On* "click" identity nil) dom/node]))
 
 (e/defn Button "Simple button, return latest click event or nil."
   [& {:keys [label] :as props}]
@@ -344,9 +344,9 @@ accept the previous token and retain the new one."
   [directive [edits-t edits-kvs] & {:as props}]
   (e/client
     ;; reset form on <ESC>
-    (dom/On "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
+    (dom/On* "keyup" #(when (= "Escape" (.-key %)) (.stopPropagation %) (.reset dom/node) nil) nil)
     ;; Handle form reset
-    (let [[t _err] (e/Token (dom/On "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil))] ; TODO render error for failed custom :discard command, if any.
+    (let [[t _err] (e/Token (dom/On* "reset" #(do (.preventDefault %) (.stopPropagation %) (blur-active-form-input! (.-target %)) %) nil))] ; TODO render error for failed custom :discard command, if any.
       (e/When t
         [(e/->Token `FormDiscard! t edits-t) [directive edits-kvs]] ; edits-kvs is unused, but command shape matches FormSubmit for consistency
         ))))
@@ -394,12 +394,12 @@ accept the previous token and retain the new one."
   (e/client
     ;; We handle form validation manually, disable native browser submit prevention on invalid form.
     ;; Also hide native validation UI.
-    (dom/On "invalid" #(.preventDefault %) nil {:capture true})
+    (dom/On* "invalid" #(.preventDefault %) nil {:capture true})
 
     ;; Simulate submit by pressing Enter on <input> nodes
     ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
     (when (not disabled)
-      (dom/On "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
+      (dom/On* "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
                            (when (and (event-is-from-this-form? e) ; not from a nested form
                                    (= "Enter" (.-key e))
                                    (= "INPUT" (.-nodeName (.-target e))))
@@ -414,7 +414,7 @@ accept the previous token and retain the new one."
       ;;    affordance. Therefore the only use case for auto-submit + genesis has no user input to "auto submit" and collapses to
       ;;    just "genesis".
       (let [event (e/amb
-                    (dom/On "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
+                    (dom/On* "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
                                        (.preventDefault e)
                                        #_(js/console.log "change" dom/node)
                                        (when (and (event-is-from-this-form? e) ; not from a nested form
@@ -423,7 +423,7 @@ accept the previous token and retain the new one."
                                          ;; (js/console.log "change" (hash e) e)
                                          e)) nil)
                     ;; all inputs but checkboxes
-                    (dom/On "input"  (fn [e]
+                    (dom/On* "input"  (fn [e]
                                        ;; (js/console.log "input" dom/node)
                                        (when (and (event-is-from-this-form? e) ; not from a nested form
                                                (instance? js/HTMLInputElement (.-target e))
@@ -438,7 +438,7 @@ accept the previous token and retain the new one."
   [directive [edits-t edits-kvs] & {:keys [disabled token]}]
   ;; Regular tx submit – txs are sequential.
   (e/client
-    (let [submit-event (dom/On "submit" (partial form-submit-handler disabled) nil) ; Submit is the only authoritative event.
+    (let [submit-event (dom/On* "submit" (partial form-submit-handler disabled) nil) ; Submit is the only authoritative event.
           t (e/Reconcile
               (if submit-event ; user submit takes precedence over controlled form
                 (let [submit-t (first (reboot-on submit-event (e/Token submit-event)))]
