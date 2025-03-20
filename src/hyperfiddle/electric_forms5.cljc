@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric-forms5
   #?(:cljs (:require-macros hyperfiddle.electric-forms5))
   (:require [contrib.data :refer [auto-props qualify]]
+            [contrib.css :refer [css-slugify]]
             [dustingetz.str :refer [pprint-str]]
             [clojure.set :as set]
             [missionary.core :as m]
@@ -184,7 +185,7 @@ accept the previous token and retain the new one."
                                (identity  ; HACK prevent a crash if `selected-v` binding is (e/server ...)
                                  (Unparse selected-v)))])
         [t unparsed-v] (e/watch !selected)]
-    (dom/With-element as
+    (dom/With-element (e/Reconcile as)
       (e/fn []
         (let [parsed-v (Parse unparsed-v)]
           (dom/props {:role "radiogroup", :data-errormessage (not-empty (ex-message parsed-v))})
@@ -227,36 +228,61 @@ accept the previous token and retain the new one."
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k selected-v record-count Row
-   & {:keys [Parse Unparse row-height]
-      :or {Parse Identity, Unparse Identity, row-height 24}
+   & {:keys [Parse Unparse row-height column-count as]
+      :or {Parse Identity, Unparse Identity, row-height 24, column-count 1, as :table}
       :as props}]
-  (dom/div
-    (dom/props {:class "Viewport", #_#_:style {:height "96px"}}) ; TODO cleanup
-    (dom/props (dissoc props :Validate :row-height))
-    (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
-      (e/amb
-        (Picker! k selected-v
-          (e/fn PickerBody [selected-index] ; Unparse must map selected-v to an index
-            (dom/props {:style {:--row-height (str row-height "px") :top (str (* offset row-height) "px")}})
-            (LatestEdit
-              (e/for [index (IndexRing limit offset)] ; render all rows even when record-count < limit
-                (dom/tr
-                  (dom/props {:role "radio"
-                              :style {:--order (inc index)}
-                              :data-row-stripe (mod index 2)}) ; TODO move to parent node + css with nth-child
-                  (dom/props {:tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
-                  ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
-                  (Row index)
-                  (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
-                                            (dom/On* "click" identity nil) ;;
-                                            (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
-                    (e/When t [t index]))))))
-          :as :table
-          :Parse Parse
-          :Unparse Unparse
-          props)
-        (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
-                                                    (* row-height (- record-count limit)) 0) "px")}}))))))
+  (Picker! k selected-v
+    (e/fn PickerBody [selected-index]
+      (dom/props (dissoc props :Parse :Unparse :row-height :column-count :as))
+      (dom/props {:class ["hyperfiddle-electric-forms5__table-picker" (css-slugify k)]
+                  :style {:--row-height (str row-height "px")
+                          :--record-count record-count
+                          :--column-count column-count}})
+
+      (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
+        (dom/props {:style {:--offset offset, :--limit limit}})
+        (dom/div (dom/props {:class "padder"}))
+        (LatestEdit
+          (e/for [index (IndexRing ; render all rows even when record-count < limit
+                          (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
+                          offset)]
+            (dom/tr
+              (dom/props {:style {:--row-index index}
+                          :role "radio" :tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+              ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
+              (Row index)
+              (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
+                                        (dom/On* "click" identity nil) ;;
+                                        (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
+                (e/When t [t index])))))))
+    :as as
+    :Parse Parse
+    :Unparse Unparse
+    props))
+
+(def table-picker-css ; exported at end of file
+  "
+
+.hyperfiddle-electric-forms5__table-picker {display:grid; grid-template-columns: repeat(var(--column-count), 1fr); }
+.hyperfiddle-electric-forms5__table-picker {height: 100%; overflow: hidden; min-height: calc(2 * var(--row-height)); }
+.hyperfiddle-electric-forms5__table-picker {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
+.hyperfiddle-electric-forms5__table-picker {grid-auto-rows: var(--row-height);}
+.hyperfiddle-electric-forms5__table-picker {overflow-y: scroll; overflow-x: hidden; position: relative;}
+
+.hyperfiddle-electric-forms5__table-picker .padder {position: absolute; width: 1px; z-index: -1;}
+.hyperfiddle-electric-forms5__table-picker .padder { height: calc(var(--record-count) * var(--row-height)); min-height: 100%;}
+
+.hyperfiddle-electric-forms5__table-picker tr {display: contents;}
+.hyperfiddle-electric-forms5__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
+
+/* cosmetic defaults */
+.hyperfiddle-electric-forms5__table-picker tr:nth-child(even) td { background-color: #f2f2f2; }
+
+.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td { background-color: #ddd; }
+.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
+.hyperfiddle-electric-forms5__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+"
+)
 
 ;;; Buttons
 
@@ -710,3 +736,6 @@ accept the previous token and retain the new one."
          (fn [[record command]] (if record (identify-record record) (identify-command (second command))))
          (map kvs (vals order)))        ; ugly
        ))))
+
+
+(def css (str table-picker-css)) ; exports
