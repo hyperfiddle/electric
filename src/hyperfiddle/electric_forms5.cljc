@@ -244,8 +244,8 @@ accept the previous token and retain the new one."
         (dom/div (dom/props {:class "padder"}))
         (LatestEdit
           (e/for [index (IndexRing ; render all rows even when record-count < limit
-                          (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
-                          offset)]
+                          (if (> limit record-count) limit (inc limit)) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
+                          (if (<= limit record-count) 0 offset))]
             (dom/tr
               (dom/props {:style {:--row-index index}
                           :role "radio" :tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
