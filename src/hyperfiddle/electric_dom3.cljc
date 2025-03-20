@@ -420,21 +420,24 @@ input's value, use `EventListener`."
 #?(:cljs (def listen events/listen))
 #?(:cljs (def listen-some events/listen-some))
 
-(defn on* [v events]
-  (m/ap
-    (let [mbx (m/mbx)]
-      (m/amb=
-        (do (m/?> (i/latest-product mbx v)) (m/amb))
-        (m/? (m/?> (m/seed (repeat mbx))))
-        (m/?> events)))))
+(defn mix-incseq-with-uninitialized-flow ; questionable
+  [v events] ; [incseq flow]
+  (->> (m/ap
+         (let [!x (atom [])] ; store latest value
+           (m/amb=
+             (do (m/?> (i/latest-product #(reset! !x [%]) v)) (m/amb)) ; extract latest value from v - bypass on empty diff
+             (do (reset! !x [(m/?> events)]) (m/amb)) ; run events flow - uninitialized
+             (m/?> (m/watch !x))))) ; take latest value
+    (i/diff-by {}))) ; return latest of v or events. return empty diff on uninitialized v and event
+
 
 (e/defn On*
   #_([event-type f v]      (On* node event-type f v {}))
   #_([event-type f v opts] (On* node event-type f v opts))
   ([node event-type f v opts]
    (e/client
-     (e/input
-       (on* (e/pure v)        ; not just init-v, can be controlled v e.g. from db
+     (e/join
+       (mix-incseq-with-uninitialized-flow (e/pure v) ; not just init-v, can be controlled v e.g. from db
          (events/listen node event-type ((e/capture-fn) f) opts)))))) ; don't rebuild flow when v updates
 
 (defmacro On
