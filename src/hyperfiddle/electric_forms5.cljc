@@ -271,11 +271,15 @@ accept the previous token and retain the new one."
 
 (e/defn TrackToken [token]
   (let [!err (atom nil)
-        err (e/watch !err)
-        [t & rest] [token err]]
-    (into [(#(when % (e/->Token `TrackToken % (fn ([] (reset! !err nil))
-                                                ([err] (reset! !err err))))) t)]
-      rest)))
+        err (e/watch !err)]
+    [(#(when % (e/->Token `TrackToken % (fn ([] (reset! !err nil))
+                                          ([err] (reset! !err err)))))
+       token)
+     err]))
+
+(e/defn TrackCommand [[t cmd]]
+  (let [[t err] (TrackToken t)]
+    [(when t [t cmd]) err]))
 
 (defmacro reboot-by [keyfn sym & body]
   `(e/for [~sym (e/diff-by ~keyfn (e/as-vec ~sym))] ~@body))
@@ -314,6 +318,7 @@ accept the previous token and retain the new one."
     (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (and btn-t (nil? err)))))})
     (dom/props node {:aria-busy (some? btn-t)})
     (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
+    ;; FIXME regressed:
     (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
     (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
 
@@ -631,25 +636,29 @@ accept the previous token and retain the new one."
   [F edit] (e/for [[t x] edit] [t (F x)]))
 
 (defmacro try-ok [& body] ; fixme inject sentinel
-  `(try ~@body ::ok ; sentinel
-        (catch InterruptedException e# ::interrupted)
-        (catch Exception e# (doto ::fail (prn e#)))))
+  `(try ~@body [::ok] ; sentinel
+        (catch InterruptedException e# [::interrupted])
+        (catch Exception e# (doto [::fail (ex-message e#)] (prn e#)))))
 
 (e/declare effects* #_{})
 
-(e/defn Service [forms]
-  (e/client ; client bias, t doesn't transfer
-    (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
-    (e/for [[t form guess] (e/diff-by first (e/as-vec forms))] ; reboot on new token
-      (let [[effect & args] form
-            Effect ((or effects* {}) effect (e/fn Default [& args] (doto ::effect-not-found (prn effect))))
-            res (e/Apply Effect args)] ; effect handlers span client and server
-        (prn 'final-res res)
-        (case res
-          nil (prn `res-was-nil-stop!) ; FIXME is it valid to ever return nil?
-          ::interrupted (prn ::interrupted effect)
-          ::ok (t) ; sentinel, any other value is an error
-          (t ::rejected))))))
+(e/defn Service
+  ([forms] (Service {} forms))
+  ([effects forms]
+   (e/client ; client bias, t doesn't transfer
+     (binding [effects* (merge effects* effects)]
+       (prn `Service (e/Count forms) 'forms (e/as-vec (second forms)))
+       (e/for [[t form guess] (e/diff-by first (e/as-vec forms))] ; reboot on new token
+         (let [[effect & args] form
+               Effect ((or effects* {}) effect (e/fn Default [& _args] [::effect-not-found]))
+               [res data] (e/Apply Effect args)] ; effect handlers span client and server
+           (prn 'final-res res)
+           (case res
+             nil (prn `res-was-nil-stop!) ; FIXME is it valid to ever return nil?
+             ::effect-not-found (prn ::effect-not-found effect)
+             ::interrupted (prn ::interrupted effect)
+             ::ok (t) ; sentinel, any other value is an error
+             (t data))))))))
 
 ;; -----
 
