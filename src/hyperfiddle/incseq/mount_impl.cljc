@@ -8,13 +8,18 @@
   (letfn [(append [element degree grow permutation change]
             (let [q (p/inverse permutation)]
               (loop [i (- degree grow)
-                     c change]
+                     c change
+                     p permutation]
                 (if (== i degree)
-                  (do (permute-keys replace element permutation c)
-                      (p/rotations rotate element permutation))
-                  (let [j (q i i)]
-                    (append-child element (c j))
-                    (recur (inc i) (dissoc c j)))))))
+                  (do (permute-keys replace element p c)
+                      (p/rotations rotate element p))
+                  (let [j (q i i)
+                        e (c j)]
+                    (recur (inc i) (dissoc c j)
+                      (if (== i j)
+                        (do (append-child element e) p)
+                        (do (insert-before element e (nth-child element j))
+                            (p/compose p (p/rotation j i))))))))))
           (replace [element i e]
             (replace-child element e (nth-child element i)))
           (rotate [element i j]
