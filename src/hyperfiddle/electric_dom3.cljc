@@ -430,15 +430,32 @@ input's value, use `EventListener`."
              (m/?> (m/watch !x))))) ; take latest value
     (i/diff-by {}))) ; return latest of v or events. return empty diff on uninitialized v and event
 
+(e/defn Event-plus-authoritative-value
+  [node event-type f v opts]
+  (e/client
+    (e/join ; incseq -> table
+      (mix-incseq-with-uninitialized-flow ; we'd like to avoid this
+        (e/pure v)        ; not just init-v, can be controlled v e.g. from db
+        (events/listen node event-type ((e/capture-fn) f) opts))))) ; don't rebuild flow when v updates
 
-(e/defn On*
-  #_([event-type f v]      (On* node event-type f v {}))
-  #_([event-type f v opts] (On* node event-type f v opts))
-  ([node event-type f v opts]
-   (e/client
-     (e/join
-       (mix-incseq-with-uninitialized-flow (e/pure v) ; not just init-v, can be controlled v e.g. from db
-         (events/listen node event-type ((e/capture-fn) f) opts)))))) ; don't rebuild flow when v updates
+(e/defn On* ; advanced use case
+; This docstring is for the electric team.
+"Listen to DOM events of `event-type` on `node`. Default to current dom/node.
+
+Return the return value of `(f event)` for all successive events, starting with `init-v`.
+`init-v` is assumed to be constant. If `init-v` changes the underlying event listener will reboot and `On*` will emit
+`init-v` again, until the next event.
+
+`f` often captures reactive values from lexical or dynamic scope and is therefore allowed to be variable. A change of `f` will not reboot the underlying event listener.
+Use `f` to extract event.target.value, because event.target is often the same object between two events and electric will work-skip.
+`f` is a good place to call `event.stopPropagation` or `event.preventDefault`.
+
+`opts` is passed to addEventlistener.
+"
+  ([event-type f init-v]      (On* node event-type f init-v {}))
+  ([event-type f init-v opts] (On* node event-type f init-v opts))
+  ([node event-type f init-v opts] ; init-v is supposed to be constant, a variable init-v will reboot the event listener
+   (e/client (e/input (m/reductions {} init-v (events/listen node event-type ((e/capture-fn) f) opts))))))
 
 (defmacro On
   ([event-type f v]      `(On node ~event-type ~f ~v {}))
@@ -449,7 +466,7 @@ input's value, use `EventListener`."
       ; f is unserializable, and called on client, so this is safe unless expr f is complex,
       ; e.g. a server sited factory building a client sited callback
       (e/client ; remove call latency when server sited
-        (On* ~node e# f# v# opts#)))))
+        (Event-plus-authoritative-value ~node e# f# v# opts#)))))
 
 (defn fork
   ([flow] (fork ##Inf flow))
