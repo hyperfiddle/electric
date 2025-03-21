@@ -530,7 +530,16 @@ Task -> continuous flow. State is [] before task completion, [result] after.
 
 (cc/defn offload-latch-stale
   ([<f] (offload-latch-stale <f m/blk))
-  ([<f executor] (i/diff-by {} (m/reductions {} [] (m/ap (try [(m/? (m/via-call executor (m/?< <f)))] (catch #?(:clj InterruptedException :cljs :default) _ (m/amb))))))))
+  ([<f executor]
+   (i/diff-by {}
+     (m/reductions {} []
+       (m/ap
+         (try [(m/? (m/via-call executor (m/?< <f)))]
+           (catch #?(:clj Throwable :cljs :default) e
+             ;; Swallow all exceptions if current Thread is already interrupted - rethrow otherwise.
+             ;; Catching InterruptedException is not enough, because Datomic (at least) will throw a
+             ;; domain-specific exception on thread interruption.
+             (try (m/!) (throw e) (catch Cancelled _ (m/amb))))))))))
 
 (hyperfiddle.electric3/defn Offload-reset "
 Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Switch back to
