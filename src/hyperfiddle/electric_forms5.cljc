@@ -225,6 +225,49 @@ accept the previous token and retain the new one."
       :Unparse Unparse
       (dissoc props :as :Parse :Unparse :option-label :Options))))
 
+(def virtual-scroll-css
+  "
+.hyperfiddle-electric-forms5__virtual-scroll {height: 100%; overflow: hidden; min-height: calc(var(--min-row-count, 3) * var(--row-height)); }
+.hyperfiddle-electric-forms5__virtual-scroll {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
+.hyperfiddle-electric-forms5__virtual-scroll {overflow-y: scroll; overflow-x: hidden; position: relative;}
+
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) {display:grid; grid-template-columns: repeat(var(--column-count, 1), 1fr); }
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) {grid-auto-rows: var(--row-height, 24px);}
+
+.hyperfiddle-electric-forms5__virtual-scroll > .padder {position: absolute; width: 1px; z-index: -1;}
+.hyperfiddle-electric-forms5__virtual-scroll > .padder { height: calc(var(--record-count) * var(--row-height)); min-height: 100%;}
+
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) > * {display: grid; grid-template-columns: subgrid; grid-column: 1 / -1;}
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) > * { grid-row: calc(1 + var(--row-index)); }
+
+/* cosmetic defaults */
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) > *:nth-of-type(odd) { background-color: #f2f2f2; }
+
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) > *:hover:has(*) > * { background-color: #ddd; }
+.hyperfiddle-electric-forms5__virtual-scroll > *:not(.padder) > * > *:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+")
+
+(e/defn VirtualScroll* [as row-as row-height overquery-factor record-count Row]
+  (e/client
+    (dom/div (dom/props {:class "hyperfiddle-electric-forms5__virtual-scroll"
+                         :style {:--row-height (str row-height "px") :--record-count record-count}})
+             (dom/div (dom/props {:class "padder"}))
+      (let [[offset limit] (Scroll-window row-height record-count dom/node {:overquery-factor (max overquery-factor 1)})]
+        (dom/With-element as
+          (e/fn []
+            (dom/props {:style {:--limit limit :--offset offset}})
+            (e/for [row-index (IndexRing limit offset)]
+              (dom/With-element row-as
+                (e/fn []
+                  (dom/props {:style {:--row-index row-index}})
+                  (Row row-index))))))))))
+
+(e/defn VirtualScroll [as row-as row-height overquery-factor records Row]
+  (VirtualScroll* as row-as row-height overquery-factor (count records)
+    (e/fn [index]
+      (Row index (nth records index nil)))))
+
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k selected-v record-count Row
@@ -738,4 +781,4 @@ accept the previous token and retain the new one."
        ))))
 
 
-(def css (str table-picker-css)) ; exports
+(def css (str virtual-scroll-css table-picker-css)) ; exports
