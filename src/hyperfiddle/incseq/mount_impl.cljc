@@ -16,10 +16,10 @@
                   (let [j (q i i)
                         e (c j)]
                     (recur (inc i) (dissoc c j)
-                      (if (== i j)
-                        (do (append-child element e) p)
+                      (if (< j i)
                         (do (insert-before element e (nth-child element j))
-                            (p/compose p (p/rotation j i))))))))))
+                            (p/compose p (p/rotation j i)))
+                        (do (append-child element e) p))))))))
           (replace [element i e]
             (replace-child element e (nth-child element i)))
           (rotate [element i j]

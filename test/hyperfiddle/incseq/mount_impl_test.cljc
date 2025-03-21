@@ -19,3 +19,17 @@
                      :permutation {0 2, 1 3, 2 0, 3 1}
                      :change {0 a, 1 b}
                      :freeze #{}}))))))
+
+(deftest append-unordered
+  (let [p (d/node)
+        a (d/node)
+        b (d/node)]
+    (= [p [a] [b]]
+      (d/tree
+        (mount-items p
+          {:grow        2
+           :degree      2
+           :shrink      0
+           :permutation {0 1, 1 0}
+           :change      {0 a, 1 b}
+           :freeze      #{}})))))
