@@ -178,10 +178,9 @@ accept the previous token and retain the new one."
 (e/defn Picker!
   [k selected-v Body &
    {:keys [as Parse Unparse]
-    :or {as :div, Parse Identity, Unparse (Lift (constantly false))}
+    :or {as :div, Parse Identity, Unparse Identity}
     :as props}]
-  (let [Unparse (e/fn [selected-v] (when selected-v {selected-v (Unparse selected-v)}))
-        !selected (atom [nil (e/snapshot ; "don't damage user input" – will track selected-v in absence of a token – see below
+  (let [!selected (atom [nil (e/snapshot ; "don't damage user input" – will track selected-v in absence of a token – see below
                                (identity  ; HACK prevent a crash if `selected-v` binding is (e/server ...)
                                  (Unparse selected-v)))])
         [t unparsed-v] (e/watch !selected)]
@@ -221,7 +220,7 @@ accept the previous token and retain the new one."
                       :Parse (e/fn [_checked?] x) ; true -> k
                       ))))))
       :as as
-      :Parse (e/fn [kv] (Parse (some-> kv first key)))
+      :Parse Parse
       :Unparse Unparse
       (dissoc props :as :Parse :Unparse :option-label :Options))))
 
@@ -270,11 +269,11 @@ accept the previous token and retain the new one."
 
 (e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
-  [k selected-v record-count Row
+  [k authoritative-selected-index record-count Row
    & {:keys [Parse Unparse row-height column-count as]
       :or {Parse Identity, Unparse Identity, row-height 24, column-count 1, as :table}
       :as props}]
-  (Picker! k selected-v
+  (Picker! k authoritative-selected-index
     (e/fn PickerBody [selected-index]
       (dom/props (dissoc props :Parse :Unparse :row-height :column-count :as))
       (dom/props {:class ["hyperfiddle-electric-forms5__table-picker" (css-slugify k)]
@@ -286,18 +285,20 @@ accept the previous token and retain the new one."
         (dom/props {:style {:--offset offset, :--limit limit}})
         (dom/div (dom/props {:class "padder"}))
         (LatestEdit
-          (e/for [index (IndexRing ; render all rows even when record-count < limit
-                          (if (> limit record-count) limit (inc limit)) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
-                          (if (<= limit record-count) 0 offset))]
+          (e/for [row-index (IndexRing ; render all rows even when record-count < limit
+                              (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
+                              offset)]
             (dom/tr
-              (dom/props {:style {:--row-index index}
-                          :role "radio" :tabindex "0" :aria-checked (= index selected-index)}) ; tabindex enables focus – items with role=radio must be focusable
+              (dom/props {:style {:--row-index row-index}
+                          :role "radio" :tabindex "0"}) ; tabindex enables focus – items with role=radio must be focusable
               ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
-              (Row index)
+              (Row row-index)
               (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
                                         (dom/On* "click" identity nil) ;;
-                                        (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))] 
-                (e/When t [t index])))))))
+                                        (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
+                (dom/props {:aria-checked (e/Reconcile (or (= row-index selected-index) (= row-index authoritative-selected-index)))
+                            :aria-busy (some? t)})
+                (e/When t [(e/->Token "out of TablePicker!" t) row-index])))))))
     :as as
     :Parse Parse
     :Unparse Unparse
@@ -319,10 +320,10 @@ accept the previous token and retain the new one."
 .hyperfiddle-electric-forms5__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
 
 /* cosmetic defaults */
-.hyperfiddle-electric-forms5__table-picker tr:nth-child(even) td { background-color: #f2f2f2; }
+:where(.hyperfiddle-electric-forms5__table-picker tr:nth-child(even) td) { background-color: #f2f2f2; }
 
-.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td { background-color: #ddd; }
-.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td { color: white; background-color: #0064e1; /* finder color */ }
+:where(.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td) { background-color: #ddd; }
+:where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td) { color: white; background-color: #0064e1; /* finder color */ }
 .hyperfiddle-electric-forms5__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 "
 )
