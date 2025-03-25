@@ -1,4 +1,5 @@
-(ns hyperfiddle.electric-forms4
+(ns ^:deprecated hyperfiddle.electric-forms4
+  "Deprecated. Use hyperfiddle.electric-forms5"
   #?(:cljs (:require-macros hyperfiddle.electric-forms4))
   (:require [contrib.data :refer [index-by auto-props qualify]]
             [dustingetz.str :refer [pprint-str]]
