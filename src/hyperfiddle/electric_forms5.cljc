@@ -701,7 +701,6 @@ accept the previous token and retain the new one."
             (token res)))
         command))))
 
-#_
 (e/defn Parse "Map over an edit, supposedly turning an edit into a command."
   [F edit] (e/for [[t x] edit] [t (F x)]))
 
