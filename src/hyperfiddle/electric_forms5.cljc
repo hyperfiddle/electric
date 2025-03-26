@@ -433,14 +433,13 @@ accept the previous token and retain the new one."
   (Button! [::discard] :type :reset :label "discard" :disabled *disabled-discard props))
 
 #?(:cljs
-   (defn event-submit-form! [disabled ^js e]
+   (defn event-submit-form! [^js e]
      ;; (js/console.log "submit form" {:type (.-type e), :currentTarget (.-currentTarget e), :target (.-target e), :submitter (.-submitter e)}) ; debug why form got submitted
-     (when-not disabled
-       (when-let [form (some-> e .-target .-form)]
-         (if-let [submit-btn (some (fn [element] (and (= "submit" (.-type element)) element)) (.-elements form))]
-           (when (.checkValidity form)
-             (.click submit-btn))
-           (.requestSubmit form))))))
+     (when-let [form (some-> e .-target .-form)]
+       (if-let [submit-btn (some (fn [element] (and (= "submit" (.-type element)) element)) (.-elements form))]
+         (when (.checkValidity form)
+           (.click submit-btn))
+         (.requestSubmit form)))))
 
 (defn event-is-from-this-form?
   "State if an event intercepted by an event listener on a form (event's
@@ -459,10 +458,10 @@ accept the previous token and retain the new one."
 (e/defn Schedule [f] (e/Task (-schedule f)))
 
 #?(:cljs
-   (defn form-submit-handler [disabled ^js event]
+   (defn form-submit-handler [^js event]
      (.preventDefault event)
      #_(js/console.log "submit" (clj->js {:hash (hash event), :from-this-form (event-is-from-this-form? event), :disabled disabled :node dom/node :currentTarget (.-currentTarget event) :e event}))
-     (when (and (not disabled) (event-is-from-this-form? event))
+     (when (event-is-from-this-form? event)
        event)))
 
 (e/defn FormSubmitHelper! [& {:keys [disabled auto-submit genesis]}]
@@ -471,49 +470,51 @@ accept the previous token and retain the new one."
     ;; Also hide native validation UI.
     (dom/On* "invalid" #(.preventDefault %) nil {:capture true})
 
-    ;; Simulate submit by pressing Enter on <input> nodes
-    ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
-    (when (not disabled)
-      (dom/On* "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
-                           (when (and (event-is-from-this-form? e) ; not from a nested form
-                                   (= "Enter" (.-key e))
-                                   (= "INPUT" (.-nodeName (.-target e))))
-                             (.preventDefault e) ; prevent native form submission
-                             (event-submit-form! disabled e) ; fire submit event
-                             nil)) nil))
-    (when (and auto-submit (not genesis)) ; Simulate autosubmit
-      ;; G: auto-submit + genesis is not a thing. Only known use case is "Create new row" in a masterlist view.
-      ;;    "Create new row" is a Form with a single [+] Button. It cannot collect user input. It creates an empty entity with
-      ;;    generated id (imagine what auto-submit+genesis would imply for checkbox or text input). All candidate buttons are
-      ;;    therefore submit buttons, and get the "auto-submit" behavior for free, since they are themselves the submit
-      ;;    affordance. Therefore the only use case for auto-submit + genesis has no user input to "auto submit" and collapses to
-      ;;    just "genesis".
-      (let [event (e/amb
-                    (dom/On* "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
-                                       (.preventDefault e)
-                                       #_(js/console.log "change" dom/node)
-                                       (when (and (event-is-from-this-form? e) ; not from a nested form
-                                               (instance? js/HTMLInputElement (.-target e))
-                                               (= "checkbox" (.. e -target -type)))
-                                         ;; (js/console.log "change" (hash e) e)
-                                         e)) nil)
-                    ;; all inputs but checkboxes
-                    (dom/On* "input"  (fn [e]
-                                       ;; (js/console.log "input" dom/node)
-                                       (when (and (event-is-from-this-form? e) ; not from a nested form
-                                               (instance? js/HTMLInputElement (.-target e))
-                                               (not= "checkbox" (.. e -target -type)))
-                                         ;; (js/console.log "input" e)
-                                         e)) nil))]
-        (Schedule #(event-submit-form! disabled event))
-        event)))
+    (if disabled
+      (some-> (dom/On* "submit" identity nil {:capture true}) (doto (.stopPropagation) (.preventDefault)))
+      (do
+        ;; Simulate submit by pressing Enter on <input> nodes
+        ;; Don't simulate submit if there's a type=submit button. type=submit natively handles Enter.
+        (dom/On* "keypress" (fn [e] ;; (js/console.log "keypress" dom/node)
+                              (when (and (event-is-from-this-form? e) ; not from a nested form
+                                      (= "Enter" (.-key e))
+                                      (= "INPUT" (.-nodeName (.-target e))))
+                                (.preventDefault e) ; prevent native form submission
+                                (event-submit-form! e) ; fire submit event
+                                nil)) nil)
+        (when (and auto-submit (not genesis)) ; Simulate autosubmit
+          ;; G: auto-submit + genesis is not a thing. Only known use case is "Create new row" in a masterlist view.
+          ;;    "Create new row" is a Form with a single [+] Button. It cannot collect user input. It creates an empty entity with
+          ;;    generated id (imagine what auto-submit+genesis would imply for checkbox or text input). All candidate buttons are
+          ;;    therefore submit buttons, and get the "auto-submit" behavior for free, since they are themselves the submit
+          ;;    affordance. Therefore the only use case for auto-submit + genesis has no user input to "auto submit" and collapses to
+          ;;    just "genesis".
+          (let [event (e/amb
+                        (dom/On* "change" (fn [e] ; TODO consider commit on text input blur (as a change event when autosubmit = false)
+                                            (.preventDefault e)
+                                            #_(js/console.log "change" dom/node)
+                                            (when (and (event-is-from-this-form? e) ; not from a nested form
+                                                    (instance? js/HTMLInputElement (.-target e))
+                                                    (= "checkbox" (.. e -target -type)))
+                                              ;; (js/console.log "change" (hash e) e)
+                                              e)) nil)
+                        ;; all inputs but checkboxes
+                        (dom/On* "input"  (fn [e]
+                                            ;; (js/console.log "input" dom/node)
+                                            (when (and (event-is-from-this-form? e) ; not from a nested form
+                                                    (instance? js/HTMLInputElement (.-target e))
+                                                    (not= "checkbox" (.. e -target -type)))
+                                              ;; (js/console.log "input" e)
+                                              e)) nil))]
+            (Schedule #(event-submit-form! event))
+            event)))))
   (e/amb))
 
 (e/defn FormSubmitSequential! ; dom/node must be a form
-  [directive [edits-t edits-kvs] & {:keys [disabled token]}]
+  [directive [edits-t edits-kvs] & {:keys [token]}]
   ;; Regular tx submit – txs are sequential.
   (e/client
-    (let [submit-event (dom/On* "submit" (partial form-submit-handler disabled) nil) ; Submit is the only authoritative event.
+    (let [submit-event (dom/On* "submit" form-submit-handler nil) ; Submit is the only authoritative event.
           t (e/Reconcile
               (if submit-event ; user submit takes precedence over controlled form
                 (let [submit-t (first (reboot-on submit-event (e/Token submit-event)))]
@@ -527,10 +528,10 @@ accept the previous token and retain the new one."
         [(e/->Token `FormSubmitSequential! t (e/->Token 'edits-t edits-t)) [directive edits-kvs]]))))
 
 (e/defn FormSubmitConcurrent! ; dom/node must be a form
-  [directive edits & {:keys [disabled]}]
-  ;; Parallel racing txs. Button cannot report more than one tx status unambiguously.
+  [directive edits]
+  ;; Concurrent txs. Button cannot report more than one tx status unambiguously.
   (e/client
-    (e/for [[submit-q _err] (dom/On-all "submit" (partial form-submit-handler disabled) nil)]
+    (e/for [[submit-q _err] (dom/On-all "submit" form-submit-handler nil)]
       (let [[edits-t edits-kvs] (e/snapshot edits)] ; snapshot to detach current edit.
         (e/Reconcile
           (if edits-t ;; FIXME this conditional should probably be added here - to be tested.
@@ -589,12 +590,12 @@ accept the previous token and retain the new one."
           (token)))))
   (e/amb))
 
-(e/defn FormActions! [[form-t parsed-form-v] form-valid? commit-t discard-t genesis auto-submit tracked-token tracked-cmd]
-  (FormSubmitHelper! :disabled *disabled-commit :auto-submit auto-submit :genesis genesis)
+(e/defn FormActions! [[form-t parsed-form-v] disabled? form-valid? commit-t discard-t genesis auto-submit tracked-token tracked-cmd]
+  (FormSubmitHelper! :disabled disabled? :auto-submit auto-submit :genesis genesis)
   (let [?commits (if (e/Reconcile genesis) ; WTF - required as of March 18 2025 - otherwise FromSubmitSequential! blinks
-                   (FormSubmitConcurrent! ::commit [form-t parsed-form-v] :disabled *disabled-commit) ; not supported: controlled form with genesis
-                   (FormSubmitSequential! ::commit [form-t parsed-form-v] :disabled *disabled-commit :token tracked-token :command tracked-cmd)) ; eventually controlled
-        ?discards (FormDiscard! ::discard [form-t parsed-form-v] :disabled *disabled-discard)]
+                   (FormSubmitConcurrent! ::commit [form-t parsed-form-v]) ; not supported: controlled form with genesis
+                   (FormSubmitSequential! ::commit [form-t parsed-form-v] :token tracked-token :command tracked-cmd)) ; eventually controlled
+        ?discards (FormDiscard! ::discard [form-t parsed-form-v])]
     (e/Reconcile ; FIXME not sure if required - March 18 2025
       (e/for [[_token [directive _] :as edit]
               (e/diff-by (comp first second) ; ouch! simplify
@@ -644,18 +645,20 @@ accept the previous token and retain the new one."
     (e/Reconcile (or form-token tracked-token (e/->Token))))) ; FIXME tracked-token cannot be sticky - case where form is uncontrolled then controlled then uncontrolled again.
 
 (e/defn Form!*
-  ([value Fields & {:keys [debug show-buttons auto-submit genesis Parse Unparse #_discard] ; TODO implement discard
-                    :or {debug false, show-buttons false, genesis false}}]
+  ([value Fields & {:keys [debug show-buttons auto-submit genesis Parse Unparse disabled #_discard] ; TODO implement discard
+                    :or {debug false, show-buttons false, genesis false, disabled false}}]
    (e/client
      (let [[tracked-token tracked-cmd unparsed-value tracked-tempid] (UnparseForm Unparse value)
            Parse (e/Reconcile (or Parse (e/fn [fields tempid] fields)))
 
-           !disabled-commit (atom false)
+           !disabled-commit  (atom false)
+           disabled-commit   (e/Reconcile (or disabled (e/watch !disabled-commit)))
            !disabled-discard (atom false)
+           disabled-discard   (e/Reconcile (or disabled (e/watch !disabled-discard)))
            edits (binding ; dynamic scope because correct defaults must be injected in user-customizable commit/discard affordances - see SubmitButton! and DiscardButton!
                      [*tracked-token tracked-token
-                      *disabled-commit (e/watch !disabled-commit)
-                      *disabled-discard (e/watch !disabled-discard)]
+                      *disabled-commit disabled-commit
+                      *disabled-discard disabled-discard]
                    (e/as-vec (e/amb (Fields unparsed-value) ; concurrent edits are what give us dirty tracking
                                (e/When show-buttons
                                  (e/amb (SubmitButton! :genesis genesis) (DiscardButton!))))))
@@ -677,7 +680,7 @@ accept the previous token and retain the new one."
        (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not tracked-cmd)))
        (reset! !disabled-discard (and (zero? dirty-count) (not tracked-cmd)))
        (e/amb
-         (let [[cmd err] (FormActions! [form-t parsed-form-v] (empty? validation-message) commit-t discard-t genesis auto-submit tracked-token tracked-cmd)]
+         (let [[cmd err] (FormActions! [form-t parsed-form-v] disabled-commit (empty? validation-message) commit-t discard-t genesis auto-submit tracked-token tracked-cmd)]
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message err))
            cmd)
