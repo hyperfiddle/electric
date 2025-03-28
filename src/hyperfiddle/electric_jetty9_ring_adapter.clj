@@ -2,7 +2,7 @@
   "An electric jetty9 adapter suitable for use with the official ring adapter"
   (:require [clojure.tools.logging :as log]
             [missionary.core :as m]
-            [hyperfiddle.electric.impl.jetty9-ring-websocket-adapter :as ws-adapter]
+            [hyperfiddle.electric.impl.sunng87-ring-jetty9-ws-adapter :as ws-adapter]
             [hyperfiddle.electric.impl.runtime3 :as r])
   (:import [missionary Cancelled]
            [java.nio ByteBuffer]

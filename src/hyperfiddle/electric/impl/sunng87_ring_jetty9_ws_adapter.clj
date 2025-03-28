@@ -1,4 +1,7 @@
-(ns hyperfiddle.electric.impl.jetty9-ring-websocket-adapter
+(ns hyperfiddle.electric.impl.sunng87-ring-jetty9-ws-adapter "
+Copyright © 2013-2024 Sun Ning; EPL v1.
+inlined websocket subset only with light modifications from
+https://github.com/sunng87/ring-jetty9-adapter/"
   (:import [org.eclipse.jetty.server Request Response]
            [org.eclipse.jetty.server.handler AbstractHandler]
            [org.eclipse.jetty.websocket.api
@@ -16,8 +19,6 @@
            [java.util Locale])
   (:require [clojure.string :as string]
             [ring.util.servlet :as servlet]))
-
-;; copied and lightly adapted from https://github.com/sunng87/ring-jetty9-adapter/
 
 (defprotocol RequestMapDecoder
   (build-request-map [r]))
