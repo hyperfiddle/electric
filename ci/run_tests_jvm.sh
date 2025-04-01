@@ -8,5 +8,4 @@ echo "Running JVM tests"
 
 clojure -X:test \
     :dirs "[\"src\" \"test\"]" \
-    :patterns "[\"^(?!hyperfiddle.(api|popover|txn|electric-fulcro|electric-httpkit|spool|spec)|contrib.(datomic|test.datomic)).*\"]"
-
+    :patterns "[\"^(?!hyperfiddle.(api|popover|txn|electric-fulcro|electric-httpkit|electric-jetty|spool|spec|impl.jetty|electric.impl.sunng)|contrib.(datomic|test.datomic)).*\"]"
