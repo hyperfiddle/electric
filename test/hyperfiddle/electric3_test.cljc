@@ -2780,14 +2780,95 @@
     (tap :done)
     % := :done))
 
-(tests
-  "Offload-latch"
-  (let [!a (atom 0)]
-    ((l/local {}
-       (let [a (e/watch !a)]
-         (tap (e/Offload-latch #(do (Thread/sleep 100) a)))))
-     tap tap)
-    % := 0
-    (swap! !a inc)
-    (swap! !a inc)
-    % := 2))
+#?(:clj
+   (tests
+     "Offload-latch - when a new thunk arrives it latches the previous value"
+     (let [!p (atom (promise))]
+       (with ((l/single {} (let [p (e/watch !p)] (tap (e/as-vec (e/Offload-latch (fn [] @p)))))) tap tap)
+         % := []
+         (deliver @!p 42)
+         % := [42]
+         (reset! !p (promise))
+         (tap :latched-42), % := :latched-42
+         (deliver @!p 43)
+         % := [43]))))
+
+#?(:clj
+   (tests
+     "Offload-reset - when a new thunk arrives it clears the previous value, returning `(e/amb)`"
+     (let [!p (atom (promise))]
+       (with ((l/single {} (let [p (e/watch !p)] (tap (e/as-vec (e/Offload-reset (fn [] @p)))))) tap tap)
+         % := []
+         (deliver @!p 42)
+         % := [42]
+         (reset! !p (promise))
+         % := []
+         (deliver @!p 43)
+         % := [43]))))
+
+#?(:clj (defn fail-interrupt [x] (if (zero? x) (Thread/sleep 999999) x)))
+#?(:clj (defn fail-no-interrupt [x]
+          (try (if (zero? x) (Thread/sleep 999999) x)
+               (catch InterruptedException _ (Thread/interrupted) (throw (ex-info "haha" {}))))))
+#?(:clj (defn fail-cancelled [x]
+          (try (if (zero? x) (Thread/sleep 999999) x)
+               (catch InterruptedException _ (Thread/interrupted) (throw (new missionary.Cancelled))))))
+#?(:clj
+   (tests
+     "e/Offload-* - when the stale branch throws InterruptedException it's swallowed"
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-latch #(fail-interrupt n))))) {} {})
+         (swap! !n inc)
+         % := 1))
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-reset #(fail-interrupt n))))) {} {})
+         (swap! !n inc)
+         % := 1))))
+
+#?(:clj
+   (tests
+     "e/Offload-* - when the stale branch throws *not* InterruptedException it's swallowed"
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-latch #(fail-no-interrupt n))))) {} {})
+         (swap! !n inc)
+         % := 1))
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-reset #(fail-no-interrupt n))))) {} {})
+         (swap! !n inc)
+         % := 1))))
+
+#?(:clj
+   (tests
+     "e/Offload-* - when the stale branch throws missionary.Cancelled it's swallowed"
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-latch #(fail-cancelled n))))) {} {})
+         (swap! !n inc)
+         % := 1))
+     (let [!n (atom 0)]
+       (with ((l/single {} (let [n (e/watch !n)] (tap (e/Offload-reset #(fail-cancelled n))))) {} {})
+         (swap! !n inc)
+         % := 1))))
+
+#?(:clj
+   (tests
+     "e/Offload-* - when the active branch throws InterruptedException it surfaces"
+     (with ((l/single {} (tap (e/Offload-latch #(throw (new InterruptedException))))) tap #(tap [:error (type %)]))
+       % := [:error InterruptedException])
+     (with ((l/single {} (tap (e/Offload-reset #(throw (new InterruptedException))))) tap #(tap [:error (type %)]))
+       % := [:error InterruptedException])))
+
+#?(:clj
+   (tests
+     "e/Offload-* - when the active branch throws *not* InterruptedException it surfaces"
+     (with ((l/single {} (tap (e/Offload-latch #(throw (ex-info "not-interrupt" {}))))) tap #(tap [:error (type %)]))
+       % := [:error ExceptionInfo])
+     (with ((l/single {} (tap (e/Offload-reset #(throw (ex-info "not-interrupt" {}))))) tap #(tap [:error (type %)]))
+       % := [:error ExceptionInfo])))
+
+#?(:clj
+   (tests
+     "e/Offload-* - when the active branch throws missionary.Cancelled it surfaces"
+     (with ((l/single {} (tap (e/Offload-latch #(throw (new missionary.Cancelled))))) tap #(tap [:error (type %)]))
+       % := [:error Cancelled])
+     (with ((l/single {} (tap (e/Offload-reset #(throw (new missionary.Cancelled))))) tap #(tap [:error (type %)]))
+       % := [:error Cancelled])))

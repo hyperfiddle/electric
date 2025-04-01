@@ -535,11 +535,12 @@ Task -> continuous flow. State is [] before task completion, [result] after.
      (m/reductions {} []
        (m/ap
          (try [(m/? (m/via-call executor (m/?< <f)))]
-           (catch #?(:clj Throwable :cljs :default) e
-             ;; Swallow all exceptions if current Thread is already interrupted - rethrow otherwise.
-             ;; Catching InterruptedException is not enough, because Datomic (at least) will throw a
-             ;; domain-specific exception on thread interruption.
-             (try (m/!) (throw e) (catch Cancelled _ (m/amb))))))))))
+              (catch #?(:clj Throwable :cljs :default) e
+                ;; Swallow all exceptions if current Thread is already interrupted - rethrow otherwise.
+                ;; Catching InterruptedException is not enough, because Datomic (at least) will throw a
+                ;; domain-specific exception on thread interruption.
+                (try (m/!) (catch Cancelled _ (m/amb)))
+                (throw e))))))))
 
 (hyperfiddle.electric3/defn Offload-reset "
 Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Switch back to
@@ -580,3 +581,11 @@ result while awaiting subsequent values of f, such that intermediate pending sta
 (defmacro call_ [ctor] `(::lang/call ~ctor))
 
 (cc/defn pp-ex [] (#?(:clj prn :cljs js/console.error) r/*e))
+
+(comment
+  (def _!x (atom (m/observe (cc/fn [!] (! nil) #(throw (ex-info "boom" {}))))))
+  (def _ps ((m/cp (m/?< (m/?< (m/watch _!x)))) #(prn :step) #(prn :done)))
+  @_ps
+  (reset! _!x (m/observe (cc/fn [!] (! 42) #())))
+  @_ps
+  )
