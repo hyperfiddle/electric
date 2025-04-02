@@ -5,8 +5,8 @@
 
 (def lib 'com.hyperfiddle/electric)
 (def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
-(def basis     (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn"}))
-(def aot-basis (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn", :aliases [:build-deps]}))
+(def basis     (b/create-basis {:project "deps.edn", :extra "../electric-secret/deps.edn"}))
+(def aot-basis (b/create-basis {:project "deps.edn", :extra "../electric-secret/deps.edn", :aliases [:build-deps]}))
 
 (def class-dir "target/classes")
 
