@@ -58,7 +58,7 @@
                                                            #(symbol (str ns$ "_" (namespace %)) (name %)))}
                           :features #{:cljs}, :read-cond :allow, :read-eval true, :quote true, :eof ::done})]
   (defn resource-forms [rs]
-    (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs))]
+    (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs) 8)] ; default is 1 byte buffer which disallows unreading
       (loop [v []]
         (let [nx (eval-edamame-read-eval (ed/parse-next rdr parse-opts))]
           (if (= nx ::done) v (recur (conj v nx))))))))
