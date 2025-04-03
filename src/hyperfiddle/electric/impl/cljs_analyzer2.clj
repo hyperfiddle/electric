@@ -20,6 +20,10 @@
     (or (io/resource (str base ".cljs"))
       (io/resource (str base ".cljc")))))
 
+(defn try-eval [form]
+  (try (eval form)
+       (catch Throwable e (println "failed to read-eval" (pr-str form) "-" (type e) (ex-message e)))))
+
 (defn eval-edamame-read-eval
   "Edamame, an edn parser, doesn't fully implement read-eval (aka `#=`).
   Edamame expands `#=(foo bar)` to `(edamame.core/read-eval (foo bar))` and
@@ -35,7 +39,7 @@
   of any use case for metadata in ns forms applying to Electric"
   [form]
   (walk/prewalk
-    (fn [form] (if (and (seq? form) (= 'edamame.core/read-eval (first form))) (eval (second form)) form))
+    (fn [form] (if (and (seq? form) (= 'edamame.core/read-eval (first form))) (try-eval (second form)) form))
     form))
 
 (let [parse-opts
