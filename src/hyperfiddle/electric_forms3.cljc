@@ -1,4 +1,5 @@
 (ns hyperfiddle.electric-forms3
+  "Deprecated. Use hyperfiddle.electric-forms5 instead"
   #?(:cljs (:require-macros hyperfiddle.electric-forms3))
   (:require [contrib.data :refer [index-by auto-props qualify]]
             [dustingetz.str :refer [pprint-str]]
