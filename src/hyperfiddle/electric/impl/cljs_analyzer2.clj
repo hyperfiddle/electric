@@ -120,8 +120,10 @@
                   (defmacro? sym) nil
                   (defprotocol? sym) (let [[_ nm & args] o, fns (-> args skip-docstring skip-inline-opts)]
                                        `(declare ~nm ~@(mapv first fns)))
-                  (blacklisted sym) o   ; reading compiler atom *during macroexpansion*
-                  :else (try (apply mac o env args)
+                  (blacklisted sym) o ; reading compiler atom *during macroexpansion*
+                  :else (try (if-some [clj-ns (find-ns ns$)]
+                               (binding [*ns* clj-ns] (apply mac o env args)) ; fixes expansion of macros calling `eval`
+                               (apply mac o env args))
                              (catch Throwable e (prn :cannot-expand (::ns-stack env) (cons mac args)) (throw e)))))
           o))
       o)))
@@ -158,7 +160,9 @@
 (defn -add-requiresT [!a ns$ env rs reqk refk]
   (run! #(add-requireT !a ns$ env reqk refk %) rs))
 
-(defn add-require-macrosT [!a ns$ env rs] (-add-requiresT !a ns$ env rs ::require-macros ::refer-macros))
+(defn add-require-macrosT [!a ns$ env rs]
+  (safe-require ns$)
+  (-add-requiresT !a ns$ env rs ::require-macros ::refer-macros))
 (defn add-requiresT [!a ns$ env rs] (-add-requiresT !a ns$ env rs ::requires ::refers))
 (defn add-refer-clojure [!a ns$ ov]
   (let [o (apply hash-map ov)]
