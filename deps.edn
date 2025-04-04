@@ -1,7 +1,7 @@
 {:paths ["src"]
- :deps  {com.cognitect/transit-clj  {:mvn/version "1.0.333"}
+ :deps  {
+         com.cognitect/transit-clj  {:mvn/version "1.0.333"}
          com.cognitect/transit-cljs {:mvn/version "0.8.280"}
-         com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-SNAPSHOT"}
          com.hyperfiddle/rcf        {:mvn/version "20220926-202227"}
          missionary/missionary      {:mvn/version "b.44"}
          fipp/fipp                  {:mvn/version "0.6.26"}
@@ -9,7 +9,10 @@
          org.clojure/clojurescript  {:mvn/version "1.11.121"}
          org.clojure/tools.logging  {:mvn/version "1.2.4"}
          borkdude/edamame           {:mvn/version "1.4.25"}
-         com.hyperfiddle/electric-secret {:local/root "../electric-secret"} ; prevents building from source, use maven release
+
+         ;; prevents building from source, use maven release
+         com.hyperfiddle/hyperfiddle-contrib {:local/root "../hyperfiddle-contrib"}
+         com.hyperfiddle/electric-secret {:local/root "../electric-secret"}
          }
 
  :aliases {:shadow-cljs {:extra-deps {thheller/shadow-cljs {:mvn/version "2.26.2"}}
@@ -30,4 +33,5 @@
            :build {:extra-paths ["src-build"]
                    :ns-default  build
                    :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.6"}
-                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}}}}
+                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}}
+           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-SNAPSHOT"}}}}}

@@ -4,9 +4,9 @@
             [deps-deploy.deps-deploy :as dd]))
 
 (def lib 'com.hyperfiddle/electric)
-(def version (b/git-process {:git-args "describe --tags --long --always --dirty"}))
-(def basis     (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn"}))
-(def aot-basis (b/create-basis {:project "deps.edn", :extra "vendor/electric-secret/deps.edn", :aliases [:build-deps]}))
+(def version "v3-alpha-SNAPSHOT" #_(b/git-process {:git-args "describe --long --always --dirty"}))
+(def basis     (b/create-basis {:project "deps.edn", :extra "../electric-secret/deps.edn", :aliases [:release]}))
+(def aot-basis (b/create-basis {:project "deps.edn", :extra "../electric-secret/deps.edn", :aliases [:release :build-deps]}))
 
 (def class-dir "target/classes")
 
@@ -14,7 +14,8 @@
 
 (defn clean [opts] (b/delete {:path "target"}))
 
-(defn jar [{:keys [version] :or {version version}}]
+(defn build [{:keys [version] :or {version version} :as opts}]
+  (clean opts)
   (let [jar-file (format "target/%s-%s.jar" (name lib) version)
         opts (assoc defaults
                :version    version
