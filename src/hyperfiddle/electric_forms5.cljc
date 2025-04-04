@@ -175,7 +175,19 @@ accept the previous token and retain the new one."
       (swap! !latest (fn [[old-t _old-kv] [new-t new-kv]] [(e/->Token `LatestEdit2 (e/->Token 'new new-t) (e/->Token 'old old-t)) new-kv]) edits))
     (e/Reconcile (e/When latest latest))))
 
-(e/defn Picker!
+(e/defn Picker
+  [selected-v Body &
+   {:keys [as Parse Unparse]
+    :or {as :div, Parse Identity, Unparse Identity}
+    :as props}]
+  (dom/With-element (e/Reconcile as)
+    (e/fn []
+      (let [parsed-v (Parse (Body (Unparse selected-v)))]
+        (dom/props {:role "radiogroup", :data-errormessage (not-empty (ex-message parsed-v))})
+        (dom/props (dissoc (set/rename-keys props {:required :aria-required}) :Parse :Unparse :as))
+        parsed-v))))
+
+(e/defn Picker! ; TODO remove
   [k selected-v Body &
    {:keys [as Parse Unparse]
     :or {as :div, Parse Identity, Unparse Identity}
@@ -201,7 +213,7 @@ accept the previous token and retain the new one."
                 (swap! !selected assoc 1 (Unparse selected-v)) ; [nil v1] -> [nil v2]
                 (e/amb)))))))))
 
-(e/defn RadioPicker!
+(e/defn RadioPicker! ; TODO implement RadioPicker and use Picker (no !)
   [k selected-v
    & {:keys [as option-label Options Parse Unparse]
       :or   {as :dl, Parse Identity, Unparse Identity}
@@ -267,7 +279,58 @@ accept the previous token and retain the new one."
     (e/fn [index]
       (Row index (nth records index nil)))))
 
-(e/defn TablePicker! ; TODO G: might have damaged optimal siting – verify
+#?(:cljs
+   (defn -tp-get-row-index [^js event]
+     (when event
+       (when-let [index-str (or (.. event -target (getAttribute "data-row-index"))
+                              (.. event -target (closest "tr") (getAttribute "data-row-index")))]
+         (parse-long index-str)))))
+
+(e/defn TablePicker ; TODO G: might have damaged optimal siting – verify
+  ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
+  [authoritative-selected-index record-count Row
+   & {:keys [Parse Unparse row-height column-count as]
+      :or {Parse Identity, Unparse Identity, row-height 24, column-count 1, as :table}
+      :as props}]
+  (Picker authoritative-selected-index
+    (e/fn PickerBody [selected-index]
+      (dom/props (dissoc props :Parse :Unparse :row-height :column-count :as))
+      (dom/props {:class ["hyperfiddle-electric-forms5__table-picker"]
+                  :style {:--row-height (str row-height "px")
+                          :--record-count record-count
+                          :--column-count column-count}})
+
+      (let [[offset limit] (Scroll-window row-height record-count dom/node {})]
+        (dom/props {:style {:--offset offset, :--limit limit}})
+        (dom/div (dom/props {:class "padder"}))
+        (e/for [row-index (IndexRing ; render all rows even when record-count < limit
+                            (inc limit) ; render one extra row for pixel perfect scroll (bottom row do not blink in/out on scroll)
+                            offset)]
+          (dom/tr
+            (dom/props {:data-row-index row-index, :aria-checked (= selected-index row-index)})
+            (dom/props {:style {:--row-index row-index} :role "radio" :tabindex "0"}) ; tabindex enables focus – items with role=radio must be focusable
+            ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
+            (Row row-index)))
+        (-tp-get-row-index (e/amb ; click + space is aria-compliant
+                             (dom/On* "click" identity nil) ;;
+                             (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))))
+    :as as
+    :Parse Parse
+    :Unparse Unparse
+    props))
+
+(e/defn TablePicker*
+  [authoritative-selected-index record-count Row
+   & {:keys [Parse Unparse row-height column-count as]
+      :or {Parse Identity, Unparse Identity, row-height 24, column-count 1, as :table}
+      :as props}]
+  (e/client
+    (Swallow-empty-diffs
+      (e/with-cycle [v authoritative-selected-index]
+        (TablePicker v record-count Row props)))))
+
+(e/defn TablePicker! ; TODO build upon TablePicker (no !)
+  ;; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [k authoritative-selected-index record-count Row
    & {:keys [Parse Unparse row-height column-count as]
@@ -303,6 +366,7 @@ accept the previous token and retain the new one."
     :Parse Parse
     :Unparse Unparse
     props))
+
 
 (def table-picker-css ; exported at end of file
   "
