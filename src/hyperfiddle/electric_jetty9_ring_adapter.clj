@@ -74,7 +74,7 @@
 (def ELECTRIC-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
 (def ELECTRIC-HEARTBEAT-INTERVAL 45000)
 
-(defn electric-ws-adapter
+(defn electric-jetty9-ws-adapter
   "Start and manage an Electric server process hooked onto a websocket."
   [ring-req boot-fn]
   (let [state             (object-array 2)
@@ -116,7 +116,7 @@
                    (log/trace "bytes received" {:length length})
                    ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))}))
 
-(defn build-electric-websocket-middleware [boot-fn] (fn [ring-req] (electric-ws-adapter ring-req boot-fn)))
+(defn build-electric-websocket-middleware [boot-fn] (fn [ring-req] (electric-jetty9-ws-adapter ring-req boot-fn)))
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
@@ -142,12 +142,12 @@
           :else (adapter/reject-websocket-handler 1008 "stale client") ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
           ))))
 
-(defn install-websocket "Use under `:configurator` key of `ring.adapter.jetty/run-jetty` to install an electric websocket handler.
+(defn electric-jetty9-ws-install "Use under `:configurator` key of `ring.adapter.jetty/run-jetty` to install an electric websocket handler.
 
   With no middleware
 
   ```clj
-  (install-websocket jetty-server \"/\" (build-electric-websocket-middleware boot-fn))
+  (electric-jetty9-ws-install jetty-server \"/\" (build-electric-websocket-middleware boot-fn))
   ```
 
   where `boot-fn` is e.g. `(fn [ring-req] (e/boot-server {} electric-starter-app.main/Main (e/server ring-req)))`.
@@ -155,7 +155,7 @@
   With middleware
 
   ```clj
-  (install-websocket jetty-server \"/\"
+  (electric-jetty9-ws-install jetty-server \"/\"
     (-> (build-electric-websocket-middleware boot-fn)
       (ring.middleware.cookies/wrap-cookies)
       (wrap-reject-stale-client)
@@ -164,7 +164,7 @@
 
   Passes optional `config` forward to `proxy-ws-handler`.
 "
-  ([jetty-server path ring-middleware] (install-websocket jetty-server path ring-middleware {}))
+  ([jetty-server path ring-middleware] (electric-jetty9-ws-install jetty-server path ring-middleware {}))
   ([jetty-server path ring-middleware
     {:as config :keys [ws-max-idle-time ws-max-text-message-size] :or {ws-max-idle-time 500000 ws-max-text-message-size 65536}}] ; copied from proxy-ws-handler for documentation
    (letfn [(create-websocket-handler [context-path handler]
