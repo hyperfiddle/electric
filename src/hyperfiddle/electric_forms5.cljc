@@ -286,7 +286,13 @@ accept the previous token and retain the new one."
                               (.. event -target (closest "tr") (getAttribute "data-row-index")))]
          (parse-long index-str)))))
 
-(e/defn TablePicker ; TODO G: might have damaged optimal siting – verify
+#?(:cljs (defn filter-link-clicks [e]
+           (let [target (.-target e)]
+             (when-not (or (= "A" (.-tagName target))
+                         (some? (.closest target "a")))
+               e))))
+
+(e/defn TablePicker         ; TODO G: might have damaged optimal siting – verify
   ;; TODO aria-compliant keyboard nav https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Roles/radio_role#keyboard_interactions
   [authoritative-selected-index record-count Row
    & {:keys [Parse Unparse row-height column-count as]
@@ -311,8 +317,8 @@ accept the previous token and retain the new one."
             (dom/props {:style {:--row-index row-index} :role "radio" :tabindex "0"}) ; tabindex enables focus – items with role=radio must be focusable
             ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
             (Row row-index)))
-        (-tp-get-row-index (e/amb ; click + space is aria-compliant
-                             (dom/On* "click" identity nil) ;;
+        (-tp-get-row-index (e/amb       ; click + space is aria-compliant
+                             (dom/On* "click" filter-link-clicks nil) ;;
                              (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))))
     :as as
     :Parse Parse
@@ -357,7 +363,7 @@ accept the previous token and retain the new one."
               ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
               (Row row-index)
               (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
-                                        (dom/On* "click" identity nil) ;;
+                                        (dom/On* "click" filter-link-clicks nil)
                                         (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
                 (dom/props {:aria-checked (e/Reconcile (or (= row-index selected-index) (= row-index authoritative-selected-index)))
                             :aria-busy (some? t)})
