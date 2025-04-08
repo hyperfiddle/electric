@@ -4,6 +4,7 @@
             [missionary.core :as m]
             #?(:cljs missionary.impl.Propagator)
             [clojure.pprint]
+            #?(:clj [clojure.tools.logging :as log])
             [contrib.debug :as dbg]
             [contrib.data :as cd]
             [hyperfiddle.electric.impl.lang3 :as-alias lang]
@@ -1374,7 +1375,9 @@ T T T -> (EXPR T)
                       (catch #?(:clj Throwable :cljs :default) e
                         (if-some [ed (cond (::unserializable (ex-data e)) (ex-data e)
                                            (::unserializable (ex-data (ex-cause e))) (ex-data (ex-cause e)))]
-                          (throw (ex-info (->unserializable-msg port* (:v ed)) ed))
+                          (let [msg (->unserializable-msg port* (:v ed))]
+                            #?(:clj (log/debug msg))
+                            (throw (ex-info msg ed)))
                           (throw e))))))))
          (catch #?(:clj Throwable :cljs :default) e
            (channel-crash channel)
