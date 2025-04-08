@@ -1,6 +1,7 @@
 {:lint-as {hyperfiddle.electric/def        clojure.core/def
            hyperfiddle.electric/defn       clojure.core/defn
            hyperfiddle.electric3/defn    clojure.core/defn
+           hyperfiddle.electric3/fn         clojure.core/fn
            hyperfiddle.electric3/declare clojure.core/declare
            hyperfiddle.electric3/cursor  clojure.core/for
            hyperfiddle.electric3/for     clojure.core/for
