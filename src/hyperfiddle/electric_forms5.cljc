@@ -392,7 +392,10 @@ accept the previous token and retain the new one."
 /* cosmetic defaults */
 :where(.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td) { background-color: #ddd; }
 :where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td) { color: white; background-color: #0064e1; /* finder color */ }
-.hyperfiddle-electric-forms5__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hyperfiddle-electric-forms5__table-picker tr td {position: relative; contain: size;}
+.hyperfiddle-electric-forms5__table-picker tr td:not(:has(*)) /* eventually contains only text */
+, .hyperfiddle-electric-forms5__table-picker tr td > *:only-child
+ { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 
 :where(.hyperfiddle-electric-forms5__table-picker) {
   background: repeating-linear-gradient(
