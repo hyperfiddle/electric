@@ -390,11 +390,24 @@ accept the previous token and retain the new one."
 .hyperfiddle-electric-forms5__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
 
 /* cosmetic defaults */
-:where(.hyperfiddle-electric-forms5__table-picker tr:nth-child(even) td) { background-color: #f2f2f2; }
-
 :where(.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td) { background-color: #ddd; }
 :where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td) { color: white; background-color: #0064e1; /* finder color */ }
 .hyperfiddle-electric-forms5__table-picker td:not(:has(*)) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+:where(.hyperfiddle-electric-forms5__table-picker) {
+  background: repeating-linear-gradient(
+    to bottom,
+    #f2f2f2 0,
+    #f2f2f2 var(--row-height),
+    transparent var(--row-height),
+    transparent calc(2 * var(--row-height))
+  );
+  background-attachment: local; /* ensure background scrolls with content. FIXME might feel a little bit woobly if there are layout recalcs */
+  background-size: 100% calc(2 * var(--row-height));
+  overscroll-behavior: none;
+}
+
+:where(thead + .hyperfiddle-electric-forms5__table-picker) { background-position: 0 var(--row-height);} /* shift by one row */
 "
 )
 
