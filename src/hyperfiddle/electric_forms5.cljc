@@ -282,8 +282,8 @@ accept the previous token and retain the new one."
 #?(:cljs
    (defn -tp-get-row-index [^js event]
      (when event
-       (when-let [index-str (or (.. event -target (getAttribute "data-row-index"))
-                              (.. event -target (closest "tr") (getAttribute "data-row-index")))]
+       (when-let [index-str (or (some-> event .-target (.getAttribute "data-row-index"))
+                              (some-> event .-target (.closest "tr") (.getAttribute "data-row-index")))]
          (parse-long index-str)))))
 
 #?(:cljs (defn filter-link-clicks [e]
