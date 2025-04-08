@@ -378,7 +378,7 @@ accept the previous token and retain the new one."
   "
 
 .hyperfiddle-electric-forms5__table-picker {display:grid; grid-template-columns: repeat(var(--column-count), 1fr); }
-.hyperfiddle-electric-forms5__table-picker {height: 100%; overflow: hidden; min-height: calc(2 * var(--row-height)); }
+.hyperfiddle-electric-forms5__table-picker {height: 100%; overflow: hidden; min-height: calc(var(--min-row-count, 2) * var(--row-height)); }
 .hyperfiddle-electric-forms5__table-picker {contain: size;} /* Essential! ensure row movements on scroll do not inflate parent containers when parent only has a min-height. Otherwise container will grow in a loop until all rows are rendered. */
 .hyperfiddle-electric-forms5__table-picker {grid-auto-rows: var(--row-height);}
 .hyperfiddle-electric-forms5__table-picker {overflow-y: scroll; overflow-x: hidden; position: relative;}
