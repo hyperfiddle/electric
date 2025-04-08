@@ -2872,3 +2872,9 @@
        % := [:error Cancelled])
      (with ((l/single {} (tap (e/Offload-reset #(throw (new missionary.Cancelled))))) tap #(tap [:error (type %)]))
        % := [:error Cancelled])))
+
+#?(:clj
+   (tests
+     "#'inc or (var inc)"
+     (with ((l/single {} (tap #'inc)) tap tap)
+       % := #'inc)))

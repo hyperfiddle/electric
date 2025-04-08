@@ -366,6 +366,8 @@
 
           (set!) (+meta (list 'set! (-expand-all (+meta (nth o 1)) env) (-expand-all (+meta (nth o 2)) env)))
 
+          (var) (recur (+meta `(clojure.core/find-var '~(-> o second resolve symbol))) env)
+
           (::ctor) (+meta (list ::ctor (list ::site nil (-expand-all (+meta (second o)) env))))
 
           (::site) (+meta (seq (conj (into [] (take 2) o)
