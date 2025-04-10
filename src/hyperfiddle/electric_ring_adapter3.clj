@@ -202,7 +202,9 @@
                    (keepalive-mailbox nil))
      :on-message (fn on-message [_socket text-or-buff]
                    (keepalive-mailbox nil)
-                   (let [h (ca/is (aget state on-message-slot) some? "no on-message handler, is the connection closed?")]
+                   (let [h (ca/is (aget state on-message-slot) some?
+                             ;; should never happen. A client->server message should not be accepted by the `:on-message` handler if the server is shut down or shutting down.
+                             "electric on-message handler is not available. The electric server process failed to properly shut down *before* receiving the current message. Please report this issue.")]
                      (if (instance? CharSequence text-or-buff)
                        (let [text text-or-buff]
                          (log/trace "text received" text)
