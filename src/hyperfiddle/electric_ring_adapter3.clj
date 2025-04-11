@@ -76,8 +76,7 @@
           (do (log/error (ex-message e))
               (close socket 1012 "Misaligned client"))
           (do
-            (log/error (dbg/update-stack-trace! e #(filter (partial dbg/stack-element-matches? #"hyperfiddle.*") %))
-              "Websocket handler failure." ex-data)
+            (log/error e "Websocket handler failure." ex-data)
             (close socket 1011 "Server process crash")))))))
 
 (defn write-msg
