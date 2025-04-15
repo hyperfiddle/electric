@@ -1,4 +1,18 @@
-{:paths ["src"]
+{:hyperfiddle.build/name com.hyperfiddle/electric
+ :hyperfiddle.build/description "A reactive Clojure dialect for web development that uses a compiler to infer the frontend/backend boundary"
+ :hyperfiddle.build/version "v3-alpha-SNAPSHOT"
+ :hyperfiddle.build/pom-data [[:licenses
+                               [:license
+                                [:name "Hyperfiddle Business Source License"]
+                                [:url "http://hyperfiddle.net"]]]
+                              [:developers
+                               [:developer
+                                [:organization "Hyperfiddle, Inc."]
+                                [:organizationUrl "http://www.hyperfiddle.net"]]]]
+ :hyperfiddle.build/pom-scm {:url "https://github.com/hyperfiddle/electric"
+                             :connection "scm:git:git://github.com/hyperfiddle/electric.git"
+                             :developerConnection "scm:git:ssh://git@github.com/hyperfiddle/electric.git"}
+ :paths ["src"]
  :deps  {
          com.cognitect/transit-clj  {:mvn/version "1.0.333"}
          com.cognitect/transit-cljs {:mvn/version "0.8.280"}
@@ -32,6 +46,6 @@
                                  }}
            :build {:extra-paths ["src-build"]
                    :ns-default  build
-                   :extra-deps  {io.github.clojure/tools.build {:mvn/version "0.9.6"}
-                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}}
-           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-SNAPSHOT"}}}}}
+                   :extra-deps  {com.hyperfiddle/build {:local/root "../build"}}}
+           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-SNAPSHOT"}}}}
+ }
