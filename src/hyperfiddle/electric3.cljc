@@ -433,6 +433,14 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
 
 (cc/defn token? [x] (instance? TokenImpl x))
 
+(cc/defn compare-equal-and-set!
+  "Atomically sets the value of atom to newval if and only if the
+  current value of the atom is = to oldval. Returns true if
+  set happened, else false."
+  [!ref oldval newval]
+  (let [[old new] (swap-vals! !ref (cc/fn [old new] (if (= old oldval) new old)) newval)]
+    (not (= old new))))
+
 (let [->token (cc/fn [!t]
                 (->Token nil
                   (cc/fn token
@@ -442,8 +450,8 @@ inhibit undesired duplicate effects with code like (if x a a) or (or a1 a2)."
              (when (on? v)
                (let [[t err] @!x]
                  (cond ; reuse outstanding token but clear error for new attempt
-                   (some? err) (compare-and-set! !x [nil err] [(->token !x) nil])
-                   () (compare-and-set! !x [nil nil] [(->token !x) nil])))))]
+                   (some? err) (compare-equal-and-set! !x [nil err] [(->token !x) nil])
+                   () (compare-equal-and-set! !x [nil nil] [(->token !x) nil])))))]
   (hyperfiddle.electric3/defn Token
     ([v] (Token v some?))
     ([v on?] (let [!x (atom [nil nil])] ; single watch for consistency
