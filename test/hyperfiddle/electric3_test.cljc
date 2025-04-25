@@ -2878,3 +2878,15 @@
      "#'inc or (var inc)"
      (with ((l/single {} (tap #'inc)) tap tap)
        % := #'inc)))
+
+(tests
+  "e/pure rebuilds in some cases"
+  (let [!x (atom [])]
+    (with ((l/single {}
+             (let [x (e/watch !x)]
+               (e/join (first (tap [(e/pure (e/diff-by {} x)) (first x)]))))) tap tap)
+      % := [_ nil]
+      (reset! !x [1])
+      % := [_ 1]
+      (hash (first *1)) := (hash (first *3)) ; not the same hash – pure got rebuilt
+      )))

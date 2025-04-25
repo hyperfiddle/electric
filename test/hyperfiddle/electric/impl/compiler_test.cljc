@@ -219,7 +219,8 @@
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0)))))
       (r/cdef 1 [nil] [] nil
         (fn [~'frame]
-          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/node ~'frame 0))))]
+          (let [~'init-fn0 (let* [~'init-pure1 vector, ~'init-pure3 (r/ctor ::Main 2 (r/node ~'frame 0))]
+                             (fn ~'init-fn0 [~'arg2] (~'init-pure1 ~'arg2 ~'init-pure3)))]
             (r/define-node ~'frame 0 '{} (r/pure (~'inc 2)))
             (r/ap '{} (r/pure ~'init-fn0) (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
@@ -250,7 +251,8 @@
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/free ~'frame 1))))]
+          (let [~'init-fn0 (let* [~'init-pure1 vector, ~'init-pure3 (r/ctor ::Main 2 (r/free ~'frame 1))]
+                             (fn ~'init-fn0 [~'arg2] (~'init-pure1 ~'arg2 ~'init-pure3)))]
             (r/ap '{} (r/pure ~'init-fn0)
               (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
@@ -266,7 +268,8 @@
           (r/pure (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
-          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (vector ~'arg1 (r/ctor ::Main 2 (r/free ~'frame 1))))]
+          (let [~'init-fn0 (let* [~'init-pure1 vector, ~'init-pure3 (r/ctor ::Main 2 (r/free ~'frame 1))]
+                             (fn ~'init-fn0 [~'arg2] (~'init-pure1 ~'arg2 ~'init-pure3)))]
             (r/ap '{} (r/pure ~'init-fn0)
               (r/free ~'frame 0)))))
       (r/cdef 1 [] [] nil
@@ -313,7 +316,7 @@
            (vector 1 (::lang/call (::lang/ctor :foo))))
     `[(r/cdef 0 [] [nil] nil
         (fn [~'frame]
-          (let [~'init-fn0 (fn ~'init-fn0 [~'arg1] (~'vector 1 ~'arg1))]
+          (let [~'init-fn0 (let* [~'init-pure1 ~'vector, ~'init-pure2 1] (fn ~'init-fn0 [~'arg3] (~'init-pure1 ~'init-pure2 ~'arg3)))]
             (r/define-call ~'frame 0 (r/pure (r/ctor ::Main 1)))
             (r/ap '{} (r/pure ~'init-fn0)
               (r/join (r/call ~'frame 0))))))

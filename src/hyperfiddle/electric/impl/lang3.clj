@@ -1426,24 +1426,23 @@
                                 ce)))
 
                           (> pure-cnt 1)
-                          (let [<arg*> (->box []), <call> (->box []), fsym (->sym "init-fn"), init-e (->id)
+                          (let [<arg*> (->box []), fsym (->sym "init-fn"), init-e (->id)
                                 ts (reduce (fn [ts e]
                                              (if (= ::pure (ts/? ts e ::type))
-                                               (do (-> (<call>) (conj (get-child-e ts e)) (<call>))
+                                               (do (-> (<arg*>) (conj [:pure (->sym "init-pure") (get-child-e ts e)]) (<arg*>))
                                                    (ts/asc ts e ::parent init-e))
                                                (let [s (->sym "arg")]
-                                                 (-> (<arg*>) (conj s) (<arg*>))
-                                                 (-> (<call>) (conj s) (<call>))
+                                                 (-> (<arg*>) (conj [:arg s]) (<arg*>))
                                                  ts)))   ts ce)
                                 ctor-uid (find-ctor-uid ts ap-e)
                                 e (- (->id))]
                             (-> ts (ts/add {:db/id init-e, ::ctor-let-init ctor-uid,
                                             ::init-fn (fn [ts ctor-e env nm]
-                                                        `[~fsym (fn ~fsym ~(<arg*>)
-                                                                  ~(doall (map #(if (number? %)
-                                                                                  (emit ts % ctor-e env nm)
-                                                                                  %)
-                                                                            (<call>))))])})
+                                                        (let [tagged (fn tagged [tag] (fn [v] (= tag (first v))))
+                                                              arg* (into [] (comp (filter (tagged :arg)) (map second)) (<arg*>))
+                                                              pure* (into [] (comp (filter (tagged :pure))
+                                                                               (mapcat (fn [[_t sym e]] [sym (emit ts e ctor-e env nm)]))) (<arg*>))]
+                                                          `[~fsym (let* ~pure* (fn ~fsym ~arg* ~(doall (map #(nth % 1) (<arg*>)))))]))})
                               (ts/add {:db/id e, ::parent ap-e, ::type ::pure, ::site site})
                               (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v fsym, ::site site})))
 
