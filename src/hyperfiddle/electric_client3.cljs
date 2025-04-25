@@ -1,7 +1,6 @@
 (ns hyperfiddle.electric-client3
   (:require [contrib.cljs-target :refer [do-browser]]
-            [missionary.core :as m]
-            [hyperfiddle.electric.impl.runtime3 :as r])
+            [missionary.core :as m])
   (:import missionary.Cancelled))
 
 (goog-define ELECTRIC_USER_VERSION "hyperfiddle_electric_client__dirty") ; url safe
@@ -70,8 +69,7 @@
   (m/reduce (comp reduced {}) nil
     (m/ap (m/amb=
             (let [flush (wait-for-flush ws)]
-              (run! #(send! ws %) (m/?> (r/batch conj [] (r/next-animation-frame) msgs)))
-              #_(send! ws (m/?> msgs))
+              (send! ws (m/?> msgs))
               (m/? flush) (m/amb))
             (m/? (wait-for-close ws))))))
 

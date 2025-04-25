@@ -1,7 +1,7 @@
 (ns hyperfiddle.incseq.latest-concat-impl
   (:require [hyperfiddle.incseq.arrays-impl :as a]
             [hyperfiddle.incseq.perm-impl :as p]
-            [hyperfiddle.incseq.diff-impl :as d])
+            [hyperfiddle.incseq.stateful-diff-impl :as d])
   #?(:clj (:import (clojure.lang IFn IDeref)
                    (java.util.concurrent.locks ReentrantLock))))
 

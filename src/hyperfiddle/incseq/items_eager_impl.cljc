@@ -3,7 +3,7 @@
             [contrib.debug :as dbg]
             [clojure.set :as set]
             [hyperfiddle.electric.impl.array-fields :as a]
-            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.stateful-diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p])
   (:import #?(:clj [clojure.lang IDeref IFn])
            #?(:clj [java.util.concurrent.atomic AtomicLong])

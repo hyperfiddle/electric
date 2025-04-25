@@ -3,7 +3,7 @@
            [missionary Cancelled])
   (:require [hyperfiddle.detest :as dt]
             [hyperfiddle.incseq :as i]
-            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.stateful-diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
             [clojure.set :as set]
             [contrib.assert :as ca]

@@ -44,9 +44,6 @@
 (defn fastest [& args]
   (m/absolve (apply m/race (map m/attempt args))))
 
-(defn subject->events [subject]
-  (r/batch conj [] (m/sp) (m/observe subject)))
-
 (def run-local
   (letfn [(subject [^objects state slot]
             (fn [cb] (aset state slot cb) #()))
@@ -63,14 +60,14 @@
       (let [state (doto (object-array 4)
                     (aset 0 (m/mbx))                        ;; client->server
                     (aset 1 (m/mbx)))                       ;; server->client
-            peer (r/make-peer* :client {} (subject->events (subject state 2)) defs main nil)]
+            root (r/make-root :client defs main nil)]
         (fastest
-          (m/reduce (constantly nil) (m/zip {} result-sample-clock (r/peer-root peer)))
+          (m/reduce (constantly nil) (m/zip {} result-sample-clock (r/frame-result root)))
           ;; client process. Pushes its events into mbx at idx 0. Registers callback at idx 2
-          (writer state 0 client-writer-clock (r/peer-events peer))
+          (writer state 0 client-writer-clock (r/root-socket root {} (subject state 2)))
           ;; server process. Pushes its events into mbx at idx 1. Registers callback at idx 3
           (writer state 1 server-writer-clock
-            (r/peer-events (r/make-peer* :server {} (subject->events (subject state 3)) defs main nil)))
+            (r/root-socket (r/make-root :server defs main nil) {} (subject state 3)))
           ;; polls the client->server mailbox and pushes values in the server callback
           (writer state 3 server-reader-clock (reader state 0))
           ;; polls the server->client mailbox and pushes values in the client callback
@@ -208,27 +205,21 @@
         (writer [^objects state slot events]
           (m/ap (let [cb (ca/is (aget state slot))] (cb (m/?> events)))))]
   (defn local-flow [ngn defs main]
-    ;; TOOD
-    #_
-    (m/ap
-      (m/amb=
-        (m/? (m/join (constantly nil)))
-        (m/?> (r/peer-root c))))
     (m/ap
       (let [state (doto (object-array 4) (aset 0 (m/mbx)) (aset 1 (m/mbx)))
-            c (r/make-peer* :client {} (subject->events (subject state 2)) defs main nil)
-            s (r/make-peer* :server {} (subject->events (subject state 3)) defs main nil)
-            _ (m/?> (drain (writer state 0 (clocked ngn 'client-writer (r/peer-events c)))))
-            _ (m/?> (drain (writer state 1 (clocked ngn 'server-writer (r/peer-events s)))))
+            c (r/make-root :client defs main nil)
+            s (r/make-root :server defs main nil)
+            _ (m/?> (drain (writer state 0 (clocked ngn 'client-writer (r/root-socket c {} (subject state 2))))))
+            _ (m/?> (drain (writer state 1 (clocked ngn 'server-writer (r/root-socket s {} (subject state 3))))))
             _ (m/?> (drain (writer state 2 (clocked ngn 'client-reader (reader state 1)))))
             _ (m/?> (drain (writer state 3 (clocked ngn 'server-reader (reader state 0)))))]
-        (m/?> (r/peer-root c))))))
+        (m/?> (r/frame-result c))))))
 
 (defmacro local-ngn {:style/indent 2} [conf ngn & body]
   `(local-flow ~ngn (main ~conf ~@body) ::Main))
 
 (defn run-single [defs main]
-  (r/peer-sink (r/make-peer :client {} nil defs main nil)))
+  (r/sink (r/frame-result (r/make-root :client defs main nil))))
 
 (defmacro single {:style/indent 1} [conf & body]
   (with-meta `(run-single (main ~conf ~@body) ::Main) (meta &form)))

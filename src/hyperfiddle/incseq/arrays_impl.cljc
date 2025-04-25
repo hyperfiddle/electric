@@ -1,8 +1,13 @@
 (ns hyperfiddle.incseq.arrays-impl
-  (:refer-clojure :exclude [int-array]))
+  (:refer-clojure :exclude [int-array long-array]))
 
 (defn int-array ^ints [n]
   #?(:clj (make-array Integer/TYPE n)
+     :cljs (let [a (make-array n)]
+             (dotimes [i n] (aset a i 0)) a)))
+
+(defn long-array ^longs [n]
+  #?(:clj (make-array Long/TYPE n)
      :cljs (let [a (make-array n)]
              (dotimes [i n] (aset a i 0)) a)))
 

@@ -4,7 +4,7 @@
    [contrib.assert :as ca]
    [contrib.debug :as dbg]
    [contrib.data :refer [->box]]
-   [hyperfiddle.incseq.diff-impl :as d]
+   [hyperfiddle.incseq.stateful-diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items]
    [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
    [missionary.core :as m])

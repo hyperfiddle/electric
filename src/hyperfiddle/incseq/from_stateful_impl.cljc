@@ -1,6 +1,6 @@
-(ns hyperfiddle.incseq.items-impl
+(ns hyperfiddle.incseq.from-stateful-impl
   (:require [hyperfiddle.incseq.perm-impl :as p]
-            [hyperfiddle.incseq.diff-impl :as d])
+            [hyperfiddle.incseq.diff-impl :as s])
   (:import #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.util.concurrent.locks ReentrantLock))
            missionary.Cancelled))
@@ -149,25 +149,17 @@
         (let [{:keys [grow degree shrink permutation change freeze]} @(aget parent slot-input)
               ^objects buffer (ensure-capacity parent degree)
               created (range (- degree grow) degree)
-              iperm (p/inverse permutation)
-              indices (into #{} (map (fn [i] (iperm i i))) created)]
+              iperm (p/inverse permutation)]
           (reduce create-item parent created)
           (p/decompose apply-cycle buffer permutation)
           (reduce detach buffer (range (- degree shrink) degree))
           (reduce-kv propagate-change buffer change)
           (reduce propagate-freeze buffer freeze)
-          (let [diff {:grow        grow
-                      :degree      degree
-                      :shrink      shrink
-                      :permutation permutation
-                      :change      (reduce
-                                     (fn [m i]
-                                       (assoc m i (get-cursor (aget buffer i))))
-                                     {} indices)
-                      :freeze      indices}]
+          (let [diff (s/diff (into [] (map (fn [i] (get-cursor (aget buffer (iperm i i)))))
+                               (range (- degree grow) degree)) degree shrink iperm)]
             (aset parent slot-diff
               (if-some [d (aget parent slot-diff)]
-                (d/combine d diff) diff))))
+                (s/combine d diff) diff))))
         (catch #?(:clj Throwable :cljs :default) e
           (aset parent slot-input nil)
           (aset parent slot-diff e)))

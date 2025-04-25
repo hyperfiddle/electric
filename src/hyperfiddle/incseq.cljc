@@ -37,10 +37,13 @@ successive sequence diffs. Incremental sequences are applicative functors with `
 `latest-concat`.
 "} hyperfiddle.incseq
   (:refer-clojure :exclude [cycle count])
-  (:require [hyperfiddle.incseq.fixed-impl :as f]
-            [hyperfiddle.incseq.perm-impl :as p]
-            [hyperfiddle.incseq.diff-impl :as d]
+  (:require [hyperfiddle.incseq.perm-impl :as p]
+            [hyperfiddle.incseq.stateful-diff-impl :as sd]
             [hyperfiddle.incseq.items-eager-impl :as i]
+            [hyperfiddle.incseq.from-stateful-impl :as fs]
+            [hyperfiddle.incseq.to-stateful-impl :as ts]
+            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.product-impl :as prod]
             [hyperfiddle.incseq.latest-product-impl :as lp]
             [hyperfiddle.incseq.latest-concat-impl :as lc]
             [hyperfiddle.rcf :refer [tests]]
@@ -135,12 +138,12 @@ Reconstructs the permutation defined by given set of disjoint cycles.
 
 (def empty-diff "
 Return the empty diff for `n`-item collection.
-" d/empty-diff)
+" sd/empty-diff)
 
 
 (def empty-diff? "
 Predicate for empty diffs.
-" d/empty-diff?)
+" sd/empty-diff?)
 
 
 (defn ->seq-differ [kf]
@@ -248,17 +251,24 @@ Returns a flow producing the successive diffs of given continuous flow of collec
 
 (def ^{:doc "
 Returns the application of diff `d` to vector `v`.
-"} patch-vec d/patch-vec)
+"} patch-vec sd/patch-vec)
+
 
 (def ^{:doc "
 Returns the diff applying given diffs successively.
-"} combine d/combine)
+"} combine sd/combine)
+
+
+(defn static [xs] (m/reductions {} (d/diff xs (cc/count xs) 0 {}) m/none))
 
 
 (def ^{:doc "
 Returns the incremental sequence defined by the fixed collection of given continuous flows.
 A collection is fixed iff its size is invariant and its items are immobile.
-"} fixed (comp #(mu/wrap-incseq `fixed %) f/flow))
+"} fixed (comp #(mu/wrap-incseq `fixed %) ts/flow static vector))
+
+
+(def ^{:arglists '([f & incseqs])} product prod/flow)
 
 
 (def ^{:arglists '([f & incseqs])
@@ -574,6 +584,8 @@ optional `compare` function, `clojure.core/compare` by default.
                              :freeze      #{}})))))))))))))))
 
 (def ^{:arglists '([incseq])} items (comp #(mu/wrap-incseq `items %) i/flow))
+(def ^{:arglists '([incseq])} from-stateful fs/flow)
+(def ^{:arglists '([incseq])} to-stateful ts/flow)
 
 (def ^{:arglists '([incseq])
        :doc "

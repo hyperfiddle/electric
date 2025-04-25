@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric.impl.mount-point-test
   (:require [hyperfiddle.incseq :as i]
-            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.stateful-diff-impl :as d]
             [missionary.core :as m]
             [hyperfiddle.kvs :as kvs]
             [hyperfiddle.electric.impl.runtime3 :as r]
@@ -35,13 +35,12 @@
 
 (deftest sibling-tags
   (let [q (queue)
-        _ (r/make-peer :client {} nil
+        f (r/make-root :client
             {:root (fn ([] {0 (r/ctor :root 0)})
                      ([idx]
                       (case idx
-                        0 (r/cdef 0 [] [nil nil nil] nil (fn [frame] (q frame) (r/pure nil))))))}
+                        0 (r/cdef 0 [] [nil nil nil] nil (fn [_] (r/pure nil))))))}
             :root nil)
-        f (q)
         mp (doto (mp/create (r/frame-peer f))
              (kvs/insert! (r/tag f 0) :foo)
              (kvs/insert! (r/tag f 1) :bar)
@@ -79,13 +78,12 @@
 
 (deftest sibling-tags-insert-after-read
   (let [q (queue)
-        _ (r/make-peer :client {} nil
+        f (r/make-root :client
             {:root (fn ([] {0 (r/ctor :root 0)})
                      ([idx]
                       (case idx
-                        0 (r/cdef 0 [] [nil nil] nil (fn [frame] (q frame) (r/pure nil))))))}
+                        0 (r/cdef 0 [] [nil nil] nil (fn [_] (r/pure nil))))))}
             :root nil)
-        f (q)
         mp (mp/create (r/frame-peer f))
         ps (mp #(q :step) #(q :done))]
     (is (= (q) :step))
@@ -104,31 +102,30 @@
 (deftest cousin-tags-insert-after-read
   (let [q (queue)
         _ ((m/reduce (constantly nil)
-             (r/peer-root
-               (r/make-peer :client {} nil
-                 {:root (fn ([] {0 (r/ctor :root 0)})
-                          ([idx]
-                           (case idx
-                             0 (r/cdef 0 [] [nil] nil
-                                 (fn [frame]
-                                   (q frame)
-                                   (r/define-call frame 0
-                                     (r/effect (m/observe
-                                                 (fn [!]
-                                                   (! {:grow        2
-                                                       :degree      2
-                                                       :shrink      0
-                                                       :permutation {}
-                                                       :change      {0 (r/ctor :root 1)
-                                                                     1 (r/ctor :root 1)}
-                                                       :freeze      #{}})
-                                                   #(q :dispose)))))
-                                   (r/call frame 0)))
-                             1 (r/cdef 0 [] [nil] nil
-                                 (fn [frame]
-                                   (q frame)
-                                   (r/pure nil))))))}
-                 :root nil))) {} {})
+             (r/make-root :client
+               {:root (fn ([] {0 (r/ctor :root 0)})
+                        ([idx]
+                         (case idx
+                           0 (r/cdef 0 [] [nil] nil
+                               (fn [frame]
+                                 (q frame)
+                                 (r/define-call frame 0
+                                   (r/effect (m/observe
+                                               (fn [!]
+                                                 (! {:grow        2
+                                                     :degree      2
+                                                     :shrink      0
+                                                     :permutation {}
+                                                     :change      {0 (r/ctor :root 1)
+                                                                   1 (r/ctor :root 1)}
+                                                     :freeze      #{}})
+                                                 #(q :dispose)))))
+                                 (r/call frame 0)))
+                           1 (r/cdef 0 [] [nil] nil
+                               (fn [frame]
+                                 (q frame)
+                                 (r/pure nil))))))}
+               :root nil)) {} {})
         f (q)
         f1 (q)
         f2 (q)
@@ -149,32 +146,29 @@
 
 (deftest add-item-in-parent-frame
   (let [q (queue)
-        _ ((m/reduce {} nil
-             (r/peer-root
-               (r/make-peer :client {} nil
-                 {:root (fn ([] {0 (r/ctor :root 0)})
-                          ([idx]
-                           (case idx
-                             0 (r/cdef 0 [] [nil nil] nil
-                                 (fn [frame]
-                                   (q frame)
-                                   (r/define-call frame 0
-                                     (r/effect (m/observe
-                                                 (fn [!]
-                                                   (! {:grow        1
-                                                       :degree      1
-                                                       :shrink      0
-                                                       :permutation {}
-                                                       :change      {0 (r/ctor :root 1)}
-                                                       :freeze      #{}})
-                                                   #(q :dispose)))))
-                                   (r/call frame 0)))
-                             1 (r/cdef 0 [] [nil] nil
-                                 (fn [frame]
-                                   (q frame)
-                                   (r/pure nil))))))}
-                 :root nil))) q q)
-        root (q)
+        root (r/make-root :client
+               {:root (fn ([] {0 (r/ctor :root 0)})
+                        ([idx]
+                         (case idx
+                           0 (r/cdef 0 [] [nil nil] nil
+                               (fn [frame]
+                                 (r/define-call frame 0
+                                   (r/effect (m/observe
+                                               (fn [!]
+                                                 (! {:grow        1
+                                                     :degree      1
+                                                     :shrink      0
+                                                     :permutation {}
+                                                     :change      {0 (r/ctor :root 1)}
+                                                     :freeze      #{}})
+                                                 #(q :dispose)))))
+                                 (r/call frame 0)))
+                           1 (r/cdef 0 [] [nil] nil
+                               (fn [frame]
+                                 (q frame)
+                                 (r/pure nil))))))}
+               :root nil)
+        _ ((m/reduce {} nil (r/frame-result root)) q q)
         child (q)
         mp (doto (mp/create (r/frame-peer root))
              (kvs/insert! (r/tag root 1) 3)

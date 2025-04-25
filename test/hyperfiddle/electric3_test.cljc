@@ -2533,113 +2533,6 @@
                                (GetX))))) tap tap)
     % := 1))
 
-(tests
-  (let [!x (atom true)
-        clocks (atom {})
-        clock (fn [k]
-                (m/observe
-                  (fn [!]
-                    (swap! clocks assoc k !)
-                    #(swap! clocks dissoc k))))
-        tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
-                      ::lang/client-writer-clock (clock :client-writer)
-                      ::lang/server-reader-clock (clock :server-reader)
-                      ::lang/server-writer-clock (clock :server-writer)}
-              (if (e/watch !x) (e/server (tap :branch)) (tap :unmount)))
-            tap tap)]
-    (tick :client-writer)
-    (tick :server-writer)
-    (tick :client-reader)
-    (tick :server-reader)
-    (tick :client-reader)
-    (tick :server-reader)
-    (tick :server-writer)
-    % := :branch
-    (tick :client-writer)
-    (swap! !x not)
-    % := :unmount
-    (tick :client-writer)
-    (swap! !x not)
-    (tick :server-reader)
-    (tick :client-reader)
-    (tick :server-writer)
-    (tick :client-writer)
-    (tap :done), % := :done
-    (ps)))
-
-(tests "server-for-client-body"
-  (let [!x (atom 1)
-        clocks (atom {})
-        clock (fn [k]
-                (m/observe
-                  (fn [!]
-                    (swap! clocks assoc k !)
-                    #(swap! clocks dissoc k))))
-        tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
-                      ::lang/client-writer-clock (clock :client-writer)
-                      ::lang/server-reader-clock (clock :server-reader)
-                      ::lang/server-writer-clock (clock :server-writer)}
-              (e/server
-                (e/for [x (e/diff-by {} (range (e/watch !x)))]
-                  (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
-            tap tap)]
-    (tick :client-writer)
-    (tick :server-writer)
-    (tick :client-reader)
-    (tick :server-reader)
-    % := 0
-    (swap! !x dec)
-    (tick :client-writer)
-    (tick :client-writer)
-    (tick :server-writer)
-    (tick :client-reader)
-    % := [:bye 0]
-    (tap :done), % := :done
-    (ps)))
-
-(tests "server-for-client-body-2"
-  (let [!x (atom 1)
-        clocks (atom {})
-        clock (fn [k]
-                (m/observe
-                  (fn [!]
-                    (swap! clocks assoc k !)
-                    #(swap! clocks dissoc k))))
-        tick (fn [k] ((@clocks k) nil))
-        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
-                      ::lang/client-writer-clock (clock :client-writer)
-                      ::lang/server-reader-clock (clock :server-reader)
-                      ::lang/server-writer-clock (clock :server-writer)}
-              (e/server
-                (e/for [x (e/diff-by {} (range (e/watch !x)))]
-                  (e/client (r/do! (tap x) (e/on-unmount #(tap [:bye x])))))))
-            tap tap)]
-    (tick :client-writer)
-    (tick :server-writer)
-    (tick :client-reader)
-    (tick :server-reader)
-    (tick :client-writer)
-    (tick :client-reader)
-    % := 0
-    (swap! !x dec)
-    (tick :server-reader)
-    (tick :client-writer)
-    (tick :server-reader)
-    (tick :server-writer)
-    (tick :client-writer)               ; dies, clock no longer present
-    % := [:bye 0]
-    (swap! !x inc)
-    (tick :client-reader)
-    (tick :server-writer)
-    (tick :client-reader)
-    (tick :server-writer)
-    (tick :server-writer)
-    (tick :client-reader)
-    % := 0
-    (tap :done), % := :done))
-
 (tests "unbundled case"
   (with ((l/single {} (tap (e/call_ (e/case_ 1 0 :zero 1 :one #_else :none)))) {} {})
     % := :one)
@@ -2682,11 +2575,13 @@
               (e/for [x (e/diff-by {} (range (e/watch !x)))]
                 (e/server (tap x)))) tap tap)]
     (tick :server-reader)
+    (tick :server-reader)
+    (tick :server-reader)
     % := 0
     (swap! !x dec)
     (tick :server-reader)
-    (tick :server-reader)
     (swap! !x inc)
+    (tick :server-reader)
     (tick :server-reader)
     % := 0))
 
@@ -2746,14 +2641,11 @@
                     (tap y)
                     (tap [(e/server (identity z)) y])))))
             tap tap)]
-    % := [:foo 0]
-    % := 0
+    (hash-set % %) := #{0 [:foo 0]}
     (swap! !x not)
-    % := [:foo 0]
-    % := 0
+    (hash-set % %) := #{0 [:foo 0]}
     (swap! !y inc)
-    % := [:foo 1]
-    % := 1
+    (hash-set % %) := #{1 [:foo 1]}
     (ps)))
 
 (tests "work skipping on application result"
@@ -2943,3 +2835,19 @@
 ;;   (with ((l/single {} (tap (e/Task (m/sleep 10 :bye) :hi))) tap tap)
 ;;     % := :hi
 ;;     % := :bye))
+
+(tests
+  "conditional glitch"
+  (let [!r (atom true)]
+    (with
+      ((l/local {}
+         (e/client
+           (let [r (e/watch !r)
+                 _nil (tap ['not-false r])
+                 F (e/fn [] _nil)]
+             (if r (e/server (F))))))
+       tap tap)
+      % := ['not-false true]
+      (reset! !r false)
+      (tap :done)
+      % := :done)))

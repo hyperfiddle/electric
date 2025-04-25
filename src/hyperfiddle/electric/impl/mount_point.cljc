@@ -37,7 +37,7 @@ Mounting a block generates a grow for each active item having this block's frame
 " (:require [hyperfiddle.kvs :refer [KVS] :as kvs]
             [hyperfiddle.incseq.arrays-impl :as a]
             [hyperfiddle.incseq.fixed-impl :as f]
-            [hyperfiddle.incseq.diff-impl :as d]
+            [hyperfiddle.incseq.stateful-diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
             [hyperfiddle.electric.impl.missionary-util :as mu]
             [hyperfiddle.electric.impl.runtime3 :as r])
@@ -323,12 +323,11 @@ Mounting a block generates a grow for each active item having this block's frame
         (aset buffer i block))) call))
 
 (defn call-spawn [^objects call]
-  (let [^objects reader (aget call call-slot-reader)
-        ^objects state (aget reader reader-slot-state)]
+  (let [^objects reader (aget call call-slot-reader)]
     (aset reader reader-slot-alive
       (inc (aget reader reader-slot-alive)))
     (let [ps ((if-some [slot (call-slot call)]
-                (r/incseq (r/peer-root (aget state slot-peer)) slot)
+                (r/incseq slot)
                 (f/flow (r/invariant (aget ^objects (aget call call-slot-children) block-slot-frame))))
               #(let [^objects reader (aget call call-slot-reader)
                      ^objects state (aget reader reader-slot-state)

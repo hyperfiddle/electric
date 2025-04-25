@@ -5,29 +5,29 @@
             [hyperfiddle.electric.impl.lang3 :as l]
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.rcf :as rcf :refer [tests %]])
-  #?(:cljs (:require-macros [hyperfiddle.electric.impl.runtime3-test :refer [peer]])))
+  #?(:cljs (:require-macros [hyperfiddle.electric.impl.runtime3-test :refer [root]])))
 
 (defn on-diff! [cb incseq]
   ((m/reduce (fn [_ d] (cb d) nil) nil incseq)
    cb (fn [e] #?(:clj (.printStackTrace ^Throwable e)
                  :cljs (.error js/console e)))))
 
-(defmacro peer [site subject form]
-  `(r/make-peer* ~site {} (r/batch conj [] (m/sp) (m/observe ~subject))
+(defmacro root [site form]
+  `(r/make-root ~site
      {::Main ~(l/compile ::Main form
                 (assoc (l/normalize-env &env)
                   ::l/peers {:client :clj, :server :clj}))}
      ::Main nil))
 
 (tests
-  (on-diff! rcf/tap (r/peer-root (peer :client nil "hello electric")))
+  (on-diff! rcf/tap (r/frame-result (root :client "hello electric")))
   % := {:grow 1, :degree 1, :shrink 0, :permutation {}, :change {0 "hello electric"}, :freeze #{0}}
   % := nil)
 
 #?(:clj ; FIXME fails in cljs
    (tests
      (def !x (atom :foo))
-     (on-diff! rcf/tap (r/peer-root (peer :client nil (e/watch !x))))
+     (on-diff! rcf/tap (r/frame-result (root :client (e/watch !x))))
      % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 :foo}, :freeze #{}}
      (reset! !x :bar)
      % := {:degree 1, :permutation {}, :grow 0, :shrink 0, :change {0 :bar}, :freeze #{}}))
@@ -36,8 +36,8 @@
    (tests
      (def !x (atom false))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (if (e/watch !x) "foo" "bar"))))
      % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 "bar"}, :freeze #{0}}
      (swap! !x not)
@@ -47,8 +47,8 @@
    (tests
      (def !bar (atom :bar))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/amb :foo (e/watch !bar) :baz))))
      % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 :foo, 1 :bar, 2 :baz}, :freeze #{0 2}}
      (reset! !bar :BAR)
@@ -58,8 +58,8 @@
    (tests
      (def !xs (atom [0 1 2]))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/diff-by identity (e/watch !xs)))))
      % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 1, 2 2}, :freeze #{}}
      (swap! !xs conj 3)
@@ -69,8 +69,8 @@
    (tests
      (def !xs (atom [0 1 2]))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/cursor [x (e/diff-by identity (e/watch !xs))] (+ x x)))))
      % := {:degree 3, :permutation {}, :grow 3, :shrink 0, :change {0 0, 1 2, 2 4}, :freeze #{}}
      (swap! !xs conj 3)
@@ -82,8 +82,8 @@
      (def !fizz (atom "Fizz"))
      (def !buzz (atom "Buzz"))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/client
              (let [fizz (e/watch !fizz) ; i/fixed + m/watch + e/join
                    buzz (e/watch !buzz)
@@ -110,8 +110,8 @@
        (atom [{:kind "cow" :personality "stoic"}
               {:kind "horse" :personality "skittish"}]))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (let [ks #{:kind}]
              (e/cursor [animal (e/diff-by identity (e/watch !animals))
                         personality (e/diff-by identity (e/watch !personalities))]
@@ -132,8 +132,8 @@
      (def !x (atom "hello"))
      (def !y (atom "electric"))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/as-vec (e/amb (e/watch !x) (e/watch !y))))))
      % := {:degree 1, :permutation {}, :grow 1, :shrink 0, :change {0 ["hello" "electric"]}, :freeze #{}}
      (reset! !y "world")
@@ -143,8 +143,8 @@
    (tests
      (def !n (atom 3))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/for-by identity [x (range (e/watch !n))
                                y (range x)]
              [x y]))))
@@ -156,8 +156,8 @@
    (tests
      (def !x (atom 0))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (e/drain (rcf/tap (e/watch !x))))))
      % := 0
      % := {:degree 0, :permutation {}, :grow 0, :shrink 0, :change {}, :freeze #{}}
@@ -168,8 +168,8 @@
    (tests
      (def !x (atom 0))
      (on-diff! rcf/tap
-       (r/peer-root
-         (peer :client nil
+       (r/frame-result
+         (root :client
            (let [Foo (e/fn [x] (e/fn [] x))
                  x (e/watch !x)]
              (= (e/$ Foo x) (e/$ Foo x))))))
@@ -178,21 +178,54 @@
 
 #?(:clj                                 ; FIXME fails in cljs
    (tests
-     (def client (peer :client
-                   (fn [!]
-                     (def s->c !)
-                     #(prn :dispose))
-                   (rcf/tap (e/server (identity :foo)))))
-     (def server (peer :server
-                   (fn [!]
-                     (def c->s !)
-                     #(prn :dispose))
-                   (rcf/tap (e/server (identity :foo)))))
-     (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
-     (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
+     (def client (root :client (rcf/tap (e/server (identity :foo)))))
+     (def server (root :server (rcf/tap (e/server (identity :foo)))))
+     (def r-ps ((m/reduce (constantly nil) (r/frame-result client)) {} {}))
+     (def c-ps ((r/root-socket client {}
+                  (fn [!]
+                    (def s->c !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-c)
+                #(prn :done-c)))
      % := :step-c
-     (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
+     (def s-ps ((r/root-socket server {}
+                  (fn [!]
+                    (def c->s !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-s)
+                #(prn :done-s)))
      (c->s @c-ps)
+     % := :step-s
+     (s->c @s-ps)
+     % := :step-s
+     (s->c @s-ps)
+     (hash-set % % %) := #{:foo :step-c :step-s}
+     (s->c @s-ps)
+     (c->s @c-ps)
+     % := :step-c
+     (c->s @c-ps)))
+
+#?(:clj ; FIXME fails in cljs
+   (tests
+     (def client (root :client (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
+     (def server (root :server (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
+     (def r-ps ((m/reduce (constantly nil) (r/frame-result client)) {} {}))
+     (def c-ps ((r/root-socket client {}
+                  (fn [!]
+                    (def s->c !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-c)
+                #(prn :done-c)))
+     % := :step-c
+     (def s-ps ((r/root-socket server {}
+                  (fn [!]
+                    (def c->s !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-s)
+                #(prn :done-s)))
+     (c->s @c-ps)
+     % := :step-s
+     (s->c @s-ps)
      % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{:foo :step-c :step-s}
@@ -205,104 +238,93 @@
 
 #?(:clj ; FIXME fails in cljs
    (tests
-     (def client (peer :client
-                   (fn [!]
-                     (def s->c !)
-                     #(prn :dispose))
-                   (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
-     (def server (peer :server
-                   (fn [!]
-                     (def c->s !)
-                     #(prn :dispose))
-                   (rcf/tap (e/client (e/$ (e/server (e/fn [] :foo)))))))
-     (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
-     (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
+     (def client (root :client (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
+     (def server (root :server (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
+     (def r-ps ((m/reduce (constantly nil) (r/frame-result client)) {} {}))
+     (def c-ps ((r/root-socket client {}
+                  (fn [!]
+                    (def s->c !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-c)
+                #(prn :done-c)))
      % := :step-c
-     (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
+     (def s-ps ((r/root-socket server {}
+                  (fn [!]
+                    (def c->s !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-s)
+                #(prn :done-s)))
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
-     (hash-set % % %) := #{:foo :step-c :step-s}
-     (s->c @s-ps)
-     (c->s @c-ps)
-     % := :step-c
-     (c->s @c-ps)
-     % := :step-s
-     (s->c @s-ps)))
-
-#?(:clj ; FIXME fails in cljs
-   (tests
-     (def client (peer :client
-                   (fn [!]
-                     (def s->c !)
-                     #(prn :dispose))
-                   (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
-     (def server (peer :server
-                   (fn [!]
-                     (def c->s !)
-                     #(prn :dispose))
-                   (rcf/tap (e/client (e/$ (e/server (let [foo :foo] (e/fn [] foo))))))))
-     (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
-     (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(prn :done-c)))
-     % := :step-c
-     (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(prn :done-s)))
-     (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
      (hash-set % %) := #{:step-c :step-s}
      (s->c @s-ps)
      (c->s @c-ps)
-     (hash-set % %) := #{:step-c :step-s}
-     (s->c @s-ps)
-     (hash-set % %) := #{:foo :step-s}
-     (s->c @s-ps)
-     (c->s @c-ps)
      % := :step-c
      (c->s @c-ps)
      % := :step-s
-     (s->c @s-ps)))
+     (s->c @s-ps)
+     % := :step-s
+     (s->c @s-ps)
+     (hash-set % %) := #{:step-c :step-s}
+     (s->c @s-ps)
+     (c->s @c-ps)
+     (hash-set % %) := #{:foo :step-c}
+     (c->s @c-ps)))
 
 #?(:clj ; FIXME fails in cljs
    (tests
-     (def client (peer :client
-                   (fn [!]
-                     (def s->c !)
-                     #(prn :dispose))
-                   (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
-     (def server (peer :server
-                   (fn [!]
-                     (def c->s !)
-                     #(prn :dispose))
-                   (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
-     (def r-ps ((m/reduce (constantly nil) (r/peer-root client)) {} {}))
-     (def c-ps ((r/peer-events client) #(rcf/tap :step-c) #(rcf/tap :done-c)))
+     (def client (root :client (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
+     (def server (root :server (rcf/tap (e/join (e/pure (let [x (e/server (identity 2))] x))))))
+     (def r-ps ((m/reduce (constantly nil) (r/frame-result client)) {} {}))
+     (def c-ps ((r/root-socket client {}
+                  (fn [!]
+                    (def s->c !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-c)
+                #(rcf/tap :done-c)))
      % := :step-c
-     (def s-ps ((r/peer-events server) #(rcf/tap :step-s) #(rcf/tap :done-s)))
+     (def s-ps ((r/root-socket server {}
+                  (fn [!]
+                    (def c->s !)
+                    #(prn :dispose)))
+                #(rcf/tap :step-s)
+                #(rcf/tap :done-s)))
      (c->s @c-ps)
+     % := :step-s
+     (s->c @s-ps)
      % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{2 :step-c :step-s}
      (s->c @s-ps)
      (c->s @c-ps)
      % := :step-c
-     (c->s @c-ps)
-     % := :step-s
-     (s->c @s-ps)))
+     (c->s @c-ps)))
 
 (tests
   (set (keys (r/->defs {:a (fn [_ _] {:b (fn [_ _] {:a (fn [_ _])})})}))) := #{:a :b})
 
 (tests
-  (let [client-peer (peer :client (fn [_]
-                                    (rcf/tap :reader-spawn)
-                                    #(rcf/tap :reader-dispose))
-                      (e/server (identity (e/client (#(throw (ex-info "oops" {})))))))
-        client-writer-ps ((r/peer-events client-peer) #(rcf/tap :writer-step) #(rcf/tap :writer-done))
-        client-root-ps ((r/peer-root client-peer) #(rcf/tap :root-step) #(rcf/tap :root-done))]
+  (let [client-peer (root :client (e/server (identity (e/client (#(throw (ex-info "oops" {})))))))
+        client-writer-ps ((r/root-socket client-peer {}
+                            (fn [_]
+                              (rcf/tap :reader-spawn)
+                              #(rcf/tap :reader-dispose)))
+                          #(rcf/tap :writer-step)
+                          #(rcf/tap :writer-done))
+        client-root-ps ((r/frame-result client-peer)
+                        #(rcf/tap :root-step)
+                        #(rcf/tap :root-done))]
     % := :reader-spawn
-    % := :reader-dispose
     % := :writer-step
     % := :root-step
+    @client-root-ps := (i/empty-diff 0)
+    @client-writer-ps
+    % := :reader-dispose
+    % := :root-step
+    % := :writer-step
     @client-root-ps := (i/empty-diff 0)
     (try @client-writer-ps
          (catch #?(:clj Throwable :cljs :default) _
