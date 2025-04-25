@@ -121,14 +121,12 @@
   (deps [_ rf r site]) ;; emits ports
   (t [_])
   (peephole [_])
-  (flow [_])
   (pp [_]))                                               ;; returns incseq
 
 (extend-protocol Expr
-  #?(:clj Object :cljs default) (t [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r) (pp [x] x)
-  nil                           (t [_]) (peephole [this] this) (flow [this] this) (deps [_ _ r _] r) (pp [x] x))
+  #?(:clj Object :cljs default) (t [_]) (peephole [this] this) (deps [_ _ r _] r) (pp [x] x)
+  nil                           (t [_]) (peephole [this] this) (deps [_ _ r _] r) (pp [x] x))
 
-(defn ->flow [v] (flow v))
 (declare ->is ->cf size-1?)
 
 (deftype Fixed [cf ^:unsynchronized-mutable ^:mutable hash-memo]
@@ -146,7 +144,9 @@
   (t [_] ::fixed)
   (peephole [this] (let [cf2 (peephole cf)] (if (= cf cf2) this (new Fixed cf2 nil))))
   (pp [_] (list 'Fixed (pp cf)))
-  (flow [_] (i/fixed (->flow cf))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((i/fixed cf) step done)))
 
 (defn ->fixed [cf] (->Fixed cf nil))
 
@@ -177,7 +177,9 @@
   (t [_] ::id)
   (peephole [this] this)
   (pp [_] (pp x))
-  (flow [_] x))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    (x step done)))
 
 (deftype CFId [x]
   #?(:clj Object)
@@ -193,7 +195,9 @@
   (t [_] ::cf-id)
   (peephole [this] this)
   (pp [_] (pp x))
-  (flow [_] (->flow x)))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    (x step done)))
 
 (defn ->cf-id [x] (->CFId x))
 
@@ -221,10 +225,11 @@
           this)
         this)))
   (pp [_] (list 'Pure (pp value)))
-  (flow [_]
-    (if (failure? value)
-      (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
-      (i/fixed (invariant value)))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((if (failure? value)
+       (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
+       (i/fixed (invariant value))) step done)))
 
 (defn pure "
 -> (EXPR VOID)
@@ -250,7 +255,9 @@ T T T -> (EXPR T)
   ;; TODO cfjoin peephole?
   (peephole [this] this)
   (pp [_] (list 'CFPure (pp value)))
-  (flow [_] (invariant value)))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((invariant value) step done)))
 
 (defn ->cf-pure [v] (->CFPure v nil))
 
@@ -269,7 +276,9 @@ T T T -> (EXPR T)
   (t [_] ::cf-thunk)
   (peephole [this] this)
   (pp [_] '(CFThunk))
-  (flow [_] (m/cp (thunk))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((m/cp (thunk)) step done)))
 
 (defn ->cf-thunk [thunk] (->CFThunk thunk nil))
 
@@ -332,7 +341,9 @@ T T T -> (EXPR T)
           (->cf-thunk #(apply (invoke-with mt) v*)))
         (if (= in* inputs) this (new CFAp mt in* nil)))))
   (pp [_] (cons 'CFAp (eduction (map pp) inputs)))
-  (flow [_] (apply m/latest (invoke-with mt) (map ->flow inputs))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((apply m/latest (invoke-with mt) inputs) step done)))
 
 (defn ->cf-ap [mt & inputs] (->CFAp mt inputs nil))
 
@@ -360,8 +371,10 @@ T T T -> (EXPR T)
           (->fixed (peephole (apply ->cf-ap mt in*))))
         (if (= in* inputs) this (new Ap mt in* nil)))))
   (pp [_] (cons 'Ap (eduction (map pp) inputs)))
-  (flow [_] (let [in* (mapv ->is inputs)]
-              (apply i/latest-product (invoke-with mt) (mapv ->flow in*)))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((let [in* (mapv ->is inputs)]
+       (apply i/latest-product (invoke-with mt) in*)) step done)))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)
@@ -407,10 +420,12 @@ T T T -> (EXPR T)
   (t [_] ::varargs)
   (peephole [this] this)
   (pp [_] (cons 'Varargs (eduction (map pp) inputs)))
-  (flow [_] (if (some? inputs)
-              (let [in* (mapv ->is inputs)]
-                (apply i/latest-product (as-varargs map?) (mapv ->flow in*)))
-              (i/fixed (invariant nil)))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((if (some? inputs)
+       (let [in* (mapv ->is inputs)]
+         (apply i/latest-product (as-varargs map?) in*))
+       (i/fixed (invariant nil))) step done)))
 
 (defn ->varargs [map? & inputs] (->Varargs map? inputs nil))
 
@@ -444,7 +459,9 @@ T T T -> (EXPR T)
         (->Id (.-value ^Pure in))
         (if (= in input) this (new Join in nil)))))
   (pp [_] (list 'Join (pp input)))
-  (flow [_] (i/latest-concat (->flow (->is input)))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    ((i/latest-concat (->is input)) step done)))
 
 (defn join "
 (EXPR (IS T)) -> (EXPR T)
@@ -496,9 +513,9 @@ T T T -> (EXPR T)
   (deps [_ _ r _] r)
   (t [_] ::unbound)
   (peephole [this] this)
-  (flow [_]
-    (fn [step done]
-      (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str key)))))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [_ step done]
+    (step) (->Failer done (error (str "Unbound electric var lookup - " (pr-str key))))))
 
 (deftype Cdef [frees nodes calls result build])
 
@@ -754,7 +771,9 @@ T T T -> (EXPR T)
   (t [_] ::slot)
   (peephole [this] this)
   (pp [_] (list 'Slot id))
-  (flow [this] (port-flow (slot-port this))))
+  IFn
+  (#?(:clj invoke :cljs -invoke) [this step done]
+    ((port-flow (slot-port this)) step done)))
 
 (defn ->is [x]
   (case (t x)
@@ -877,7 +896,7 @@ T T T -> (EXPR T)
                      iexpr (->is pexpr)]
                  (make-port slot site mt
                    (deps iexpr update-inc {} site)
-                   (->flow iexpr))))]
+                   iexpr)))]
     (aset ^objects (.-nodes frame) (- -1 id) port) nil))
 
 (defn node
@@ -1560,7 +1579,7 @@ T T T -> (EXPR T)
         (fn [!] (! nil)
           (attach-deps peer expr)
           #(detach-deps peer expr)))
-      (->flow expr))))
+      expr)))
 
 (defn frame-result-slot [^Frame frame]
   (let [^objects nodes (.-nodes frame)]
@@ -1598,13 +1617,13 @@ T T T -> (EXPR T)
     (aset call call-slot-port
       (make-port slot site {}
         (deps pexpr update-inc {} site)
-        (->flow pexpr)
+        pexpr
         #_(i/latest-product
           (fn [ctor]
             (let [rank (aget call call-slot-rank)
                   frame (make-frame peer slot rank site ctor)]
               (aset call call-slot-rank (inc rank)) frame))
-          (->flow expr))))
+            expr)))
     (aset call call-slot-rank (identity 0))
     call))
 
