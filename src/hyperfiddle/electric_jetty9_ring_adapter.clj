@@ -116,8 +116,6 @@
                    (log/trace "bytes received" {:length length})
                    ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))}))
 
-(defn build-electric-websocket-middleware [boot-fn] (fn [ring-req] (electric-jetty9-ws-adapter ring-req boot-fn)))
-
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
   connection, with given `code` and `reason`. Use this to cleanly reject a
@@ -147,33 +145,26 @@
   With no middleware
 
   ```clj
-  (electric-jetty9-ws-install jetty-server \"/\" (build-electric-websocket-middleware boot-fn))
+  (electric-jetty9-ws-install jetty-server \"/\" entrypoint)
   ```
 
-  where `boot-fn` is e.g. `(fn [ring-req] (e/boot-server {} electric-starter-app.main/Main (e/server ring-req)))`.
+  where `entrypoint` is e.g. `(fn [ring-req] (e/boot-server {} electric-starter-app.main/Main (e/server ring-req)))`.
 
-  With middleware
-
-  ```clj
-  (electric-jetty9-ws-install jetty-server \"/\"
-    (-> (build-electric-websocket-middleware boot-fn)
-      (ring.middleware.cookies/wrap-cookies)
-      (wrap-reject-stale-client)
-      (ring.middleware.params/wrap-params)))
-  ```
+  Pass `middleware` to enrich the handler with custom middleware.
 
   Passes optional `config` forward to `proxy-ws-handler`.
 "
-  ([jetty-server path ring-middleware] (electric-jetty9-ws-install jetty-server path ring-middleware {}))
-  ([jetty-server path ring-middleware
+  ([jetty-server path entrypoint] (electric-jetty9-ws-install jetty-server path entrypoint identity))
+  ([jetty-server path entrypoint middleware] (electric-jetty9-ws-install jetty-server path entrypoint middleware {}))
+  ([jetty-server path entrypoint middleware
     {:as config :keys [ws-max-idle-time ws-max-text-message-size] :or {ws-max-idle-time 500000 ws-max-text-message-size 65536}}] ; copied from proxy-ws-handler for documentation
    (letfn [(create-websocket-handler [context-path handler]
              (doto (ContextHandler.)
                (.setContextPath context-path) ; matches e.g. "/"
                (.setAllowNullPathInfo false) ; FIXME can we remove this? not sure what it does for just "/". It's really up to the user to canonicalize urls. https://javadoc.jetty.org/jetty-9/org/eclipse/jetty/server/handler/ContextHandler.html#setAllowNullPathInfo(boolean)
                (.setHandler (proxy-ws-handler handler config))))
-           (add-websocket-handler [server path ring-middleware]
-             (let [handlers [(create-websocket-handler path ring-middleware) (.getHandler server)]]
+           (add-websocket-handler [server path handler]
+             (let [handlers [(create-websocket-handler path handler) (.getHandler server)]]
                (.setHandler server (doto (HandlerList.) (.setHandlers (into-array Handler handlers))))))]
      (doto jetty-server
-       (add-websocket-handler path ring-middleware)))))
+       (add-websocket-handler path (middleware (fn [ring-req] (electric-jetty9-ws-adapter ring-req entrypoint))))))))
