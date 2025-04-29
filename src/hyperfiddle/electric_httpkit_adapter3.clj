@@ -74,21 +74,22 @@
 
 (defn httpkit-ws-handler
   "Return a map of HTTPkit-compatible handlers, describing how to start and manage an Electric server process, hooked onto a websocket."
-  [ring-req boot-fn]
-  (let [{:keys [on-open on-close on-ping #_on-pong #_on-error on-message]} (ering/electric-ws-handler ring-req boot-fn)]
-    (-> {:init       (fn [_socket]) ; called pre handshake, no use case
-         :on-open    on-open
-         :on-close   (fn [socket status-code]
-                       (ering/handle-close-status-code ring-req socket (or (STATUS-CODE status-code) status-code))
-                       (on-close socket status-code))
-         :on-ping    on-ping
-         ;; :on-pong    on-pong  ; unsupported by HTTPKit
-         ;; :on-error   on-error ; unsupported by HTTPKit
-         :on-receive on-message}
-      (update-vals
-        (fn [f]
-          (fn [async-channel & args]
-            (apply f (HTTPKitSocket. async-channel) args)))))))
+  ([boot-fn] (httpkit-ws-handler boot-fn nil))
+  ([boot-fn ring-req]
+   (let [{:keys [on-open on-close on-ping #_on-pong #_on-error on-message]} (ering/electric-ws-handler boot-fn ring-req)]
+     (-> {:init       (fn [_socket]) ; called pre handshake, no use case
+          :on-open    on-open
+          :on-close   (fn [socket status-code]
+                        (ering/handle-close-status-code ring-req socket (or (STATUS-CODE status-code) status-code))
+                        (on-close socket status-code))
+          :on-ping    on-ping
+          ;; :on-pong    on-pong  ; unsupported by HTTPKit
+          ;; :on-error   on-error ; unsupported by HTTPKit
+          :on-receive on-message}
+       (update-vals
+         (fn [f]
+           (fn [async-channel & args]
+             (apply f (HTTPKitSocket. async-channel) args))))))))
 
 (defn wrap-electric-websocket
   "An HTTPKit-compatible ring middleware, starting an Electric server program defined by `electric-boot-fn` on websocket connection.
@@ -104,5 +105,5 @@
   (fn [ring-request]
     (if (ws/upgrade-request? ring-request)
       (httpkit/as-channel ring-request
-        (httpkit-ws-handler ring-request electric-boot-fn))
+        (httpkit-ws-handler (partial electric-boot-fn ring-request) ring-request))
       (next-handler ring-request))))
