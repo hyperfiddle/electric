@@ -76,45 +76,46 @@
 
 (defn electric-jetty9-ws-adapter
   "Start and manage an Electric server process hooked onto a websocket."
-  [ring-req boot-fn]
-  (let [state             (object-array 2)
-        on-message-slot   (int 0)
-        on-close-slot     (int 1)
-        keepalive-mailbox (m/mbx)]
-    {:on-connect (fn on-connect [^WebSocketAdapter ws]
-                   (log/debug "WS connect" ring-req)
-                   (.setMaxTextMessageSize (.getPolicy (.getSession ws)) (* 100 1024 1024))  ; Allow large value payloads, temporary.
-                   (aset state on-close-slot
-                     ((m/join (fn [& _])
-                        (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
-                        (write-msgs ws ((boot-fn ring-req) (r/subject-at state on-message-slot)))
-                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send! ws %)))
-                      {} (partial failure ws)))) ; Start Electric process
-     :on-close   (fn on-close [ws status-code reason]
-                   (let [status {:status status-code, :reason reason}]
-                     (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
-                       1000 (log/debug "Client disconnected gracefully" status)
-                       1001 (log/debug "Client navigated away" status)
-                       ;; 1005 is the default close code set by Chrome and FF unless specified.
-                       1005 (log/debug "Client disconnected for an unknown reason (browser default close code)" status)
-                       (log/debug "Client disconnected for an unexpected reason." status))
-                     ((aget state on-close-slot))))
-     :on-error   (fn on-error [ws err]
-                   (log/error err "Websocket error"))
-     :on-ping    (fn on-ping [^WebSocketAdapter ws bytebuffer] ; Send pong and keep connection alive.
-                   (.sendPong (.getRemote (.getSession ws)) bytebuffer)
-                   (keepalive-mailbox nil))
-     :on-pong    (fn on-pong [ws bytebuffer] ; ignore pong, no use case
-                   (log/trace "pong"))
-     :on-text    (fn on-text [^WebSocketAdapter ws text]
-                   (keepalive-mailbox nil)
-                   (log/trace "text received" text)
-                   (when-not (= "HEARTBEAT" text)
-                     ((aget state on-message-slot) text)))
-     :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
-                   (keepalive-mailbox nil)
-                   (log/trace "bytes received" {:length length})
-                   ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))}))
+  ([boot-fn] (electric-jetty9-ws-adapter boot-fn nil))
+  ([boot-fn ring-req] ; optional ring-req is for debugging
+   (let [state             (object-array 2)
+         on-message-slot   (int 0)
+         on-close-slot     (int 1)
+         keepalive-mailbox (m/mbx)]
+     {:on-connect (fn on-connect [^WebSocketAdapter ws]
+                    (log/debug "WS connect" ring-req)
+                    (.setMaxTextMessageSize (.getPolicy (.getSession ws)) (* 100 1024 1024))  ; Allow large value payloads, temporary.
+                    (aset state on-close-slot
+                      ((m/join (fn [& _])
+                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
+                         (write-msgs ws ((boot-fn) (r/subject-at state on-message-slot)))
+                         (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send! ws %)))
+                       {} (partial failure ws)))) ; Start Electric process
+      :on-close   (fn on-close [ws status-code reason]
+                    (let [status {:status status-code, :reason reason}]
+                      (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
+                        1000 (log/debug "Client disconnected gracefully" status)
+                        1001 (log/debug "Client navigated away" status)
+                        ;; 1005 is the default close code set by Chrome and FF unless specified.
+                        1005 (log/debug "Client disconnected for an unknown reason (browser default close code)" status)
+                        (log/debug "Client disconnected for an unexpected reason." status))
+                      ((aget state on-close-slot))))
+      :on-error   (fn on-error [ws err]
+                    (log/error err "Websocket error"))
+      :on-ping    (fn on-ping [^WebSocketAdapter ws bytebuffer] ; Send pong and keep connection alive.
+                    (.sendPong (.getRemote (.getSession ws)) bytebuffer)
+                    (keepalive-mailbox nil))
+      :on-pong    (fn on-pong [ws bytebuffer] ; ignore pong, no use case
+                    (log/trace "pong"))
+      :on-text    (fn on-text [^WebSocketAdapter ws text]
+                    (keepalive-mailbox nil)
+                    (log/trace "text received" text)
+                    (when-not (= "HEARTBEAT" text)
+                      ((aget state on-message-slot) text)))
+      :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
+                    (keepalive-mailbox nil)
+                    (log/trace "bytes received" {:length length})
+                    ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))})))
 
 (defn reject-websocket-handler
   "Will accept socket connection upgrade and immediately close the socket on
@@ -167,4 +168,4 @@
              (let [handlers [(create-websocket-handler path handler) (.getHandler server)]]
                (.setHandler server (doto (HandlerList.) (.setHandlers (into-array Handler handlers))))))]
      (doto jetty-server
-       (add-websocket-handler path (middleware (fn [ring-req] (electric-jetty9-ws-adapter ring-req entrypoint))))))))
+       (add-websocket-handler path (middleware (fn [ring-req] (electric-jetty9-ws-adapter (partial entrypoint ring-req) ring-req))))))))

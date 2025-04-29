@@ -173,50 +173,51 @@
 (defn electric-ws-handler
   "Return a map of generic ring-compliant handlers, describing how to start and manage an Electric server process hooked onto a websocket.
   Extensions (e.g. `hyperfiddle.electric-httpkit-adapter`) can extend the handler map as needed."
-  [ring-req boot-fn]
-  (let [state             (object-array 2)
-        on-message-slot   (int 0)
-        on-close-slot     (int 1)
-        keepalive-mailbox (m/mbx)]
-    {:on-open    (fn on-open [socket]
-                   (log/info "WS connect" ring-req)
-                   (aset state on-close-slot
-                     ((m/join (fn [& _])
-                        (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
-                        (write-msgs socket ((boot-fn ring-req) (r/subject-at state on-message-slot)))
-                        (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL (write-msg socket "HEARTBEAT")))
-                      {} (partial failure socket)))) ; Start Electric process
-     :on-close   (fn on-close [_socket _status-code & [_reason]]
-                   (log/info "WS close")
-                   ((aget state on-close-slot)))
-     :on-error   (fn on-error [_socket err]
-                   (cond
-                     (or (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
-                       (instance? #_org.eclipse.jetty.io.EofException java.io.EOFException err)) ; broken pipe
-                     (log/info "Websocket was closed unexpectedly") ; common in dev
-                     () (log/error err "Websocket error")))
-     :on-ping    (fn on-ping [socket data] ; keep connection alive
-                   (keepalive-mailbox nil))
-     :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
-                   (keepalive-mailbox nil))
-     :on-message (fn on-message [_socket text-or-buff]
-                   (keepalive-mailbox nil)
-                   (let [h (ca/is (aget state on-message-slot) some?
-                             ;; should never happen. A client->server message should not be accepted by the `:on-message` handler if the server is shut down or shutting down.
-                             "electric on-message handler is not available. The electric server process failed to properly shut down *before* receiving the current message. Please report this issue.")]
-                     (if (instance? CharSequence text-or-buff)
-                       (let [text text-or-buff]
-                         (log/trace "text received" text)
-                         (when-not (= "HEARTBEAT" text)
-                           (h text)))
-                       (let [^java.nio.ByteBuffer buff text-or-buff]
-                         (log/trace "bytes received" (- (.limit buff) (.position buff)))
-                         (h buff)))))}))
+  ([boot-fn] (electric-ws-handler boot-fn nil))
+  ([boot-fn ring-req] ; optional ring-req is for debugging
+   (let [state             (object-array 2)
+         on-message-slot   (int 0)
+         on-close-slot     (int 1)
+         keepalive-mailbox (m/mbx)]
+     {:on-open    (fn on-open [socket]
+                    (log/info "WS connect" ring-req)
+                    (aset state on-close-slot
+                      ((m/join (fn [& _])
+                         (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
+                         (write-msgs socket ((boot-fn) (r/subject-at state on-message-slot)))
+                         (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL (write-msg socket "HEARTBEAT")))
+                       {} (partial failure socket)))) ; Start Electric process
+      :on-close   (fn on-close [_socket _status-code & [_reason]]
+                    (log/info "WS close")
+                    ((aget state on-close-slot)))
+      :on-error   (fn on-error [_socket err]
+                    (cond
+                      (or (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
+                        (instance? #_org.eclipse.jetty.io.EofException java.io.EOFException err)) ; broken pipe
+                      (log/info "Websocket was closed unexpectedly") ; common in dev
+                      () (log/error err "Websocket error")))
+      :on-ping    (fn on-ping [socket data] ; keep connection alive
+                    (keepalive-mailbox nil))
+      :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
+                    (keepalive-mailbox nil))
+      :on-message (fn on-message [_socket text-or-buff]
+                    (keepalive-mailbox nil)
+                    (let [h (ca/is (aget state on-message-slot) some?
+                              ;; should never happen. A client->server message should not be accepted by the `:on-message` handler if the server is shut down or shutting down.
+                              "electric on-message handler is not available. The electric server process failed to properly shut down *before* receiving the current message. Please report this issue.")]
+                      (if (instance? CharSequence text-or-buff)
+                        (let [text text-or-buff]
+                          (log/trace "text received" text)
+                          (when-not (= "HEARTBEAT" text)
+                            (h text)))
+                        (let [^java.nio.ByteBuffer buff text-or-buff]
+                          (log/trace "bytes received" (- (.limit buff) (.position buff)))
+                          (h buff)))))})))
 
 (defn ring-ws-handler
   "Return a Ring 1.11+ websocket listener starting and managing an Electric Server process."
-  [ring-req boot-fn]
-  (let [{:keys [on-open on-close on-error on-ping on-pong on-message]} (electric-ws-handler ring-req boot-fn)]
+  [boot-fn ring-req]
+  (let [{:keys [on-open on-close on-error on-ping on-pong on-message]} (electric-ws-handler boot-fn ring-req)]
     {::ws/listener
      (-> {:on-open    on-open
           :on-close   (fn [socket status-code reason]
@@ -247,7 +248,7 @@
   [next-handler entrypoint]
   (fn [ring-request]
     (if (ws/upgrade-request? ring-request)
-      (ring-ws-handler ring-request entrypoint)
+      (ring-ws-handler (partial entrypoint ring-request) ring-request)
       (next-handler ring-request))))
 
 (defn wrap-reject-stale-client
@@ -291,12 +292,12 @@
          {:client-version (pr-str client-version)
           :server-version (pr-str server-version)})
        {::ws/listener (reject-websocket-handler 1008 "stale client")}))) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-  ([next-handler {:keys [:hyperfiddle.fiddle-build/electric-user-version]} on-missmatch]
+  ([next-handler {:keys [:hyperfiddle.fiddle-build/electric-user-version]} on-mismatch]
    (fn [ring-request]
      (if (ws/upgrade-request? ring-request)
        (let [client-version (get-in ring-request [:query-params "ELECTRIC_USER_VERSION"])]
          (cond
            (nil? electric-user-version)    (next-handler ring-request)
            (= client-version electric-user-version) (next-handler ring-request)
-           :else                           (on-missmatch ring-request client-version electric-user-version)))
+           :else                           (on-mismatch ring-request client-version electric-user-version)))
        (next-handler ring-request)))))
