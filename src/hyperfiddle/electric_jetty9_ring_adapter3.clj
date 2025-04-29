@@ -1,4 +1,4 @@
-(ns hyperfiddle.electric-jetty9-ring-adapter
+(ns hyperfiddle.electric-jetty9-ring-adapter3
   "An electric jetty9 adapter suitable for use with the official ring adapter"
   (:require [clojure.tools.logging :as log]
             [missionary.core :as m]
