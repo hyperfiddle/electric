@@ -94,6 +94,15 @@
 (def special? '#{if def fn* do let* loop* letfn* throw try catch finally
                  recur new set! ns deftype* defrecord* . js* & quote case* var ns*})
 
+(defmulti expand-differently (fn [sym _a _ns$ _env _form] sym))
+(defmethod expand-differently :default [_ _ _ _ _] ::no)
+(defmethod expand-differently 'malli.core/=> [_ _ _ _ form] (list 'def (second form)))
+(defmethod expand-differently 'taoensso.encore/defalias [_ a ns$ _ form]
+  (let [[alias src] (if (nnext form) (->> form (drop 1) (take 2)) [nil (second form)])
+        alias (or alias (symbol (name src)))]
+    (when-not (find-macro-var a src ns$)
+      (list 'def alias))))
+
 (defn skip-docstring [args] (cond-> args (string? (first args)) next))
 (defn skip-attr-map [args] (cond-> args (map? (first args)) next))
 (defn skip-inline-opts [args] (cond-> args (keyword? (first args)) (-> nnext recur)))
@@ -110,8 +119,10 @@
       (if (or (special? f) (ls f))
         o
         (if-some [mac (find-macro-var a f ns$)]
-          (let [sym (symbol mac)]
-            (cond (= 'hyperfiddle.rcf/tests sym) nil ; circular, we can skip rcf tests
+          (let [sym (symbol mac)
+                different (expand-differently sym a ns$ env o)]
+            (cond (not= ::no different) different
+                  (= 'hyperfiddle.rcf/tests sym) nil ; circular, we can skip rcf tests
                   (= 'hyperfiddle.electric3/defn sym) `(def ~(first args)) ; circular, don't go deeper
                   (short-circuit-def sym) `(def ~(first args))
                   (declare? sym) `(do ~@(mapv #(list 'def %) args))
