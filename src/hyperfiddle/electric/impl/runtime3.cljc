@@ -18,7 +18,8 @@
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))
            #?(:clj (java.util.concurrent.locks ReentrantLock))))
 
-#?(:clj (set! *warn-on-reflection* true))
+;; turned off until missionary.core/amb= gets an int type hint
+;; #?(:clj (set! *warn-on-reflection* true))
 
 (def reclaim
   "Returns a fresh object. When the object is reclaimed by GC, provided function is called with no argument."
