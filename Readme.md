@@ -27,29 +27,21 @@ Electric is a new way to build rich, interactive web products that simply have t
 
 Our mission is to raise the abstraction ceiling in web development in the same way that managed memory did in the 90s, paving the way for something new.
 
-# Hype quotes
 
-- "The amount of code I don't need to write is staggering"
-- "Actually insane, manually shuttling data between client/server is going to look antiquated real soon"
-- "My god this was easy to write! When you change something, it's just there. The progress I made was ... WOW. And how fast!"
-- "Electric is extraordinary... an entire class of problems have just GONE AWAY with Electric"
-- "Electric lets me do the actual thing I want to do; with everything else I have to do all this stuff that's not even the thing"
-- "I can't imagine building this UI without electric, it would have been so messy"
-- "Pretty new to Electric ... the low LOC for expressing ideas [in Electric] is mind-boggling"
-- "I'm on project three with Electric and have never had so much fun and productivity building web apps"
-- "I’ve gone from I can’t build that.. to building a large chunk of functionality in a day with Electric"
-- "The downside of using the Electric Clojure library is I don’t know if I can build any applications without it now"
-- "This is a paradigm shift similar to garbage collection"
-- "The approach is a breath of fresh air in what appears like a stagnating swamp"
-- "Truly 10x, 100x piece of tech"
-- "I think you're the first to really break through the cruft and propose a real solution to millions of hours of wasted JavaScript programming"
+# Lightning talk – 5 minutes
+
+<div align="center">
+  <a href="https://share.descript.com/view/nJkFVXo15lM" target="_blank">
+    <img alt="lightning talk video" src="./docs/lightning_talk_cover.png" width="480"/>
+  </a>
+</div>
 
 # Tutorial and live examples
 
 - v3 live tutorial: https://electric.hyperfiddle.net/
 - v3 starter app: not yet generally available, [request early access here](https://www.hyperfiddle.net/early-access.html)
 
-# Documentation
+# Talks and essays
 - [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
 - [Talk: Electric Clojure: compiler managed datasync for rich web apps (Getz 2023)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-compiler-managed-datasync-for-rich-web-apps-Getz-2023-e089a8c0caeb456daaf2f9675e3ac4e7)
 - [Talk: UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
