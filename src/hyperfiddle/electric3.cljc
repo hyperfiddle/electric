@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric3
   (:refer-clojure :exclude [fn defn apply letfn for declare])
-  (:require [hyperfiddle.electric.impl.lang3 :as lang]
+  (:require hyperfiddle.electric.impl.missionary-util ; needs to load ASAP for flow/task wrapping
+            [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             #?(:clj [hyperfiddle.electric.impl.entrypoint]) ; TODO rename server-entrypoint
             #?@(:cljs [hyperfiddle.electric-client3], :node nil) ; auto-load electric-client in browser builds. Before users had to remember to require it for side effect at the app entrypoint.
