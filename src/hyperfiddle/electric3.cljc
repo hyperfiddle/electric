@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric3
   (:refer-clojure :exclude [fn defn apply letfn for declare])
-  (:require hyperfiddle.electric.impl.missionary-util ; needs to load ASAP for flow/task wrapping
+  (:require [hyperfiddle.electric.impl.missionary-util :as mu]
             [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             #?(:clj [hyperfiddle.electric.impl.entrypoint]) ; TODO rename server-entrypoint
@@ -536,7 +536,7 @@ Task -> continuous flow. State is [] before task completion, [result] after.
 ;; Continuous flow of thunks -> incseq of 1 item containing result of the latest thunk executed via m/blk, or the empty incseq if it's still pending.
 (cc/defn offload-clear-stale
   ([<f] (offload-clear-stale <f m/blk))
-  ([<f executor] (i/diff-by {} (m/cp (m/?< (task-status (m/via-call executor (m/?< <f))))))))
+  ([<f executor] (i/diff-by {} (m/cp (m/?< (task-status (mu/wrap-task `offload-clear (m/via-call executor (m/?< <f)))))))))
 
 (cc/defn offload-latch-stale
   ([<f] (offload-latch-stale <f m/blk))
@@ -544,7 +544,7 @@ Task -> continuous flow. State is [] before task completion, [result] after.
    (i/diff-by {}
      (m/reductions {} []
        (m/ap
-         (try [(m/? (m/via-call executor (m/?< <f)))]
+         (try [(m/? (mu/wrap-task `offload-latch (m/via-call executor (m/?< <f))))]
               (catch #?(:clj Throwable :cljs :default) e
                 ;; Swallow all exceptions if current Thread is already interrupted - rethrow otherwise.
                 ;; Catching InterruptedException is not enough, because Datomic (at least) will throw a

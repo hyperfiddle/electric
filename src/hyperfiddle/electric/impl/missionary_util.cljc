@@ -153,3 +153,69 @@
 (defn wrap-incseq
   ([nm flow] (wrap-incseq nm flow {}))
   ([nm flow opts] (wrap-flow nm flow (update opts :projections (fnil into []) incseq-checks))))
+
+
+;;;;;;;;;;;
+;; tasks ;;
+;;;;;;;;;;;
+
+;; cancel cannot throw
+
+(defn wrap-task* [nm task {:keys [projections] :as opts}]
+  (if-not (@wrap? nm opts)
+    task
+    (fn [s f]
+      (let [!es (atom (reduce (fn [es p] (apply es/project es p)) es/empty projections))
+            s+ (fn [v]
+                 (swap! !es es/act {:event :success, :t (now-ms), :name nm, :v v})
+                 (let [e (try (s v) nil (catch #?(:clj Throwable :cljs :default) e e))]
+                   (swap! !es es/act (cond-> {:event :succeeded, :t (now-ms), :name nm, :v v} e (assoc :threw e)))
+                   (when e (throw e))))
+            f+ (fn [v]
+                 (swap! !es es/act {:event :fail, :t (now-ms), :name nm, :v v})
+                 (let [e (try (f v) nil (catch #?(:clj Throwable :cljs :default) e e))]
+                   (swap! !es es/act (cond-> {:event :failed, :t (now-ms), :name nm, :v v} e (assoc :threw e)))
+                   (when e (throw e))))]
+        (swap! !es es/act {:event :spawn, :t (now-ms), :name nm})
+        (let [[t cancel] (try [:ok (task s+ f+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
+          (swap! !es es/act (cond-> {:event :spawned, :t (now-ms), :name nm} (= :ex t) (assoc :threw cancel)))
+          (cond-> cancel (= :ex t) throw))))))
+
+(def spawn-cannot-throw
+  [:spawn-cannot-throw nil
+   (fn [_ evt]
+     (when (and (= :spawned (:event evt)) (:threw evt))
+       (throw (ex-info (str "[task-protocol-violation][" (:name evt) "] task spawn cannot throw") {} (:threw evt)))))])
+
+(def success-cannot-throw
+  [:success-cannot-throw nil
+   (fn [_ evt]
+     (when (and (= :succeeded (:event evt)) (:threw evt))
+       (throw (ex-info (str "[task-protocol-violation][" (:name evt) "] task success cannot throw") {} (:threw evt)))))])
+
+(def failure-cannot-throw
+  [:failure-cannot-throw nil
+   (fn [_ evt]
+     (when (and (= :failed (:event evt)) (:threw evt))
+       (throw (ex-info (str "[task-protocol-violation][" (:name evt) "] task failure cannot throw") {} (:threw evt)))))])
+
+(def task-cancel-cannot-throw
+  [:cancel-cannot-throw nil
+   (fn [_ evt]
+     (when (and (= :canceled (:event evt)) (:threw evt))
+       (throw (ex-info (str "[task-protocol-violation][" (:name evt) "] cancel cannot throw") {} (:threw evt)))))])
+
+(def single-shot-continuation
+  [:single-shot-continuation false
+   (fn [called? evt]
+     (case (:event evt)
+       (:success :fail) (if called?
+                          (throw (ex-info (str "[task-protocol-violation][" (:name evt) "] task can only complete once") {}))
+                          true)
+       #_else called?))])
+
+(def task-checks [spawn-cannot-throw success-cannot-throw failure-cannot-throw task-cancel-cannot-throw single-shot-continuation])
+
+(defn wrap-task
+  ([nm task] (wrap-task nm task {}))
+  ([nm task opts] (wrap-task* nm task (update opts :projections (fnil into []) task-checks))))
