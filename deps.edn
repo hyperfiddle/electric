@@ -34,7 +34,9 @@
 
            :test  {:extra-paths ["test"]
                    :exec-fn     cognitect.test-runner.api/test
-                   :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true" "-XX:-OmitStackTraceInFastThrow"] ;; https://archive.md/NNt9r
+                   :jvm-opts    ["-Dhyperfiddle.rcf.generate-tests=true"
+                                 "-Dhyperfiddle.electric.impl.missionary-util.wrap=true"
+                                 "-XX:-OmitStackTraceInFastThrow"] ;; https://archive.md/NNt9r
                    :extra-deps  {org.clojure/core.async               {:mvn/version "1.6.681"} ; for interop helpers only
                                  ch.qos.logback/logback-classic       {:mvn/version "1.4.14"}
                                  io.github.cognitect-labs/test-runner {:git/url "https://github.com/cognitect-labs/test-runner.git" :sha "cc75980b43011773162b485f46f939dc5fba91e4"}
