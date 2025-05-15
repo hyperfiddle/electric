@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric.impl.missionary-util
   #?(:clj (:import [clojure.lang IDeref IFn]))
   (:require [contrib.debug :as dbg]
+            [missionary.core :as m]
             [hyperfiddle.electric.impl.event-store :as es]))
 
 (defn now-ms []
@@ -12,36 +13,37 @@
 
 (defonce wrap? (atom (fn [_nm _opts] wrap)))
 
-(defn wrap-flow [nm flow {:keys [projections] :as opts}]
+(defn wrap-flow [nm flow {:keys [reductions] :as opts}]
   (if-not (@wrap? nm opts)
     flow
     (fn [step done]
-      (let [!es (atom (reduce (fn [es p] (apply es/project es p)) es/empty projections))
+      (let [id (random-uuid)
+            !es (atom (reduce (fn [es p] (apply es/reduct es p)) es/empty reductions))
             step+ (fn []
-                    (swap! !es es/act {:event :step, :t (now-ms), :name nm})
+                    (swap! !es es/act {:event :step, :t (now-ms), :name nm, :id id})
                     (let [e (try (step) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                      (swap! !es es/act (cond-> {:event :stepped, :t (now-ms), :name nm} e (assoc :threw e)))
+                      (swap! !es es/act (cond-> {:event :stepped, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
                       (when e (throw e))))
             done+ (fn []
-                    (swap! !es es/act {:event :do, :t (now-ms), :name nm})
+                    (swap! !es es/act {:event :do, :t (now-ms), :name nm, :id id})
                     (let [e (try (done) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                      (swap! !es es/act (cond-> {:event :done, :t (now-ms), :name nm} e (assoc :threw e)))
+                      (swap! !es es/act (cond-> {:event :done, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
                       (when e (throw e))))
             cancel (do
-                     (swap! !es es/act {:event :spawn, :t (now-ms), :name nm})
+                     (swap! !es es/act {:event :spawn, :t (now-ms), :name nm, :id id})
                      (let [[t v] (try [:ok (flow step+ done+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                       (swap! !es es/act (cond-> {:event :spawned, :t (now-ms), :name nm} (= :ex t) (assoc :threw v)))
+                       (swap! !es es/act (cond-> {:event :spawned, :t (now-ms), :name nm, :id id} (= :ex t) (assoc :threw v)))
                        (cond-> v (= :ex t) throw)))]
         (reify
           IFn (#?(:clj invoke :cljs -invoke) [_]
-                (swap! !es es/act {:event :cancel, :t (now-ms), :name nm})
+                (swap! !es es/act {:event :cancel, :t (now-ms), :name nm, :id id})
                 (let [e (try (cancel) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                  (swap! !es es/act (cond-> {:event :canceled, :t (now-ms), :name nm} e (assoc :threw e)))
+                  (swap! !es es/act (cond-> {:event :canceled, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
                   (when e (throw e))))
           IDeref (#?(:clj deref :cljs -deref) [_]
-                   (swap! !es es/act {:event :transfer, :t (now-ms), :name nm})
+                   (swap! !es es/act {:event :transfer, :t (now-ms), :name nm, :id id})
                    (let [[t v] (try [:ok @cancel] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                     (swap! !es es/act {:event :transferred, :t (now-ms), :name nm, :type t, :v v})
+                     (swap! !es es/act {:event :transferred, :t (now-ms), :name nm, :id id, :type t, :v v})
                      (cond-> v (= :ex t) throw))))))))
 
 (defn log [log-fn] [:log nil #(log-fn %2)])
@@ -139,20 +141,44 @@
                         steps)
        #_else steps))])
 
+(defn flow-transfer-stalled [ms log]
+  [:flow-transfer-stalled nil
+   (fn [dfv evt]
+     (case (:event evt)
+       (:step) (let [dfv (m/dfv)]
+                  ((m/race dfv (m/sp (m/? (m/sleep ms)) (log (str "flow " (:name evt) " taking more than " ms "ms to transfer")))) {} {})
+                  dfv)
+       (:transfer) (dfv nil)
+       #_else dfv))])
+
+(defn flow-cancellation-stalled [ms log]
+  [:flow-cancellation-stalled nil
+   (fn [dfv evt]
+     (case (:event evt)
+       (:cancel) (or dfv
+                   (let [dfv (m/dfv)]
+                     ((m/race dfv (m/sp (m/? (m/sleep ms)) (log (str "flow " (:name evt) " taking more than " ms "ms to terminate after cancellation")))) {} {})
+                     dfv))
+       (:do) (cond-> :complete dfv dfv)
+       #_else dfv))])
+
+(def -stall-ms 2000)
+
 (def uninitialized-checks [step-cannot-throw done-cannot-throw cancel-cannot-throw init-cannot-throw
                            step-after-done step-after-throw double-step double-transfer
-                           done-twice step-in-exceptional-transfer])
+                           done-twice step-in-exceptional-transfer
+                           (flow-transfer-stalled -stall-ms println) (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
 (def initialized-checks (conj uninitialized-checks initialized))
 (def diff? (every-pred :grow :degree :shrink :change :permutation :freeze))
 (def incseq-checks (conj initialized-checks (value-satisfies diff?)))
 
 (defn wrap-uninitialized
   ([nm flow] (wrap-uninitialized nm flow {}))
-  ([nm flow opts] (wrap-flow nm flow (update opts :projections (fnil into []) uninitialized-checks))))
+  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) uninitialized-checks))))
 
 (defn wrap-incseq
   ([nm flow] (wrap-incseq nm flow {}))
-  ([nm flow opts] (wrap-flow nm flow (update opts :projections (fnil into []) incseq-checks))))
+  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) incseq-checks))))
 
 
 ;;;;;;;;;;;
@@ -161,24 +187,25 @@
 
 ;; cancel cannot throw
 
-(defn wrap-task* [nm task {:keys [projections] :as opts}]
+(defn wrap-task* [nm task {:keys [reductions] :as opts}]
   (if-not (@wrap? nm opts)
     task
     (fn [s f]
-      (let [!es (atom (reduce (fn [es p] (apply es/project es p)) es/empty projections))
+      (let [id (random-uuid)
+            !es (atom (reduce (fn [es p] (apply es/reduct es p)) es/empty reductions))
             s+ (fn [v]
-                 (swap! !es es/act {:event :success, :t (now-ms), :name nm, :v v})
+                 (swap! !es es/act {:event :success, :t (now-ms), :name nm, :id id, :v v})
                  (let [e (try (s v) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                   (swap! !es es/act (cond-> {:event :succeeded, :t (now-ms), :name nm, :v v} e (assoc :threw e)))
+                   (swap! !es es/act (cond-> {:event :succeeded, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
                    (when e (throw e))))
             f+ (fn [v]
-                 (swap! !es es/act {:event :fail, :t (now-ms), :name nm, :v v})
+                 (swap! !es es/act {:event :fail, :t (now-ms), :name nm, :id id, :v v})
                  (let [e (try (f v) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                   (swap! !es es/act (cond-> {:event :failed, :t (now-ms), :name nm, :v v} e (assoc :threw e)))
+                   (swap! !es es/act (cond-> {:event :failed, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
                    (when e (throw e))))]
-        (swap! !es es/act {:event :spawn, :t (now-ms), :name nm})
+        (swap! !es es/act {:event :spawn, :t (now-ms), :name nm, :id id})
         (let [[t cancel] (try [:ok (task s+ f+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-          (swap! !es es/act (cond-> {:event :spawned, :t (now-ms), :name nm} (= :ex t) (assoc :threw cancel)))
+          (swap! !es es/act (cond-> {:event :spawned, :t (now-ms), :name nm, :id id} (= :ex t) (assoc :threw cancel)))
           (cond-> cancel (= :ex t) throw))))))
 
 (def spawn-cannot-throw
@@ -214,8 +241,36 @@
                           true)
        #_else called?))])
 
-(def task-checks [spawn-cannot-throw success-cannot-throw failure-cannot-throw task-cancel-cannot-throw single-shot-continuation])
+(defn task-stalled [ms log]
+  [:task-stalled nil
+   (fn [dfv evt]
+     (case (:event evt)
+       (:spawn) (let [dfv (m/dfv)]
+                  ((m/race dfv (m/sp (m/? (m/sleep ms)) (log (str "task " (:name evt) " taking more than " ms "ms to complete")))) {} {})
+                  dfv)
+       (:success :fail) (dfv nil)
+       #_else dfv))])
+
+(defn task-cancellation-stalled [ms log]
+  [:task-cancellation-stalled nil
+   (fn [dfv evt]
+     (case (:event evt)
+       (:cancel) (or dfv
+                   (let [dfv (m/dfv)]
+                     ((m/race dfv (m/sp (m/? (m/sleep ms)) (log (str "task " (:name evt) " taking more than " ms "ms to cancel")))) {} {})
+                     dfv))
+       (:success :fail) (cond-> :complete dfv dfv)
+       #_else dfv))])
+
+(def task-checks [spawn-cannot-throw success-cannot-throw failure-cannot-throw task-cancel-cannot-throw single-shot-continuation
+                  (task-stalled -stall-ms println) (task-cancellation-stalled -stall-ms println)]) ; experimental
 
 (defn wrap-task
   ([nm task] (wrap-task nm task {}))
-  ([nm task opts] (wrap-task* nm task (update opts :projections (fnil into []) task-checks))))
+  ([nm task opts] (wrap-task* nm task (update opts :reductions (fnil into []) task-checks))))
+
+(comment
+  (m/? (wrap-task* 'foo (m/sleep 1000) {:reductions [(task-stalled 500 println)]}))
+  (let [dfv (m/dfv)] (dfv 1))
+
+  )

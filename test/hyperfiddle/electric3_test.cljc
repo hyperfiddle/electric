@@ -2440,16 +2440,16 @@
                   (fn [!]
                     (swap! !clocks assoc k !)
                     #(swap! !clocks dissoc k))))
-        tick (fn [k] ((@!clocks k) nil))]
-    ((l/local {::lang/client-reader-clock (clock :client-reader)
-               ::lang/client-writer-clock (clock :client-writer)
-               ::lang/server-reader-clock (clock :server-reader)
-               ::lang/server-writer-clock (clock :server-writer)}
-       (let [x (e/watch !x)]
-         (when (e/watch !y)
-           (e/server [(identity x)
-                      (when (e/watch !z) x)]))))
-     tap tap)
+        tick (fn [k] ((@!clocks k) nil))
+        ps ((l/local {::lang/client-reader-clock (clock :client-reader)
+                      ::lang/client-writer-clock (clock :client-writer)
+                      ::lang/server-reader-clock (clock :server-reader)
+                      ::lang/server-writer-clock (clock :server-writer)}
+              (let [x (e/watch !x)]
+                (when (e/watch !y)
+                  (e/server [(identity x)
+                             (when (e/watch !z) x)]))))
+            tap tap)]
     (tick :client-writer)
     (tick :server-reader)
     (tick :server-writer)
@@ -2463,8 +2463,8 @@
     (tick :server-writer)
     (tick :client-reader)
     (tick :client-writer)
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests
   (let [!x (atom 0)
@@ -2476,13 +2476,13 @@
                   (fn [!]
                     (swap! clocks assoc k !)
                     #(swap! clocks dissoc k))))
-        tick (fn [k] ((@clocks k) nil))]
-    ((l/local {::lang/client-reader-clock (clock :client)
-               ::lang/server-reader-clock (clock :server)}
-       (let [x (e/server (e/watch !x))]
-         (when (e/watch !y) (identity x))
-         (e/server (when (e/watch !z) (e/client (identity x))))))
-     prn prn)
+        tick (fn [k] ((@clocks k) nil))
+        ps ((l/local {::lang/client-reader-clock (clock :client)
+                      ::lang/server-reader-clock (clock :server)}
+              (let [x (e/server (e/watch !x))]
+                (when (e/watch !y) (identity x))
+                (e/server (when (e/watch !z) (e/client (identity x))))))
+            prn prn)]
     (tick :server)
     (tick :client)
     (tick :server)
@@ -2496,27 +2496,27 @@
     (tick :server)
     (tick :server)
     (tick :client)
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests
-  (let [!switch (atom false)]
-    ((l/local {}
-       (e/server
-         (let [x (e/watch (atom :foo))]
-           (tap (when
-                  (e/client (nil? (if (e/watch !switch) nil x)))
-                  (e/client (e/input (m/reductions {} x
-                                       (m/observe (fn [_]
-                                                    (tap :up)
-                                                    #(tap :down)))))))))))
-     prn prn)
+  (let [!switch (atom false)
+        ps ((l/local {}
+              (e/server
+                (let [x (e/watch (atom :foo))]
+                  (tap (when
+                           (e/client (nil? (if (e/watch !switch) nil x)))
+                         (e/client (e/input (m/reductions {} x
+                                              (m/observe (fn [_]
+                                                           (tap :up)
+                                                           #(tap :down)))))))))))
+            prn prn)]
     % := nil
     (swap! !switch not)
     % := :up
     % := :foo
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (e/defn *x [])
 (e/defn GetX [] *x)
@@ -2558,8 +2558,8 @@
     (tick :client-reader)
     (tick :server-writer)
     (tick :client-writer)
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests "server-for-client-body"
   (let [!x (atom 1)
@@ -2589,7 +2589,8 @@
     (tick :server-writer)
     (tick :client-reader)
     % := [:bye 0]
-    (tap :done), % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests "server-for-client-body-2"
   (let [!x (atom 1)
@@ -2712,7 +2713,8 @@
     (tick :client-reader)
     (tick :client-reader)
     (tick :client-reader)
-    (tick :client-reader)))
+    (tick :client-reader)
+    (ps)))
 
 (tests "reentrant propagation glitch"
   (let [!q (atom true)
@@ -2724,8 +2726,8 @@
             prn prn)]
     % := '[never-false true]
     (reset! !q false)
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests
   (let [!x (atom true)
@@ -2744,41 +2746,42 @@
     % := 0
     (swap! !y inc)
     % := [:foo 1]
-    % := 1))
+    % := 1
+    (ps)))
 
 (tests "work skipping on application result"
-  (let [!start (atom 0)]
-    ((l/local {}
-       (tap
-         (let [start (e/watch !start)
-               !o (atom {}), o (e/watch !o)]
-           (swap! !o assoc :cache start)
-           (swap! !o assoc :stream (e/pure (e/Tap-diffs tap start)))
-           (when (:stream o) (e/join (:stream o))))))
-     tap tap)
+  (let [!start (atom 0)
+        ps ((l/local {}
+              (tap
+                (let [start (e/watch !start)
+                      !o (atom {}), o (e/watch !o)]
+                  (swap! !o assoc :cache start)
+                  (swap! !o assoc :stream (e/pure (e/Tap-diffs tap start)))
+                  (when (:stream o) (e/join (:stream o))))))
+            tap tap)]
     % := nil
     % := {:grow 1, :shrink 0, :degree 1, :permutation {}, :change {0 0}, :freeze #{}}
     % := 0
     (swap! !start inc)
     % := {:grow 0, :shrink 0, :degree 1, :permutation {}, :change {0 1}, :freeze #{}}
     % := 1
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 (tests "mount-point glitch"
-  (let [!b (atom false)]
-    ((l/local {}
-       (let [mp (e/mount-point)]
-         (tap (e/join mp))
-         (e/$ (e/fn [] (kvs/insert! mp (e/tag) :x)))
-         (when (e/watch !b)
-           (kvs/insert! mp (e/tag) :y))))
-     tap tap)
+  (let [!b (atom false)
+        ps ((l/local {}
+              (let [mp (e/mount-point)]
+                (tap (e/join mp))
+                (e/$ (e/fn [] (kvs/insert! mp (e/tag) :x)))
+                (when (e/watch !b)
+                  (kvs/insert! mp (e/tag) :y))))
+            tap tap)]
     % := :x
     (swap! !b not)
     % := :y
-    (tap :done)
-    % := :done))
+    (tap :done), % := :done
+    (ps)))
 
 #?(:clj
    (tests
