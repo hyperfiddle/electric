@@ -175,7 +175,8 @@
 (def uninitialized-checks [#_(log prn) step-cannot-throw done-cannot-throw cancel-cannot-throw init-cannot-throw
                            step-after-done step-after-throw double-step double-transfer
                            done-twice step-in-exceptional-transfer
-                           (flow-transfer-stalled -stall-ms println) (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
+                           #_(flow-transfer-stalled -stall-ms println) ; clogs the clock, revisit after optimizations
+                           (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
 (def initialized-checks (conj uninitialized-checks initialized))
 (def diff? (every-pred :grow :degree :shrink :change :permutation :freeze))
 (def incseq-checks (conj initialized-checks (value-satisfies diff?)))
