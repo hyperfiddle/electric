@@ -167,12 +167,12 @@
    (fn [cancel evt]
      (case (:event evt)
        (:cancel) (or cancel ((m/sp (m/? (m/sleep ms)) (log (str "flow " (:name evt) " taking more than " ms "ms to terminate after cancellation"))) {} {}))
-       (:do) (if cancel (cancel) #())
+       (:do) (do (when cancel (cancel)) #())
        #_else cancel))])
 
 (def -stall-ms 2000)
 
-(def uninitialized-checks [step-cannot-throw done-cannot-throw cancel-cannot-throw init-cannot-throw
+(def uninitialized-checks [#_(log prn) step-cannot-throw done-cannot-throw cancel-cannot-throw init-cannot-throw
                            step-after-done step-after-throw double-step double-transfer
                            done-twice step-in-exceptional-transfer
                            (flow-transfer-stalled -stall-ms println) (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
