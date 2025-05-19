@@ -2,6 +2,7 @@
   (:require
    [clojure.test :as t]
    [contrib.assert :as ca]
+   [contrib.debug :as dbg]
    [contrib.data :refer [->box]]
    [hyperfiddle.incseq.diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items]
@@ -304,26 +305,14 @@
   (let [q                   (->mq)
         _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items               (spawn-ps q)
-        [_in-step _in-done] (q)
+        [_in-step in-done]  (q)
         _                   (t/is (= :items-step (q)))
         diff                @items
         _                   (t/is (= (assoc (d/empty-diff 1) :grow 1) (assoc diff :change {})))
         _                   (items)
+        _                   (in-done)
         _                   (t/is (= :input-cancel (q)))
         _                   (t/is (= :items-step (q)))
-        _                   (t/is (thrown? Cancelled @items))
-        _                   (t/is (= :items-done (q)))
-        _                   (q ::none)
-        _                   (t/is (= ::none (q)))]))
-
-(t/deftest cancellation-stepped
-  (let [q                   (->mq)
-        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
-        items               (spawn-ps q)
-        [_in-step _in-done] (q)
-        _                   (t/is (= :items-step (q)))
-        _                   (items)
-        _                   (t/is (= :input-cancel (q)))
         _                   (t/is (thrown? Cancelled @items))
         _                   (t/is (= :items-done (q)))
         _                   (q ::none)
@@ -453,10 +442,11 @@
                                                      (fn [_ done] (done) (throw (ex-info "boom" {})))]))
         <cancel-fn>         (->box (fn [_step _done]))
         items               (spawn-ps q <transfer-fn> <cancel-fn>)
-        [_in-step _in-done] (q)
+        [_in-step in-done] (q)
         _                   (t/is (= :items-step (q)))
         _                   (t/is (= (d/empty-diff 0) @items))
         _                   (items)
+        _                   (in-done)
         _                   (t/is (= :items-step (q)))
         _                   (t/is (thrown? Cancelled @items)) ; is this OK or should the ExInfo come out
         _                   (t/is (= :items-done (q)))
@@ -475,29 +465,15 @@
         _                   (q ::none)
         _                   (t/is (= ::none (q)))]))
 
-(t/deftest double-cancellation-stepped
-  (let [q                   (->mq)
-        _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
-        items               (spawn-ps q)
-        [_in-step _in-done] (q)
-        _                   (t/is (= :items-step (q)))
-        _                   (items)
-        _                   (t/is (= :input-cancel (q)))
-        _                   (items)
-        _                   (t/is (= :input-cancel (q)))
-        _                   (t/is (thrown? Cancelled @items))
-        _                   (t/is (= :items-done (q)))
-        _                   (q ::none)
-        _                   (t/is (= ::none (q)))]))
-
 (t/deftest double-cancellation-idle
   (let [q                   (->mq)
         _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items               (spawn-ps q)
-        [_in-step _in-done] (q)
+        [_in-step in-done]  (q)
         _                   (t/is (= :items-step (q)))
         _diff               @items
         _                   (items)
+        _                   (in-done)
         _                   (t/is (= :input-cancel (q)))
         _                   (t/is (= :items-step (q)))
         _                   (items)
@@ -511,10 +487,11 @@
   (let [q                   (->mq)
         _                   (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
         items               (spawn-ps q)
-        [_in-step _in-done] (q)
+        [_in-step in-done]  (q)
         _                   (t/is (= :items-step (q)))
         _diff               @items
         _                   (items)
+        _                   (in-done)
         _                   (t/is (= :input-cancel (q)))
         _                   (t/is (= :items-step (q)))
         _                   (t/is (thrown? Cancelled @items))
@@ -698,6 +675,54 @@
         _                  (t/is (= :items-step (q)))
         _                  (t/is (= (assoc (d/empty-diff 1) :shrink 1) @items))
         _                  (item0)
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest late-child-termination
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        <transfer-fn>      (->box (fn [_step _done] (q)))
+        <cancel-fn>        (->box (fn [_step _done] (q :in-canceled)))
+        items              (spawn-ps q <transfer-fn> <cancel-fn>)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _                  (items)
+        _                  (t/is (= :in-canceled (q)))
+        diff               @items
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        _                  (<transfer-fn> (fn [_step done] (done) (throw (new Cancelled))))
+        _                  (in-step)
+        _                  (t/is (= :in-canceled (q)))
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (thrown? Cancelled @items))
+        _                  (t/is (= :items-done (q)))
+        _                  (q ::none)
+        _                  (t/is (= ::none (q)))]))
+
+(t/deftest late-child-termination-double-cancel
+  (let [q                  (->mq)
+        _                  (q (assoc (d/empty-diff 1) :grow 1 :change {0 :foo})) ; what input will return on transfer
+        <transfer-fn>      (->box (fn [_step _done] (q)))
+        <cancel-fn>        (->box (fn [_step _done] (q :in-canceled)))
+        items              (spawn-ps q <transfer-fn> <cancel-fn>)
+        [in-step _in-done] (q)
+        _                  (t/is (= :items-step (q)))
+        _                  (items)
+        _                  (t/is (= :in-canceled (q)))
+        _                  (items)
+        _                  (t/is (= :in-canceled (q)))
+        diff               @items
+        item0              ((-> diff :change (get 0)) #(q :item0-step) #(q :item0-done))
+        _                  (t/is (= :item0-step (q)))
+        _                  (t/is (= :foo @item0))
+        _                  (<transfer-fn> (fn [_step done] (done) (throw (new Cancelled))))
+        _                  (in-step)
+        _                  (t/is (= :in-canceled (q)))
+        _                  (t/is (= :items-step (q)))
+        _                  (t/is (thrown? Cancelled @items))
+        _                  (t/is (= :items-done (q)))
         _                  (q ::none)
         _                  (t/is (= ::none (q)))]))
 

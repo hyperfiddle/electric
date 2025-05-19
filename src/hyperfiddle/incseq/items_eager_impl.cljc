@@ -26,7 +26,7 @@
 (deftype Ps [step done going indone state- #?(:clj lock)]
   IFn (#?(:clj invoke :cljs -invoke) [this]
         (let [step? (locked (.-lock this)
-                      (swap! indone (fn [v] (if (= v ::yes) ::yes ::requested)))
+                      ;; (swap! indone (fn [v] (if (= v ::yes) ::yes ::requested)))
                       (let [cancelled? (a/getset state- -cancelled true)]
                         (not (or (a/getset state- -stepped true) cancelled? (= ::yes @indone)))))]
           (some-> (a/get state- -input-ps) call)
@@ -36,8 +36,8 @@
                                     (a/set state- -stepped false)
                                     [(= ::requested @indone) (a/getset state- -diff nil)])]
              (when cleanup? (cleanup-then-done this))
-             (cond (a/get state- -cancelled) (throw (Cancelled.))
-                   (map? ?diff) ?diff
+             (cond (map? ?diff) ?diff
+                   (a/get state- -cancelled) (throw (Cancelled.))
                    :else (throw ?diff)))))
 
 (defn cleanup-then-done [^Ps ps]

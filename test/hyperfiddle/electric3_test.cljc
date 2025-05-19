@@ -365,6 +365,13 @@
       % := -1)))
 
 (tests "reactive for"
+  (let [!xs (atom [1])]
+    (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] x))) tap tap)
+      % := [1]
+      (swap! !xs conj 2)
+      % := [1 2])))
+
+(tests "reactive for"
   (let [!xs (atom [1 2 3])] (with ((l/single {} (tap (e/for-by identity [x (e/watch !xs)] (inc x)))) tap tap)
      % := [2 3 4]
      (swap! !xs conj 4)
