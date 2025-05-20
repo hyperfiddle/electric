@@ -85,8 +85,8 @@
 (def channel-slot-alive 6)
 (def channel-slot-ready 7)
 (def channel-slot-shared 8)
-(def channel-slot-reader-opts 9)
-(def channel-slot-writer-opts 10)
+(def channel-slot-reader 9)
+(def channel-slot-writer 10)
 (def channel-slots 11)
 
 (def port-slot-slot 0)
@@ -937,19 +937,6 @@ T T T -> (EXPR T)
         built ((.-build cdef) frame)]
     (define-slot (->Slot frame (- -1 nodec)) {} built) frame))
 
-(defn decode [^String s opts]
-  #?(:clj (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts))
-     :cljs (t/read (t/reader :json opts) s)))
-
-(defn encode [value opts]
-  #?(:clj
-     (let [out (ByteArrayOutputStream.)
-           writer (t/writer out :json opts)]
-       (t/write writer value)
-       (.toString out))
-     :cljs
-     (t/write (t/writer :json opts) value)))
-
 (defn input-dispose [^objects input]
   (let [^objects remote (aget input input-slot-remote)]
     (aset remote remote-slot-inputs
@@ -1392,8 +1379,7 @@ T T T -> (EXPR T)
                    (aset tail event-slot-inputs (transient #{}))
                    (aset tail event-slot-outputs (transient #{}))))
                (when (pos? (unchecked-add acks changeset))
-                 (try (encode [acks pos-request neg-request change freeze]
-                        (aget channel channel-slot-writer-opts))
+                 (try ((aget channel channel-slot-writer) [acks pos-request neg-request change freeze])
                       (catch #?(:clj Throwable :cljs :default) e
                         (if-some [ed (cond (::unserializable (ex-data e)) (ex-data e)
                                            (::unserializable (ex-data (ex-cause e))) (ex-data (ex-cause e)))]
@@ -1416,7 +1402,7 @@ T T T -> (EXPR T)
         (if (identical? channel (aget remote remote-slot-channel))
           (try
             (run! #(let [[acks pos-request neg-request change freeze]
-                        (decode % (aget channel channel-slot-reader-opts))]
+                         ((aget channel channel-slot-reader) %)]
                     (dotimes [_ acks] (remote-ack remote))
                     (reduce-kv run output-update-pos-request pos-request)
                     (reduce-kv run output-update-neg-request neg-request)
@@ -1445,7 +1431,7 @@ T T T -> (EXPR T)
   (#?(:clj deref :cljs -deref) [_]
     (channel-transfer state)))
 
-(defn channel-writer-opts [opts ^objects channel]
+(defn channel-writer [opts ^objects channel]
   (let [handlers (merge
                    (::t/write-handlers opts {})
                    {Slot    (t/write-handler
@@ -1499,48 +1485,55 @@ T T T -> (EXPR T)
         default (t/write-handler
                   (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true})))
                   (fn [_]))]
-    #?(:clj  {:handlers handlers :default-handler default}
-       :cljs {:handlers (assoc handlers :default default)})))
+    #?(:clj  (let [out (ByteArrayOutputStream.)
+                   writer (t/writer out :json {:handlers handlers :default-handler default})]
+               (fn [value] (.reset out) (t/write writer value) (.toString out)))
+       :cljs (let [writer (t/writer :json {:handlers (assoc handlers :default default)})]
+               (fn [value] (t/write writer value))))))
 
-(defn channel-reader-opts [opts ^objects channel]
-  {:handlers (merge
-               (::t/read-handlers opts {})
-               {"slot"           (t/read-handler
-                                   (fn [[frame id]]
-                                     (->Slot frame id)))
-                "frame"          (t/read-handler
-                                   (fn [[slot rank ctor]]
-                                     (let [^objects remote (aget channel channel-slot-remote)
-                                           ^objects peer (aget remote remote-slot-peer)
-                                           shared (aget channel channel-slot-shared)]
-                                       (if (nil? ctor)
-                                         (if (nil? slot)
-                                           (aget peer peer-slot-root)
-                                           (get shared [slot rank]))
-                                         (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
-                                           (aset channel channel-slot-shared
-                                             (assoc shared [slot rank] frame)) frame)))))
-                "join"           (t/read-handler
-                                   (fn [[input]]
-                                     (->Join input nil)))
-                "id"             (t/read-handler
-                                   (fn [[x]]
-                                     (->Id x)))
-                "ap"             (t/read-handler
-                                   (fn [inputs]
-                                     (->Ap {} inputs nil)))
-                "varargs"        (t/read-handler
-                                   (fn [[map? inputs]]
-                                     (apply ->varargs map? inputs)))
-                "pure"           (t/read-handler
-                                   (fn [[value]]
-                                     (->Pure value nil)))
-                "unbound"        (t/read-handler
-                                   (fn [[key]]
-                                     (->Unbound key nil)))
-                "unserializable" (t/read-handler
-                                   (fn [_]
-                                     (->Failure :unserializable)))})})
+(defn channel-reader [opts ^objects channel]
+  (let [opts
+        {:handlers (merge
+                     (::t/read-handlers opts {})
+                     {"slot"           (t/read-handler
+                                         (fn [[frame id]]
+                                           (->Slot frame id)))
+                      "frame"          (t/read-handler
+                                         (fn [[slot rank ctor]]
+                                           (let [^objects remote (aget channel channel-slot-remote)
+                                                 ^objects peer (aget remote remote-slot-peer)
+                                                 shared (aget channel channel-slot-shared)]
+                                             (if (nil? ctor)
+                                               (if (nil? slot)
+                                                 (aget peer peer-slot-root)
+                                                 (get shared [slot rank]))
+                                               (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
+                                                 (aset channel channel-slot-shared
+                                                   (assoc shared [slot rank] frame)) frame)))))
+                      "join"           (t/read-handler
+                                         (fn [[input]]
+                                           (->Join input nil)))
+                      "id"             (t/read-handler
+                                         (fn [[x]]
+                                           (->Id x)))
+                      "ap"             (t/read-handler
+                                         (fn [inputs]
+                                           (->Ap {} inputs nil)))
+                      "varargs"        (t/read-handler
+                                         (fn [[map? inputs]]
+                                           (apply ->varargs map? inputs)))
+                      "pure"           (t/read-handler
+                                         (fn [[value]]
+                                           (->Pure value nil)))
+                      "unbound"        (t/read-handler
+                                         (fn [[key]]
+                                           (->Unbound key nil)))
+                      "unserializable" (t/read-handler
+                                         (fn [_]
+                                           (->Failure :unserializable)))})}]
+    #?(:clj (fn [^String s] (t/read (t/reader (ByteArrayInputStream. (.getBytes s)) :json opts)))
+       :cljs (let [reader (t/reader :json opts)]
+               (fn [string] (t/read reader string))))))
 
 (defn peer-events [^objects peer]
   (let [^objects remote (aget peer peer-slot-remote)]
@@ -1727,8 +1720,8 @@ entrypoint.
                       (aset channel channel-slot-over false)
                       (aset channel channel-slot-alive (identity 1))
                       (aset channel channel-slot-shared {})
-                      (aset channel channel-slot-writer-opts (channel-writer-opts opts channel))
-                      (aset channel channel-slot-reader-opts (channel-reader-opts opts channel))
+                      (aset channel channel-slot-writer (channel-writer opts channel))
+                      (aset channel channel-slot-reader (channel-reader opts channel))
                       (aset channel channel-slot-ready (aget peer peer-slot-channel-ready))
                       (aset peer peer-slot-channel-ready channel)
                       (aset channel channel-slot-process
