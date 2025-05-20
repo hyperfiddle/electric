@@ -85,16 +85,17 @@
   "Mount a DOM TextNode in current `node`, containing stringified `arg`. Return `arg`."
   [arg] ; ^::lang/print-clj-source
   (e/client
-    (let [e (.createTextNode js/document "")]
-      (r/do!
-        (e/input (attach! node (e/tag) e))
-        (set! (.-textContent e) arg)))))
+    (e/drain
+      (let [e (.createTextNode js/document "")]
+        (r/do!
+          (e/input (attach! node (e/tag) e))
+          (set! (.-textContent e) arg))))))
 
 (defmacro text
   "Mount a DOM TextNode in current `node` for each argument in `args`.
    Each TextNode will contain the stringified argument.
    Return last argument as in `do`."
-  [& args] `(e/drain ~@(for [arg args] `($ Text ~arg))))
+  [& args] (for [arg args] `($ Text ~arg)))
 
 ;;;;;;;;;;;;;
 ;; Comment ;;
@@ -104,16 +105,17 @@
   "Mount a DOM Comment in current `node`, containing stringified `arg`. Return `arg`."
   [arg] ; ^::lang/print-clj-source
   (e/client
-    (let [e (.createComment js/document "")]
-      (r/do!
-        (e/input (attach! node (e/tag) e))
-        (set! (.-textContent e) arg)))))
+    (e/drain
+      (let [e (.createComment js/document "")]
+        (r/do!
+          (e/input (attach! node (e/tag) e))
+          (set! (.-textContent e) arg))))))
 
 (defmacro comment
   "Mount a DOM Comment in current `node` for each argument in `args`.
    Each Comment node will contain the stringified argument.
    Return last argument as in `do`."
-  [& args] `(e/drain ~@(for [arg args] `($ Comment ~arg))))
+  [& args] (for [arg args] `($ Comment ~arg)))
 
 ;;;;;;;;;;;;;
 ;; Element ;;
