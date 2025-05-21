@@ -1851,7 +1851,7 @@ entrypoint.
           (do (m/? (peer-sink peer))
               (m/amb)))))))
 
-(defn do!
+(defn do!*
   ([])
   ([a] a)
   ([_ b] b)
@@ -1861,3 +1861,16 @@ entrypoint.
   ([_ _ _ _ _ f] f)
   ([_ _ _ _ _ _ g] g)
   ([_ _ _ _ _ _ _ & more] (last more)))
+
+(defmacro do!
+  "An internal optimization of `do`. Take any number of arguments and always return the last one.
+  Strict constraint: all arguments except the last one must be exactly of size
+  1 (incseq-wise). Any argument of size 0 will collapse the last argument to
+  amb. Any argument of size > 1 will cause a cartesian product of the last
+  argument. E.g. don't do this:
+  (e/as-vec (do! (e/amb 1 2) 3)) := [3 3]
+
+  The last argument can be of any size. "
+  ([])
+  ([a] a)
+  ([a & bs] `(do!* ~a ~@bs)))

@@ -93,9 +93,9 @@
 
 (defmacro text
   "Mount a DOM TextNode in current `node` for each argument in `args`.
-   Each TextNode will contain the stringified argument.
-   Return last argument as in `do`."
-  [& args] (for [arg args] `($ Text ~arg)))
+   Each TextNode will contain the stringified argument. Returns nothing."
+  ([] `(e/amb))
+  ([& args] `(r/do! ~@(for [arg args] `($ Text ~arg)))))
 
 ;;;;;;;;;;;;;
 ;; Comment ;;
@@ -113,9 +113,9 @@
 
 (defmacro comment
   "Mount a DOM Comment in current `node` for each argument in `args`.
-   Each Comment node will contain the stringified argument.
-   Return last argument as in `do`."
-  [& args] (for [arg args] `($ Comment ~arg)))
+   Each Comment node will contain the stringified argument. Returns nothing."
+  ([] `(e/amb))
+  ([& args] `(r/do! ~@(for [arg args] `($ Comment ~arg)))))
 
 ;;;;;;;;;;;;;
 ;; Element ;;
