@@ -1401,20 +1401,19 @@ T T T -> (EXPR T)
         (channel-terminated channel)
         (if (identical? channel (aget remote remote-slot-channel))
           (try
-            (run! #(let [[acks pos-request neg-request change freeze]
-                         ((aget channel channel-slot-reader) %)]
-                    (dotimes [_ acks] (remote-ack remote))
-                    (reduce-kv run output-update-pos-request pos-request)
-                    (reduce-kv run output-update-neg-request neg-request)
-                    (reduce-kv remote-change remote change)
-                    (reduce remote-freeze remote freeze)
-                    (when (pos? (-> (unchecked-add (count change) (count freeze))
-                                  (unchecked-add (count pos-request))
-                                  (unchecked-add (count neg-request))))
-                      (aset remote remote-slot-acks
-                        (inc (aget remote remote-slot-acks)))
-                      (channel-output-event channel)))
-              @(aget channel channel-slot-process))
+            (let [[acks pos-request neg-request change freeze]
+                  ((aget channel channel-slot-reader) @(aget channel channel-slot-process))]
+              (dotimes [_ acks] (remote-ack remote))
+              (reduce-kv run output-update-pos-request pos-request)
+              (reduce-kv run output-update-neg-request neg-request)
+              (reduce-kv remote-change remote change)
+              (reduce remote-freeze remote freeze)
+              (when (pos? (-> (unchecked-add (count change) (count freeze))
+                            (unchecked-add (count pos-request))
+                            (unchecked-add (count neg-request))))
+                (aset remote remote-slot-acks
+                  (inc (aget remote remote-slot-acks)))
+                (channel-output-event channel)))
             (catch #?(:clj Throwable :cljs :default) e
               (channel-crash channel)
               (aset channel channel-slot-shared e)
@@ -1655,31 +1654,13 @@ T T T -> (EXPR T)
   (let [[_ _ free _] (frame-ctor frame)]
     (free id)))
 
-(defn batch
-  [sg init batch-end flow]
-  (let [store (m/store (fn [r x] (if (= init x) x (sg r x))) init)]
-    (->> (m/ap (store (m/?< flow))
-               (try
-                 (m/? batch-end)
-                 (let [messages (m/?< (m/eduction (remove #(= % init)) (take 1) store))]
-                   (store init)
-                   messages)
-                 (catch Cancelled _ (m/amb)))))))
-
-#?(:cljs
-   (defn next-animation-frame []
-     (fn [s f]
-       (let [raf (.requestAnimationFrame js/window s)]
-         (fn [] (.cancelAnimationFrame js/window raf)
-           (f (Cancelled.)))))))
-
 (defn make-peer "
 Returns a new peer instance for given site, from given definitions and main key and optional extra arguments to the
 entrypoint.
 " [site opts subject defs main args]
   (let [^objects peer (object-array peer-slots)
         ^objects remote (object-array remote-slots)
-        events (m/stream (batch conj [] (m/sleep 1) (m/observe subject)))]
+        events (m/stream (m/observe subject))]
     (aset peer peer-slot-busy #?(:clj (ReentrantLock.) :cljs false))
     (aset peer peer-slot-remote remote)
     (aset peer peer-slot-site site)
