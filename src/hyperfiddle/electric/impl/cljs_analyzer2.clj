@@ -59,9 +59,8 @@
                           :features #{:cljs}, :read-cond :allow, :read-eval true, :quote true, :eof ::done})]
   (defn resource-forms [rs]
     (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs) 8)] ; default is 1 byte buffer which disallows unreading
-      (loop [v []]
-        (let [nx (eval-edamame-read-eval (ed/parse-next rdr parse-opts))]
-          (if (= nx ::done) v (recur (conj v nx))))))))
+      (into [] (comp (map eval-edamame-read-eval) (take-while (complement #{::done})))
+        (repeatedly #(ed/parse-next rdr parse-opts))))))
 
 (defn safe-require [sym]
   ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
