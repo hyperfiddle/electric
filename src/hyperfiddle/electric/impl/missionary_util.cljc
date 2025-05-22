@@ -172,9 +172,37 @@
 
 (def -stall-ms 2000)
 
+(def !stats (atom {:live 0, :done 0, :transfers 0}))
+
+(def gather-stats
+  [:gather-stats nil
+   (fn [_ evt]
+     (swap! !stats
+       (fn [stats]
+         (case (:event evt)
+           (:spawned) (update stats :live inc)
+           (:done) (-> stats (update :done inc) (update :live dec))
+           (:transferred) (update stats :transfers inc)
+           #_else stats))))])
+
+#?(:cljs (defn format-stats [{:keys [live done transfers]}]
+           (str "Live: " live "\nDone: " done "\nTransfers: " transfers)))
+
+#?(:cljs
+   (defn insert-stats! [!stats node]
+     (m/observe
+       (fn [!]
+         (let [txt (.createTextNode js/document "")]
+           (! nil)
+           (.appendChild node txt)
+           (.setInterval js/window #(set! (.-textContent txt) (format-stats @!stats)) 1000))))))
+
+;; circular dependency, inline at usage site
+;; (e/defn FlowStatsMonitor [] (e/client (dom/pre (e/input (insert-stats! !stats dom/node)))))
+
 (def uninitialized-checks [#_(log prn) step-cannot-throw done-cannot-throw cancel-cannot-throw init-cannot-throw
                            step-after-done step-after-throw double-step double-transfer
-                           done-twice step-in-exceptional-transfer
+                           done-twice step-in-exceptional-transfer #_gather-stats
                            #_(flow-transfer-stalled -stall-ms println) ; clogs the clock, revisit after optimizations
                            (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
 (def initialized-checks (conj uninitialized-checks initialized))
