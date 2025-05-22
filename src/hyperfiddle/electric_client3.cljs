@@ -70,7 +70,8 @@
   (m/reduce (comp reduced {}) nil
     (m/ap (m/amb=
             (let [flush (wait-for-flush ws)]
-              (send! ws (m/?> msgs))
+              (run! #(send! ws %) (m/?> (r/batch conj [] (r/next-animation-frame) msgs)))
+              #_(send! ws (m/?> msgs))
               (m/? flush) (m/amb))
             (m/? (wait-for-close ws))))))
 
