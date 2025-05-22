@@ -12,8 +12,8 @@
    cb (fn [e] #?(:clj (.printStackTrace ^Throwable e)
                  :cljs (.error js/console e)))))
 
-(defmacro peer [site events form]
-  `(r/make-peer ~site {} ~events
+(defmacro peer [site subject form]
+  `(r/make-peer* ~site {} (r/batch conj [] (m/sp) (m/observe ~subject))
      {::Main ~(l/compile ::Main form
                 (assoc (l/normalize-env &env)
                   ::l/peers {:client :clj, :server :clj}))}

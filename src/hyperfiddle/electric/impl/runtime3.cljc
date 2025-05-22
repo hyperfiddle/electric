@@ -1655,16 +1655,14 @@ T T T -> (EXPR T)
   (let [[_ _ free _] (frame-ctor frame)]
     (free id)))
 
-(defn batch
-  [sg init batch-end flow]
-  (let [store (m/store (fn [r x] (if (= init x) x (sg r x))) init)]
-    (->> (m/ap (store (m/?< flow))
-               (try
-                 (m/? batch-end)
-                 (let [messages (m/?< (m/eduction (remove #(= % init)) (take 1) store))]
-                   (store init)
-                   messages)
-                 (catch Cancelled _ (m/amb)))))))
+(defn batch [sg init batch-end flow]
+  (m/ap
+    (let [!state (atom init)]
+      (swap! !state sg (m/?< flow))
+      (try
+        (m/? batch-end)
+        (first (reset-vals! !state init))
+        (catch Cancelled _ (m/amb))))))
 
 #?(:cljs
    (defn next-animation-frame []
@@ -1673,13 +1671,10 @@ T T T -> (EXPR T)
          (fn [] (.cancelAnimationFrame js/window raf)
            (f (Cancelled.)))))))
 
-(defn make-peer "
-Returns a new peer instance for given site, from given definitions and main key and optional extra arguments to the
-entrypoint.
-" [site opts subject defs main args]
+(defn make-peer* [site opts events defs main args]
   (let [^objects peer (object-array peer-slots)
         ^objects remote (object-array remote-slots)
-        events (m/stream (batch conj [] (m/sleep 1) (m/observe subject)))]
+        events (m/stream events)]
     (aset peer peer-slot-busy #?(:clj (ReentrantLock.) :cljs false))
     (aset peer peer-slot-remote remote)
     (aset peer peer-slot-site site)
@@ -1737,6 +1732,13 @@ entrypoint.
                     (do (exit peer busy) (step)
                         (->Failer done (error "Can't connect - remote already up.")))))))))))
     peer))
+
+(defn make-peer
+  "Returns a new peer instance for given site, from given definitions and main key and optional extra arguments to the
+entrypoint.
+"
+  [site opts subject defs main args]
+  (make-peer* site opts (batch conj [] (m/sleep 1) (m/observe subject)) defs main args))
 
 (defn subject-at [^objects arr slot]
   (fn [!] (aset arr slot !) #(aset arr slot nil)))

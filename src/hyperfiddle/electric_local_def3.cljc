@@ -44,6 +44,9 @@
 (defn fastest [& args]
   (m/absolve (apply m/race (map m/attempt args))))
 
+(defn subject->events [subject]
+  (r/batch conj [] (m/sp) (m/observe subject)))
+
 (def run-local
   (letfn [(subject [^objects state slot]
             (fn [cb] (aset state slot cb) #()))
@@ -60,14 +63,14 @@
       (let [state (doto (object-array 4)
                     (aset 0 (m/mbx))                        ;; client->server
                     (aset 1 (m/mbx)))                       ;; server->client
-            peer (r/make-peer :client {} (subject state 2) defs main nil)]
+            peer (r/make-peer* :client {} (subject->events (subject state 2)) defs main nil)]
         (fastest
           (m/reduce (constantly nil) (m/zip {} result-sample-clock (r/peer-root peer)))
           ;; client process. Pushes its events into mbx at idx 0. Registers callback at idx 2
           (writer state 0 client-writer-clock (r/peer-events peer))
           ;; server process. Pushes its events into mbx at idx 1. Registers callback at idx 3
           (writer state 1 server-writer-clock
-            (r/peer-events (r/make-peer :server {} (subject state 3) defs main nil)))
+            (r/peer-events (r/make-peer* :server {} (subject->events (subject state 3)) defs main nil)))
           ;; polls the client->server mailbox and pushes values in the server callback
           (writer state 3 server-reader-clock (reader state 0))
           ;; polls the server->client mailbox and pushes values in the client callback
@@ -213,8 +216,8 @@
         (m/?> (r/peer-root c))))
     (m/ap
       (let [state (doto (object-array 4) (aset 0 (m/mbx)) (aset 1 (m/mbx)))
-            c (r/make-peer :client {} (subject state 2) defs main nil)
-            s (r/make-peer :server {} (subject state 3) defs main nil)
+            c (r/make-peer* :client {} (subject->events (subject state 2)) defs main nil)
+            s (r/make-peer* :server {} (subject->events (subject state 3)) defs main nil)
             _ (m/?> (drain (writer state 0 (clocked ngn 'client-writer (r/peer-events c)))))
             _ (m/?> (drain (writer state 1 (clocked ngn 'server-writer (r/peer-events s)))))
             _ (m/?> (drain (writer state 2 (clocked ngn 'client-reader (reader state 1)))))
