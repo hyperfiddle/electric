@@ -12,6 +12,7 @@
             [hyperfiddle.incseq.diff-impl :as d]
             [contrib.assert :as ca]
             [clojure.string :as str]
+            [hyperfiddle.electric.impl.dynamic-local :as dl]
             [hyperfiddle.electric.impl.missionary-util :as mu])
   (:import missionary.Cancelled
            #?(:clj missionary.impl.Propagator$Publisher)
@@ -345,7 +346,8 @@ T T T -> (EXPR T)
   (pp [_] (cons 'CFAp (eduction (map pp) inputs)))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((apply m/latest (invoke-with mt) inputs) step done)))
+    ((dl/bind [mu/*mt mt]
+       (apply m/latest (invoke-with mt) inputs)) step done)))
 
 (defn ->cf-ap [mt & inputs] (->CFAp mt inputs nil))
 
@@ -375,8 +377,9 @@ T T T -> (EXPR T)
   (pp [_] (cons 'Ap (eduction (map pp) inputs)))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((let [in* (mapv ->is inputs)]
-       (apply i/latest-product (invoke-with mt) in*)) step done)))
+    ((dl/bind [mu/*mt mt]
+       (let [in* (mapv ->is inputs)]
+         (apply i/latest-product (invoke-with mt) in*))) step done)))
 
 (defn error [^String msg]
   #?(:clj (Error. msg)

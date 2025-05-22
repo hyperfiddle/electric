@@ -1,7 +1,9 @@
 (ns hyperfiddle.electric.impl.missionary-util
   #?(:clj (:import [clojure.lang IDeref IFn]))
   (:require [contrib.debug :as dbg]
-            [missionary.core :as m]))
+            [missionary.core :as m]
+            [hyperfiddle.electric.impl.lang3 :as-alias lang]
+            [hyperfiddle.electric.impl.dynamic-local :as dl]))
 
 #?(:clj (set! *warn-on-reflection* true))
 
@@ -19,44 +21,55 @@
     (range 0 (count rd-array) 2))
   rd-array)
 
+(def *mt (dl/local))
+
 (defn wrap-flow [nm flow {:keys [reductions] :as opts}]
   (if-not (@wrap? nm opts)
     flow
-    (fn [step done]
-      (let [id (random-uuid)
-            rd-array (object-array (* 2 (count reductions)))
-            _ (run! (fn [[i _nm init rf]]
-                      (let [i (* i 2)]
-                        (aset rd-array (int i) init)
-                        (aset rd-array (int (+ i 1)) rf)))
-                (eduction (map-indexed cons) reductions))
-            !es (atom rd-array)
-            step+ (fn []
-                    (swap! !es act {:event :step, :t (now-ms), :name nm, :id id})
-                    (let [e (try (step) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                      (swap! !es act (cond-> {:event :stepped, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
-                      (when e (throw e))))
-            done+ (fn []
-                    (swap! !es act {:event :do, :t (now-ms), :name nm, :id id})
-                    (let [e (try (done) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                      (swap! !es act (cond-> {:event :done, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
-                      (when e (throw e))))
-            cancel (do
-                     (swap! !es act {:event :spawn, :t (now-ms), :name nm, :id id})
-                     (let [[t v] (try [:ok (flow step+ done+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                       (swap! !es act (cond-> {:event :spawned, :t (now-ms), :name nm, :id id} (= :ex t) (assoc :threw v)))
-                       (cond-> v (= :ex t) throw)))]
-        (reify
-          IFn (#?(:clj invoke :cljs -invoke) [_]
-                (swap! !es act {:event :cancel, :t (now-ms), :name nm, :id id})
-                (let [e (try (cancel) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                  (swap! !es act (cond-> {:event :canceled, :t (now-ms), :name nm, :id id} e (assoc :threw e)))
-                  (when e (throw e))))
-          IDeref (#?(:clj deref :cljs -deref) [_]
-                   (swap! !es act {:event :transfer, :t (now-ms), :name nm, :id id})
-                   (let [[t v] (try [:ok @cancel] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                     (swap! !es act {:event :transferred, :t (now-ms), :name nm, :id id, :type t, :v v})
-                     (cond-> v (= :ex t) throw))))))))
+    (let [mt (dl/get *mt)]
+      (fn [step done]
+        (let [id (random-uuid)
+              rd-array (object-array (* 2 (count reductions)))
+              _ (run! (fn [[i _nm init rf]]
+                        (let [i (* i 2)]
+                          (aset rd-array (int i) init)
+                          (aset rd-array (int (+ i 1)) rf)))
+                  (eduction (map-indexed cons) reductions))
+              evt-base (assoc mt :name nm, :id id)
+              !es (atom rd-array)
+              step+ (fn []
+                      (swap! !es act (assoc evt-base :event :step, :t (now-ms)))
+                      (let [e (try (step) nil (catch #?(:clj Throwable :cljs :default) e e))]
+                        (swap! !es act (cond-> (assoc evt-base :event :stepped, :t (now-ms)) e (assoc :threw e)))
+                        (when e (throw e))))
+              done+ (fn []
+                      (swap! !es act (assoc evt-base :event :do, :t (now-ms)))
+                      (let [e (try (done) nil (catch #?(:clj Throwable :cljs :default) e e))]
+                        (swap! !es act (cond-> (assoc evt-base :event :done, :t (now-ms)) e (assoc :threw e)))
+                        (when e (throw e))))
+              cancel (do
+                       (swap! !es act (assoc evt-base :event :spawn, :t (now-ms)))
+                       (let [[t v] (try [:ok (flow step+ done+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
+                         (swap! !es act (cond-> (assoc evt-base :event :spawned, :t (now-ms)) (= :ex t) (assoc :threw v)))
+                         (cond-> v (= :ex t) throw)))]
+          (reify
+            IFn (#?(:clj invoke :cljs -invoke) [_]
+                  (swap! !es act (assoc evt-base :event :cancel, :t (now-ms)))
+                  (let [e (try (cancel) nil (catch #?(:clj Throwable :cljs :default) e e))]
+                    (swap! !es act (cond-> (assoc evt-base :event :canceled, :t (now-ms)) e (assoc :threw e)))
+                    (when e (throw e))))
+            IDeref (#?(:clj deref :cljs -deref) [_]
+                     (swap! !es act (assoc evt-base :event :transfer, :t (now-ms)))
+                     (let [[t v] (try [:ok @cancel] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
+                       (swap! !es act (assoc evt-base :event :transferred, :t (now-ms), :type t, :v v))
+                       (cond-> v (= :ex t) throw)))))))))
+
+(defn ->file-line-info [mt]
+  (when (::lang/line mt)
+    (str "L" (::lang/line mt) ":" (::lang/column mt)
+      " " (::lang/ns mt) (when-some [d (::lang/def mt)] (str "/" d)))))
+
+(defn ->violation-message [evt msg] (str "[flow-protocol-violation][" (:name evt) "][" (->file-line-info evt) "] " msg))
 
 (defn log [log-fn] [:log nil #(log-fn %2)])
 
@@ -64,25 +77,25 @@
   [:step-cannot-throw nil
    (fn [_ evt]
      (when (and (= :stepped (:event evt)) (:threw evt))
-       (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] step cannot throw") {} (:threw evt)))))])
+       (throw (ex-info (->violation-message evt "step cannot throw") {} (:threw evt)))))])
 
 (def done-cannot-throw
   [:done-cannot-throw nil
    (fn [_ evt]
      (when (and (= :done (:event evt)) (:threw evt))
-       (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] done cannot throw") {} (:threw evt)))))])
+       (throw (ex-info (->violation-message evt "done cannot throw") {} (:threw evt)))))])
 
 (def cancel-cannot-throw
   [:cancel-cannot-throw nil
    (fn [_ evt]
      (when (and (= :canceled (:event evt)) (:threw evt))
-       (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] cancel cannot throw") {} (:threw evt)))))])
+       (throw (ex-info (->violation-message evt "cancel cannot throw") {} (:threw evt)))))])
 
 (def init-cannot-throw
   [:init-cannot-throw nil
    (fn [_ evt]
      (when (and (= :spawned (:event evt)) (:threw evt))
-       (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] flow initialization cannot throw") {} (:threw evt)))))])
+       (throw (ex-info (->violation-message evt "flow initialization cannot throw") {} (:threw evt)))))])
 
 (def step-after-done
   [:step-after-done false
@@ -90,20 +103,20 @@
      (if (= :done (:event evt))
        true
        (if (and (= :step (:event evt)) done?)
-         (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] step after done") {}))
+         (throw (ex-info (->violation-message evt "step after done") {}))
          done?)))])
 
 (def step-after-throw
   [:step-after-throw nil
    (fn [threw? evt]
      (if (and (= :step (:event evt)) threw?)
-       (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] step after throw") {}))
+       (throw (ex-info (->violation-message evt "step after throw") {}))
        (or threw? (:threw evt))))])
 
 (def double-step
   [:double-step false
    (fn [stepped? evt]
-     (cond (and stepped? (= :step (:event evt))) (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] double step") {}))
+     (cond (and stepped? (= :step (:event evt))) (throw (ex-info (->violation-message evt "double step") {}))
            (= :step (:event evt)) true
            (= :transfer (:event evt)) false
            :else stepped?))])
@@ -111,7 +124,7 @@
 (def double-transfer
   [:double-transfer true
    (fn [transferred? evt]
-     (cond (and transferred? (= :transfer (:event evt))) (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] double transfer") {}))
+     (cond (and transferred? (= :transfer (:event evt))) (throw (ex-info (->violation-message evt "double transfer") {}))
            (= :transfer (:event evt)) true
            (= :step (:event evt)) false
            :else transferred?))])
@@ -121,7 +134,7 @@
    (fn [done? evt]
      (case (:event evt)
        (:do) (when done?
-               (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] done called twice") {})))
+               (throw (ex-info (->violation-message evt "done called twice") {})))
        (:done) true
        #_else done?))])
 
@@ -130,7 +143,7 @@
   ([nm pred] [nm nil
               (fn [_ evt]
                 (when (and (= :transferred (:event evt)) (= :ok (:type evt)) (not (pred (:v evt))))
-                  (throw (ex-info (str "[" (:name evt) "]value " (pr-str (:v evt)) " doesn't satisfy predicate " pred " named " nm)
+                  (throw (ex-info (str "[" (:name evt) "][" (->file-line-info evt) "] value " (pr-str (:v evt)) " doesn't satisfy predicate " pred " named " nm)
                            {:checker nm, :pred pred, :event evt}))))]))
 
 (def initialized
@@ -139,7 +152,7 @@
      (case (:event evt)
        (:step) true
        (:spawned) (when-not stepped?
-                        (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] flow marked as initialized but is not") {})))
+                    (throw (ex-info (->violation-message evt "flow marked as initialized but is not") {})))
        #_else stepped?))])
 
 (def step-in-exceptional-transfer
@@ -149,7 +162,7 @@
        (:step) (inc steps)
        (:transfer) (dec steps)
        (:transferred) (if (and (pos? steps) (:threw evt))
-                        (throw (ex-info (str "[flow-protocol-violation][" (:name evt) "] step after throw in transfer") {}))
+                        (throw (ex-info (->violation-message evt "step after throw in transfer") {}))
                         steps)
        #_else steps))])
 
@@ -158,7 +171,7 @@
    (let [sleeper (m/sleep ms)]
      (fn [cancel evt]
        (case (:event evt)
-         (:step) ((m/sp (m/? sleeper) (log (str "flow " (:name evt) " taking more than " ms "ms to transfer"))) {} {})
+         (:step) ((m/sp (m/? sleeper) (log (str (some-> (->file-line-info evt) (str ": ")) "flow " (:name evt) " taking more than " ms "ms to transfer\n"))) {} {})
          (:transfer) (cancel)
          #_else cancel)))])
 
@@ -166,7 +179,7 @@
   [:flow-cancellation-stalled nil
    (fn [cancel evt]
      (case (:event evt)
-       (:cancel) (or cancel ((m/sp (m/? (m/sleep ms)) (log (str "flow " (:name evt) " taking more than " ms "ms to terminate after cancellation"))) {} {}))
+       (:cancel) (or cancel ((m/sp (m/? (m/sleep ms)) (log (str (some-> (->file-line-info evt) (str ": ")) "flow " (:name evt) " taking more than " ms "ms to terminate after cancellation\n"))) {} {}))
        (:do) (do (when cancel (cancel)) #())
        #_else cancel))])
 
