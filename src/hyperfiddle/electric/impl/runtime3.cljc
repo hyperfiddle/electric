@@ -205,7 +205,7 @@
 (defn ->cf-id [x] (->CFId x))
 
 (declare join-input)
-(deftype Pure [value
+(deftype Pure [mt value
                ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
@@ -230,17 +230,18 @@
   (pp [_] (list 'Pure (pp value)))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((if (failure? value)
-       (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
-       (i/fixed (invariant value))) step done)))
+    ((dl/bind [mu/*mt mt]
+       (if (failure? value)
+         (m/latest #(throw (ex-info "Illegal access." {:info (failure-info value)})))
+         (i/fixed (invariant value)))) step done)))
 
 (defn pure "
 -> (EXPR VOID)
 T -> (EXPR T)
 T T -> (EXPR T)
 T T T -> (EXPR T)
-" [value]
-  (->Pure value nil))
+" ([value] (pure {} value))
+  ([mt value] (->Pure mt value nil)))
 
 (deftype CFPure [value ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
@@ -442,7 +443,7 @@ T T T -> (EXPR T)
 " [mt & inputs]
   (->Ap mt inputs nil))
 
-(deftype Join [input ^:unsynchronized-mutable ^:mutable hash-memo]
+(deftype Join [mt input ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
   (#?(:clj hashCode :cljs -hash) [_]
@@ -462,15 +463,16 @@ T T T -> (EXPR T)
       ;; TODO generic incseq-1 carrying an incseq?
       (if (= ::pure (t in))
         (->Id (.-value ^Pure in))
-        (if (= in input) this (new Join in nil)))))
+        (if (= in input) this (new Join mt in nil)))))
   (pp [_] (list 'Join (pp input)))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
-    ((i/latest-concat (->is input)) step done)))
+    ((dl/bind [mu/*mt mt] (i/latest-concat (->is input))) step done)))
 
 (defn join "
 (EXPR (IS T)) -> (EXPR T)
-" [input] (->Join input nil))
+" ([input] (join {} input))
+  ([mt input] (->Join mt input nil)))
 
 (defn join-input [x] (.-input ^Join x))
 
@@ -1515,7 +1517,7 @@ T T T -> (EXPR T)
                                                    (assoc shared [slot rank] frame)) frame)))))
                       "join"           (t/read-handler
                                          (fn [[input]]
-                                           (->Join input nil)))
+                                           (->Join {} input nil)))
                       "id"             (t/read-handler
                                          (fn [[x]]
                                            (->Id x)))
@@ -1527,7 +1529,7 @@ T T T -> (EXPR T)
                                            (apply ->varargs map? inputs)))
                       "pure"           (t/read-handler
                                          (fn [[value]]
-                                           (->Pure value nil)))
+                                           (->Pure {} value nil)))
                       "unbound"        (t/read-handler
                                          (fn [[key]]
                                            (->Unbound key nil)))
