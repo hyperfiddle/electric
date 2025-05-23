@@ -183,6 +183,13 @@
        (:do) (do (when cancel (cancel)) #())
        #_else cancel))])
 
+(defn shrink-grow? [{:keys [shrink grow permutation]}] (and (= 1 shrink grow) (= {0 1, 1 0} permutation)))
+(defn shrink-grow-spotted [log]
+  [:shrink-grow-spotted nil
+   (fn [_ evt]
+     (when (and (= :transferred (:event evt)) (= :ok (:type evt)) (shrink-grow? (:v evt)))
+       (log (str "[" (:name evt) "][" (->file-line-info evt) "] shrink-grow diff spotted: " (pr-str (:v evt))))))])
+
 (def -stall-ms 2000)
 
 (def !stats (atom {:live 0, :done 0, :transfers 0}))
@@ -217,6 +224,7 @@
                            step-after-done step-after-throw double-step double-transfer
                            done-twice step-in-exceptional-transfer #_gather-stats
                            #_(flow-transfer-stalled -stall-ms println) ; clogs the clock, revisit after optimizations
+                           #_(shrink-grow-spotted println)               ; hundreds
                            (flow-cancellation-stalled -stall-ms println)]) ; experimental, not protocol violations
 (def initialized-checks (conj uninitialized-checks initialized))
 (def diff? (every-pred :grow :degree :shrink :change :permutation :freeze))
