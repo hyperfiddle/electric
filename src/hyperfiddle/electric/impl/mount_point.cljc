@@ -34,11 +34,12 @@ On call step event :
 
 Unmounting a block generates a shrink for each active item having this block's frame as an ancestor.
 Mounting a block generates a grow for each active item having this block's frame as an ancestor.
-" (:require [hyperfiddle.kvs :refer [KVS]]
+" (:require [hyperfiddle.kvs :refer [KVS] :as kvs]
             [hyperfiddle.incseq.arrays-impl :as a]
             [hyperfiddle.incseq.fixed-impl :as f]
             [hyperfiddle.incseq.diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
+            [hyperfiddle.electric.impl.missionary-util :as mu]
             [hyperfiddle.electric.impl.runtime3 :as r])
   #?(:clj (:import (clojure.lang IFn IDeref)
                    (java.util.concurrent.locks ReentrantLock))))
@@ -811,9 +812,17 @@ Mounting a block generates a grow for each active item having this block's frame
   (#?(:clj invoke :cljs -invoke) [_ step done]
     (reader-spawn state step done)))
 
+(defn wrap [^MountPoint mp]
+  (let [wrapped (mu/wrap-incseq `mount-point mp {:reductions [#_(mu/log prn)]})]
+    (reify
+      KVS (insert! [_ t i] (kvs/insert! mp t i)) (update! [_ t f] (kvs/update! mp t f)) (remove! [_ t] (kvs/remove! mp t))
+      IFn (#?(:clj invoke :cljs -invoke) [_ step done]
+            (wrapped step done)))))
+
 (defn create [peer]
-  (->MountPoint
-    (doto (object-array slots)
-      (aset slot-lock #?(:clj (ReentrantLock.) :cljs false))
-      (aset slot-peer peer)
-      (aset slot-items {}))))
+  (wrap
+    (->MountPoint
+      (doto (object-array slots)
+        (aset slot-lock #?(:clj (ReentrantLock.) :cljs false))
+        (aset slot-peer peer)
+        (aset slot-items {})))))
