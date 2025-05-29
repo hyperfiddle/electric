@@ -37,10 +37,11 @@
   Doesn't preserve read-time metadata. We don't care about metadata in this
   specific case, because we only use this to read ns forms and we are not aware
   of any use case for metadata in ns forms applying to Electric"
-  [form]
-  (walk/prewalk
-    (fn [form] (if (and (seq? form) (= 'edamame.core/read-eval (first form))) (try-eval (second form)) form))
-    form))
+  [ns$ form]
+  (binding [*ns* (find-ns ns$)]         ; eval in current namespace, fixes e.g. https://github.com/taoensso/encore/blob/v2.122.0/src/taoensso/encore.cljx#L2709
+    (walk/prewalk
+      (fn [form] (if (and (seq? form) (= 'edamame.core/read-eval (first form))) (try-eval (second form)) form))
+      form)))
 
 (let [parse-opts
       (ed/normalize-opts {:all true, :row-key :line, :col-key :column, :end-location false
@@ -57,9 +58,9 @@
                           :syntax-quote {:resolve-symbol (let [ns$ (ns-name *ns*)]
                                                            #(symbol (str ns$ "_" (namespace %)) (name %)))}
                           :features #{:cljs}, :read-cond :allow, :read-eval true, :quote true, :eof ::done})]
-  (defn resource-forms [rs]
+  (defn resource-forms [rs ns$]
     (with-open [rdr (rt/source-logging-push-back-reader (io/reader rs) 8)] ; default is 1 byte buffer which disallows unreading
-      (into [] (comp (map eval-edamame-read-eval) (take-while (complement #{::done})))
+      (into [] (comp (map (partial eval-edamame-read-eval ns$)) (take-while (complement #{::done})))
         (repeatedly #(ed/parse-next rdr parse-opts))))))
 
 (defn safe-require [sym]
@@ -251,7 +252,7 @@
       (try (loop [a @!a]
              (or (-> a ::ns-tasks (get ns$))
                (if (compare-and-set! !a a (assoc-in a [::ns-tasks ns$] true))
-                 (->> (resource-forms rs) (reduce #(collect-defs !a ns$ env %2) nil))
+                 (->> (resource-forms rs ns$) (reduce #(collect-defs !a ns$ env %2) nil))
                  (recur @!a))))
            (catch Throwable e
              (prn :failed-to-analyze (::ns-stack env))
