@@ -528,7 +528,8 @@ T T T -> (EXPR T)
 
 (def cdef ->Cdef)
 
-(declare slot-port)
+(defprotocol PSlot
+  (slot-port [slot]))
 
 (defn bind "
 (CTOR T) -> (CTOR T)
@@ -778,6 +779,13 @@ T T T -> (EXPR T)
   (t [_] ::slot)
   (peephole [this] this)
   (pp [_] (list 'Slot id))
+  PSlot
+  (slot-port ^objects [slot]
+    (let [id (.-id slot)
+          ^Frame frame (.-frame slot)]
+      (if (neg? id)
+        (aget ^objects (.-nodes frame) (- -1 id))
+        (aget ^objects (aget ^objects (.-tags frame) id) call-slot-port))))
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((port-flow (slot-port this)) step done)))
@@ -804,15 +812,6 @@ T T T -> (EXPR T)
   {:tag Slot}
   [^objects port]
   (aget port port-slot-slot))
-
-(defn slot-port
-  {:tag 'objects}
-  [^Slot slot]
-  (let [id (.-id slot)
-        ^Frame frame (.-frame slot)]
-    (if (neg? id)
-      (aget ^objects (.-nodes frame) (- -1 id))
-      (aget ^objects (aget ^objects (.-tags frame) id) call-slot-port))))
 
 (defn frame-path [^Frame frame]
   (loop [^Frame frame frame
