@@ -16,6 +16,10 @@
 
 (defonce wrap? (atom (fn [_nm _opts] wrap)))
 
+(comment
+  (reset! wrap? (fn [_ _] true))
+  )
+
 (defn act [^objects rd-array evt]
   (run! (fn [i] (aset rd-array (int i) ((aget rd-array (int (inc i))) (aget rd-array (int i)) evt)))
     (range 0 (count rd-array) 2))
@@ -233,6 +237,10 @@
 (defn wrap-uninitialized
   ([nm flow] (wrap-uninitialized nm flow {}))
   ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) uninitialized-checks))))
+
+(defn wrap-initialized
+  ([nm flow] (wrap-initialized nm flow {}))
+  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) initialized-checks))))
 
 (defn wrap-incseq
   ([nm flow] (wrap-incseq nm flow {}))
