@@ -66,12 +66,29 @@ Simple uncontrolled checkbox, e.g.
     (Swallow-empty-diffs ; FIXME wart - empty diffs caused by e/with-cycle
       (e/with-cycle [v init-v] (Checkbox v props)))))
 
+
+
+#?(:cljs (defn tag-name [node] (-> node .-tagName .toLowerCase)))
+
+#?(:cljs (defn form-element-supports-before-after? [node]
+           (not (#{"button" "select" "textarea" "input"} (tag-name node)))))
+
+#?(:cljs
+   (defn parent-has-only-one-child-of-type? [node]
+     (-> node .-parentElement
+       (.getElementsByTagName (tag-name node))
+       .-length
+       (= 1))))
+
 (e/defn SetValidity
   ([throwable] (SetValidity dom/node throwable))
   ([node throwable]
    (let [message (str (ex-message throwable))]
      (when (not-empty message)
-       (dom/props node {:data-errormessage message}))
+       (when-let [target-node (cond (form-element-supports-before-after? node) node
+                                    (parent-has-only-one-child-of-type? node) (.-parentElement node)
+                                    :else node)]
+         (dom/props target-node {:data-errormessage message})))
      (.setCustomValidity node message)
      (e/on-unmount #(.setCustomValidity node "")))))
 
