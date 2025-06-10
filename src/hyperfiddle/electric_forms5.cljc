@@ -102,6 +102,8 @@ Simple uncontrolled checkbox, e.g.
 #_ (defn form-valid? [x] ; works for all edits - control or form - "edit-valid?" name was judged less natural.
   (not (instance? #?(:clj Throwable, :cljs js/Error) x)))
 
+(defn tx-error? [error] (and error (not= ::discard error))) ; we are (ab)using the error channel to signal discard. This is an implementation detail. TODO revisit.
+
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
                 v & {:keys [as name type label id Parse Unparse] :as props
                      :or {as :input, type "text", id (random-uuid) Parse Identity, Unparse (Lift str)}}]
@@ -113,7 +115,7 @@ Simple uncontrolled checkbox, e.g.
       (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
-            error? (some? err)
+            error? (tx-error? err)
             dirty? (e/Reconcile (or editing? waiting? error?))
             unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
             parsed-v (Parse unparsed-v)]
@@ -157,7 +159,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
                          [e t err dom/node]))
             editing? (dom/Focused? input-node) ; never true on Safari (MacOs and iOS)
             waiting? (some? t)
-            error? (some? err)
+            error? (tx-error? err)
             dirty? (or editing? waiting? error?)
             unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-checked))) (Unparse checked))) ; user input has precedence
             parsed-v (Parse unparsed-v)]
@@ -556,7 +558,7 @@ accept the previous token and retain the new one."
       (= currentTarget (.-form (.-target e))) ; event happened on an input in a form
       )))
 
-(defn stop-err-propagation [tok] (when tok (fn token ([] (tok)) ([_err]))))
+(defn stop-err-propagation [tok] (when tok (fn token ([] (tok)) ([err] (when (= err ::discard) (tok ::discard))))))
 
 (defn -schedule "run f after current propagation turn" [f] (m/sp (m/? (m/sleep 0)) (f)))
 (e/defn Schedule [f] (e/Task (-schedule f)))
@@ -691,7 +693,7 @@ accept the previous token and retain the new one."
         (token) ; discard now and swallow cmd, we're done
         ;; reset form and BOTH buttons, cancelling any in-flight commit
         (let [token (-> token (after-ack #(when tracked-token (tracked-token ::discard))) (after-ack clear-commits))]
-          (token)))))
+          (token ::discard)))))
   (e/amb))
 
 (e/defn FormActions! [[form-t parsed-form-v] disabled? form-valid? commit-t discard-t genesis auto-submit tracked-token tracked-cmd]
