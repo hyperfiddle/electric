@@ -170,7 +170,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
         (e/When waiting?
           (dom/props input-node {:aria-busy true})
           [t {k parsed-v}]))
-      (e/When label (dom/label (dom/props {:for id}) (dom/text (label k)))))))
+      (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
 
 (e/defn LatestEdit ; TODO ideally remove
   "
@@ -248,7 +248,7 @@ accept the previous token and retain the new one."
                       id (random-uuid)]
                   (dom/dt (dom/label (dom/props {:for id}) (dom/text x)))
                   (dom/dd
-                    (Checkbox! x (= selected-v x) :id id, :name k, :type :radio, :label option-label, :required (:required props)
+                    (Checkbox! x (= selected-v x) :id id, :name k, :type :radio, :label (option-label x), :required (:required props)
                       :Parse (e/fn [_checked?] x) ; true -> k
                       ))))))
       :as as
