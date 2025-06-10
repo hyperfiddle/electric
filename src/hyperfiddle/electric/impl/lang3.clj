@@ -828,7 +828,7 @@
           (recur (?meta form (cons `(::static-vars cljs.core/array) o)) pe env ts)))
 
       (vector? form) (recur (?meta form (cons `(::static-vars vector) form)) pe env ts)
-      (map? form) (recur (?meta form (cons `(::static-vars hash-map) (eduction cat form))) pe env ts)
+      (map? form) (recur (?meta form (cons `(::static-vars array-map) (eduction cat form))) pe env ts) ; array-map to respect program order, map literals only.
       (set? form) (recur (?meta form (cons `(::static-vars hash-set) form)) pe env ts)
 
       (symbol? form)
@@ -1149,7 +1149,7 @@
                  (::invoke) (map emit (find ::p u))
                  (::js-map) (list* 'js-object (eduction (map emit) (map unname) (find ::p u)))
                  (::js-array) (list* 'array (eduction (map emit) (map unname) (find ::p u)))
-                 (::map) (apply hash-map (eduction (map emit) (find ::p u)))
+                 (::map) (apply array-map (eduction (map emit) (find ::p u))) ; array-map to respect program order, map literals only.
                  (::set) (set (eduction (map emit) (find ::p u)))
                  (::vector) (vec (eduction (map emit) (find ::p u)))
                  (::var) (if (= `r/cannot-resolve (::resolved nd)) `(r/cannot-resolve-fn '~(::sym nd))  (::sym nd))
