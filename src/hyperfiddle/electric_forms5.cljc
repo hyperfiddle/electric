@@ -464,8 +464,10 @@ accept the previous token and retain the new one."
   `(reboot-by identity ~sym ~@body))
 
 (defn button-strategy [user-t user-err controlled-t]
-  (cond (or user-t user-err) ::user-has-precedence
+  (cond #_#_(or user-t user-err) ::user-has-precedence
+        user-t               ::user-has-precedence
         controlled-t         ::controlled
+        user-err             ::error
         :else                ::idle))
 
 (e/defn Button!* [& {:keys [token] :as props}]
@@ -476,7 +478,23 @@ accept the previous token and retain the new one."
       (case (button-strategy btn-t btn-err tracked-token)
         ::user-has-precedence [(e/->Token `Button!* (e/->Token 'btn-t (e/snapshot btn-t)) (e/->Token 'tracked-token token)) btn-err event node]
         ::controlled [tracked-token tracked-err (js/Object.) node]
-        ::idle [nil nil nil node]))))
+        ::error [nil btn-err event node]
+        ::idle [nil nil event node]))))
+
+
+(def internal-error-state #{::invalid ::discard})
+
+(defn btn-tx-failed? [error]
+  (and (some? error) (not (internal-error-state error))))
+
+(defn btn-tx-success? [event token error]
+  (and (some? event)
+    (nil? token)
+    (nil? error)))
+
+(defn filter-out-internal-error-state [error]
+  (when-not (internal-error-state error)
+    error))
 
 (e/defn TxButton!
   ;; Like `Button!*` with extra semantic markup reflecting tx status.
@@ -493,13 +511,14 @@ accept the previous token and retain the new one."
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
     (dom/props node {:disabled (e/Task (m/sleep 0 (or disabled (and btn-t (nil? err)))))})
     (dom/props node {:aria-busy (some? btn-t)})
-    (dom/props node {:aria-invalid (#(and (some? err) (not= err ::invalid)) err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
-    ;; FIXME regressed:
-    (dom/props node {:data-tx-status (when (and (some? event) (nil? btn-t) (nil? err)) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
-    (e/When btn-t [btn-t err]))) ; forward token to track tx-status ; should it return [t err]?
+    (dom/props node {:aria-invalid (btn-tx-failed? err)}) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
+    (dom/props node {:data-tx-status (when (btn-tx-success? event btn-t err) "accepted")}) ; FIXME can't distinguish between successful tx or tx canceled by clicking discard.
+    [btn-t (filter-out-internal-error-state err)])) ; forward token to track tx-status ; should it return [t err]?
 
 (e/defn Button! [command & {:keys [Parse] :or {Parse Identity} :as props}] ; User friendly API answering "what does the button do when clicked: it returns [t (Parse value)], ∅ otherwise."
-  [(first (TxButton! (dissoc props :Parse))) (Parse command)])
+  (let [[btn-t err] (TxButton! (dissoc props :Parse))]
+    (e/When btn-t
+      [btn-t (Parse command)])))
 
 ;;; Forms
 
