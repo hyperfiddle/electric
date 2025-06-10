@@ -13,10 +13,11 @@
 
 ;;; Simple controlled inputs (dataflow circuits)
 
-(e/defn Input [v & {:keys [type] :as props :or {type "text"}}]
+(e/defn Input [v & {:keys [type label id] :as props :or {type "text", id (random-uuid)}}]
   (e/client
+    (e/When label (dom/label (dom/props {:for id}) (dom/text label)))
     (dom/input
-      (dom/props (-> props (assoc :type type)))
+      (dom/props (-> props (assoc :type type, :id id)))
       (when-not (dom/Focused?)  ; "don't damage user input"
         (set! (.-value dom/node) (str v)))
       ;; event handler can't be guarded by focus – <input type=number> renders a
@@ -85,12 +86,13 @@ Simple uncontrolled checkbox, e.g.
   (not (instance? #?(:clj Throwable, :cljs js/Error) x)))
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
-                v & {:keys [as name type Parse Unparse] :as props
-                     :or {as :input, type "text", Parse Identity, Unparse (Lift str)}}]
+                v & {:keys [as name type label id Parse Unparse] :as props
+                     :or {as :input, type "text", id (random-uuid) Parse Identity, Unparse (Lift str)}}]
   (e/client
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
+    (e/When label (dom/label (dom/props {:for id}) (dom/text label)))
     (dom/element as
-      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)))))
+      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)) :id id)))
       (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
