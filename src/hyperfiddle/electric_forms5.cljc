@@ -13,17 +13,16 @@
 
 ;;; Simple controlled inputs (dataflow circuits)
 
-(e/defn Input [v & {:keys [maxlength type] :as props
-                    :or {maxlength 100 type "text"}}]
+(e/defn Input [v & {:keys [type] :as props :or {type "text"}}]
   (e/client
     (dom/input
-      (dom/props (-> props (assoc :maxLength maxlength :type type)))
+      (dom/props (-> props (assoc :type type)))
       (when-not (dom/Focused?)  ; "don't damage user input"
         (set! (.-value dom/node) (str v)))
       ;; event handler can't be guarded by focus – <input type=number> renders a
       ;; ↑↓ mouse control over the text input to increment/decrement a number.
       ;; Clicking those buttons don't focus the input.
-      (dom/On "input" #(-> % .-target .-value (subs 0 maxlength)) (str v)) ; (str v) passes through
+      (dom/On "input" #(-> % .-target .-value) (str v)) ; (str v) passes through
       )))
 
 (e/defn Checkbox [checked & {:keys [id type label] :as props
@@ -86,19 +85,19 @@ Simple uncontrolled checkbox, e.g.
   (not (instance? #?(:clj Throwable, :cljs js/Error) x)))
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
-                v & {:keys [as maxlength name type Parse Unparse] :as props
-                     :or {as :input, maxlength 100, type "text", Parse Identity, Unparse (Lift str)}}]
+                v & {:keys [as name type Parse Unparse] :as props
+                     :or {as :input, type "text", Parse Identity, Unparse (Lift str)}}]
   (e/client
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (dom/element as
-      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :maxLength maxlength :type type :name (or name (str field-name)))))
+      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)))))
       (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
             editing? (dom/Focused?)
             waiting? (some? t)
             error? (some? err)
             dirty? (e/Reconcile (or editing? waiting? error?))
             unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
-            parsed-v (Parse (subs unparsed-v 0 maxlength))]
+            parsed-v (Parse unparsed-v)]
         (SetValidity parsed-v)
         (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; TODO - submit must reset input while focused
         (when error? (dom/props {:aria-invalid true})) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
