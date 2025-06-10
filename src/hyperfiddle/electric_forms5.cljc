@@ -470,7 +470,7 @@ accept the previous token and retain the new one."
         user-err             ::error
         :else                ::idle))
 
-(e/defn Button!* [& {:keys [token] :as props}]
+(e/defn Button!*-impl [& {:keys [token] :as props}]
   (let [[event node] (Button* (dissoc props :token))
         [tracked-token tracked-err] (TrackToken token)
         [btn-t btn-err] (reboot-on event (e/Token event))]
@@ -496,7 +496,7 @@ accept the previous token and retain the new one."
   (when-not (internal-error-state error)
     error))
 
-(e/defn TxButton!
+(e/defn Button!* #_TxButton!
   ;; Like `Button!*` with extra semantic markup reflecting tx status.
   ;; Users want `Button!` instead, mapping "button click tx" to a business command.
   "Transactional button with busy state. Disables when busy. To be styled with CSS:
@@ -505,7 +505,7 @@ accept the previous token and retain the new one."
   - button[data-tx-status=accepted] : tx success
   - button:disabled{...} "
   [& {:keys [disabled type token] :or {type :button} :as props}]
-  (let [[btn-t err event node] (Button!* (-> props (assoc :type type) (dissoc :disabled)))]
+  (let [[btn-t err event node] (Button!*-impl (-> props (assoc :type type) (dissoc :disabled)))]
     ;; Don't set :disabled on <input type=submit> before "submit" event has bubbled, it prevents form submission.
     ;; When "submit" event reaches <form>, native browser impl will check if the submitter node (e.g. submit button) has a "disabled=true" attr.
     ;; Instead, let the submit event propagate synchronously before setting :disabled, by queuing :disabled on the event loop.
@@ -516,7 +516,7 @@ accept the previous token and retain the new one."
     [btn-t (filter-out-internal-error-state err)])) ; forward token to track tx-status ; should it return [t err]?
 
 (e/defn Button! [command & {:keys [Parse] :or {Parse Identity} :as props}] ; User friendly API answering "what does the button do when clicked: it returns [t (Parse value)], ∅ otherwise."
-  (let [[btn-t err] (TxButton! (dissoc props :Parse))]
+  (let [[btn-t err] (Button!* (dissoc props :Parse))]
     (e/When btn-t
       [btn-t (Parse command)])))
 
