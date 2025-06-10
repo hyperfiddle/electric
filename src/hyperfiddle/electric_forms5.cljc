@@ -769,9 +769,27 @@ accept the previous token and retain the new one."
         tracked-token (Filter some? tracked-token)]
     (e/Reconcile (or form-token tracked-token (e/->Token))))) ; FIXME tracked-token cannot be sticky - case where form is uncontrolled then controlled then uncontrolled again.
 
+(defn can-submit? [form-type dirty-count validation-message tracked-cmd]
+  (case form-type
+    :entity (or (and (pos? dirty-count) (not validation-message)) tracked-cmd)
+    #_:command (or (not validation-message) tracked-cmd)))
+
+(defn can-discard? [dirty-count tracked-cmd] (or (pos? dirty-count) tracked-cmd))
+
+
+;; A form can model either an entity or a command. The difference is subtle:
+;; - commmand: no identity, meant to collect valid values together, to perform an effect. Eventually multiple time with the same values.
+;;    "commit" is only disabled if form is invalid. Even if form is not dirty.
+;;    Same semantics as HTTP POST
+;; - entity: has an identity, there's no point submitting an unaltered entity.
+;;    "commit" is disabled unless form is dirty and valid.
+;;    Same semantics as HTTP PUT/PATCH.
+;; We default to :command for teaching. Hyperfiddle need :entity 99% of time.
+;; We can revisit the API and have both Entity! and Command! at the top level, so we can decide which one Form! maps to by default.
+;; for now implemented as a :type :entity|:command argument.
 (e/defn Form!*
-  ([value Fields & {:keys [debug show-buttons auto-submit genesis Parse Unparse disabled #_discard] ; TODO implement discard
-                    :or {debug false, show-buttons false, genesis false, disabled false}}]
+  ([value Fields & {:keys [debug show-buttons auto-submit genesis Parse Unparse disabled type #_discard] ; TODO implement discard
+                    :or {debug false, show-buttons false, genesis false, disabled false, type :command #_:entity}}]
    (e/client
      (let [[tracked-token tracked-cmd unparsed-value tracked-tempid] (UnparseForm Unparse value)
            Parse (e/Reconcile (or Parse (e/fn [fields tempid] fields)))
@@ -802,8 +820,8 @@ accept the previous token and retain the new one."
 
            validation-message (not-empty (ex-message parsed-form-v))
            dirty-count (count edits)]
-       (reset! !disabled-commit (and (or (zero? dirty-count) validation-message) (not tracked-cmd)))
-       (reset! !disabled-discard (and (zero? dirty-count) (not tracked-cmd)))
+       (reset! !disabled-commit (not (can-submit? type dirty-count validation-message tracked-cmd)))
+       (reset! !disabled-discard (not (can-discard? dirty-count tracked-cmd)))
        (e/amb
          (let [[cmd err] (FormActions! [form-t parsed-form-v] disabled-commit (empty? validation-message) commit-t discard-t genesis auto-submit tracked-token tracked-cmd)]
            (dom/p (dom/props {:data-role "errormessage"})
