@@ -77,7 +77,7 @@
 (defn run-loop [muppet* rng done loop-name !trace]
   (try
     (loop [i 1]
-      (Thread/yield)
+      (Thread/sleep 1)
       (if (< i 10000)
         (let [muppet (nth muppet* (rng (count muppet*)))]
           (when-some [f (muppet rng)] (swap! !trace conj [loop-name f]) (f))
@@ -86,10 +86,11 @@
         (prn 'loop-consumed!!!)))
     (catch clojure.lang.ExceptionInfo e
       (when-not (#{:intended} (::t (ex-data e)))
-        ;; (prn 'failed-trace @!trace)
+        (prn 'failed-trace (type e) @!trace)
         (throw e)))
+    (catch InterruptedException e (throw e))
     (catch Throwable e
-      ;; (prn 'failed-trace @!trace)
+      (prn 'failed-trace (type e) @!trace)
       (throw e))))
 
 (defn run-sync [root child* rng]
@@ -112,12 +113,12 @@
            (throw (ex-info "run-async failed" {:trace @!trace} e))))))
 
 (comment
-  (dotimes [i 100]
+  (dotimes [i 10000]
     (let [rng (->xorshift64 (random-seed))
           mup (muppet rng)
           !trace (atom [])
-          child (mu/wrap-initialized :muppet mup {:reductions [(mu/log #(swap! !trace conj %))]})
-          root (mu/wrap-initialized :root (m/latest identity child) {:reductions [(mu/log #(swap! !trace conj %))]})
+          child (mu/wrap-initialized :muppet mup {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
+          root (mu/wrap-initialized :root (m/latest identity child) {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
           ;; child mup
           ;; root (m/latest identity child)
           ]
