@@ -593,13 +593,16 @@ T T T -> (EXPR T)
   #?(:cljs IHash)
   (#?(:clj hashCode :cljs -hash) [_]
     (if-some [h hash-memo]
-      h (set! hash-memo (-> (hash Frame)
-                          (hash-combine (hash peer))
-                          (hash-combine (hash id))))))
+      h (set! hash-memo
+          (-> (hash Frame)
+            (hash-combine (hash peer))
+            (hash-combine (hash site))
+            (hash-combine (hash id))))))
   #?(:cljs IEquiv)
   (#?(:clj equals :cljs -equiv) [_ other]
     (and (instance? Frame other)
       (= peer (.-peer ^Frame other))
+      (= site (.-site ^Frame other))
       (= id (.-id ^Frame other))))
   IFn
   (#?(:clj invoke :cljs -invoke) [_ step done]
