@@ -615,3 +615,17 @@ A map of {`e-defn-qualified-sym e-defn-value}. To resolve e/defns at runtime.
     (eduction (map symbol)
       (map (cc/fn [sym] [`'~sym sym])))
     (into {})))
+
+(hyperfiddle.electric3/declare
+  ^{:dynamic true
+    :doc "
+A place to store var bindings *intended* to be passed to host interop.
+Electric doesn't automatically convey those bindings.
+
+(e/defn With-electric-bindings [f]
+  (let [bindings e/*bindings*] ; capture dynamic scope
+    (e/capture-fn ; prevent reruns on any binding value change.
+      (fn [& args]
+        (with-bindings bindings
+          (apply f args))))))"}
+  *bindings*)
