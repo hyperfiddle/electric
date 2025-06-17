@@ -28,11 +28,10 @@
                      (reify
                        IFn (invoke [_] (swap! !state assoc 2 true))
                        IDeref (deref [_]
-                                (swap! !state assoc 0 false)
                                 (condp > (rng 10)
-                                  1 (done)
+                                  1 (do (swap! !state assoc 0 false) (done))
                                   3 (step)
-                                  #_else nil)
+                                  #_else (swap! !state assoc 0 false))
                                 (let [n (rng 50)]
                                   (if (zero? n)
                                     (throw (ex-info "[muppet] intended crash" {::t :intended}))
@@ -113,18 +112,25 @@
            (throw (ex-info "run-async failed" {:trace @!trace} e))))))
 
 (comment
-  (dotimes [i 10000]
-    (let [rng (->xorshift64 (random-seed))
-          mup (muppet rng)
-          !trace (atom [])
-          child (mu/wrap-initialized :muppet mup {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
-          root (mu/wrap-initialized :root (m/latest identity child) {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
-          ;; child mup
-          ;; root (m/latest identity child)
-          ]
-      (try (run-async root [mup] rng)
-           (catch Throwable e
-             (prn 'log-trace @!trace)
-             (prn 'run-trace (-> e ex-data :trace))
-             (throw e)))))
+  (require '[clj-async-profiler.core :as prof])
+  (time
+    (dotimes [i 100000]
+      (let [rng (->xorshift64 (random-seed))
+            mup (muppet rng)
+            !trace (atom [])
+            child (mu/wrap-initialized :muppet mup {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
+            ;; child mup
+            root (m/signal (m/latest identity child))
+            root (mu/wrap-initialized :root root {:reductions [(mu/log #(swap! !trace conj [(.getId (Thread/currentThread)) %]))]})
+            ]
+        (try (run-async root [mup] rng)
+             (catch Throwable e
+               (prn 'log-trace @!trace)
+               (prn 'run-trace (-> e ex-data :trace))
+               (throw e))))))
+  (def -rng (->xorshift64 (random-seed)))
+  (def -mup (muppet -rng))
+  (def -ps ((mu/wrap-flow :root (mu/wrap-flow :muppet -mup {:reductions [[:prn #(prn %)]]}) {}) #(prn 'step) #(prn 'done)))
+  (-mup -rng)
+  @-ps
   )

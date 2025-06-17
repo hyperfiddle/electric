@@ -25,7 +25,7 @@
     [(m/sp (loop [] ((m/? (m/mbx))) (recur)))
      mbx]))
 
-(defn act [^objects rd-array evt]
+(defn handle [^objects rd-array evt]
   (run! (fn [i] (aset rd-array (int i) ((aget rd-array (int (inc i))) (aget rd-array (int i)) evt)))
     (range 0 (count rd-array) 2))
   rd-array)
@@ -49,35 +49,35 @@
                           (aset rd-array (int (+ i 1)) rf)))
                   (eduction (map-indexed cons) reductions))
               evt-base (assoc mt :name nm, :id id)
-              [actor-loop actor-mbx] (actor)
-              actor-cancel (actor-loop {} #(when-not (cancelled? %) (prn %)))
-              act (fn [evt] (actor-mbx #(act rd-array evt)))
+              [actor-loop send-to-actor] (actor)
+              actor-cancel (actor-loop {} #(when-not (cancelled? %) (throw %)))
+              send! (fn [evt] (send-to-actor #(handle rd-array evt)))
               step+ (fn []
-                      (act (assoc evt-base :event :step, :t (now-ms)))
+                      (send! (assoc evt-base :event :step, :t (now-ms)))
                       (let [e (try (step) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                        (act (cond-> (assoc evt-base :event :stepped, :t (now-ms)) e (assoc :threw e)))
+                        (send! (cond-> (assoc evt-base :event :stepped, :t (now-ms)) e (assoc :threw e)))
                         (when e (throw e))))
               done+ (fn []
-                      (act (assoc evt-base :event :do, :t (now-ms)))
+                      (send! (assoc evt-base :event :do, :t (now-ms)))
                       (let [e (try (done) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                        (act (cond-> (assoc evt-base :event :done, :t (now-ms)) e (assoc :threw e)))
+                        (send! (cond-> (assoc evt-base :event :done, :t (now-ms)) e (assoc :threw e)))
                         (actor-cancel)
                         (when e (throw e))))
               cancel (do
-                       (act (assoc evt-base :event :spawn, :t (now-ms)))
+                       (send! (assoc evt-base :event :spawn, :t (now-ms)))
                        (let [[t v] (try [:ok (flow step+ done+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                         (act (cond-> (assoc evt-base :event :spawned, :t (now-ms)) (= :ex t) (assoc :threw v)))
+                         (send! (cond-> (assoc evt-base :event :spawned, :t (now-ms)) (= :ex t) (assoc :threw v)))
                          (cond-> v (= :ex t) throw)))]
           (reify
             IFn (#?(:clj invoke :cljs -invoke) [_]
-                  (act (assoc evt-base :event :cancel, :t (now-ms)))
+                  (send! (assoc evt-base :event :cancel, :t (now-ms)))
                   (let [e (try (cancel) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                    (act (cond-> (assoc evt-base :event :canceled, :t (now-ms)) e (assoc :threw e)))
+                    (send! (cond-> (assoc evt-base :event :canceled, :t (now-ms)) e (assoc :threw e)))
                     (when e (throw e))))
             IDeref (#?(:clj deref :cljs -deref) [_]
-                     (act (assoc evt-base :event :transfer, :t (now-ms)))
+                     (send! (assoc evt-base :event :transfer, :t (now-ms)))
                      (let [[t v] (try [:ok @cancel] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-                       (act (assoc evt-base :event :transferred, :t (now-ms), :type t, :v v))
+                       (send! (assoc evt-base :event :transferred, :t (now-ms), :type t, :v v))
                        (cond-> v (= :ex t) throw)))))))))
 
 (defn ->file-line-info [mt]
@@ -278,18 +278,18 @@
                 (eduction (map-indexed cons) reductions))
             !es (atom rd-array)
             s+ (fn [v]
-                 (swap! !es act {:event :success, :t (now-ms), :name nm, :id id, :v v})
+                 (swap! !es handle {:event :success, :t (now-ms), :name nm, :id id, :v v})
                  (let [e (try (s v) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                   (swap! !es act (cond-> {:event :succeeded, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
+                   (swap! !es handle (cond-> {:event :succeeded, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
                    (when e (throw e))))
             f+ (fn [v]
-                 (swap! !es act {:event :fail, :t (now-ms), :name nm, :id id, :v v})
+                 (swap! !es handle {:event :fail, :t (now-ms), :name nm, :id id, :v v})
                  (let [e (try (f v) nil (catch #?(:clj Throwable :cljs :default) e e))]
-                   (swap! !es act (cond-> {:event :failed, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
+                   (swap! !es handle (cond-> {:event :failed, :t (now-ms), :name nm, :id id, :v v} e (assoc :threw e)))
                    (when e (throw e))))]
-        (swap! !es act {:event :spawn, :t (now-ms), :name nm, :id id})
+        (swap! !es handle {:event :spawn, :t (now-ms), :name nm, :id id})
         (let [[t cancel] (try [:ok (task s+ f+)] (catch #?(:clj Throwable :cljs :default) e [:ex e]))]
-          (swap! !es act (cond-> {:event :spawned, :t (now-ms), :name nm, :id id} (= :ex t) (assoc :threw cancel)))
+          (swap! !es handle (cond-> {:event :spawned, :t (now-ms), :name nm, :id id} (= :ex t) (assoc :threw cancel)))
           (cond-> cancel (= :ex t) throw))))))
 
 (def spawn-cannot-throw
