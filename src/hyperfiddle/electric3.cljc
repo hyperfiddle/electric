@@ -599,3 +599,19 @@ result while awaiting subsequent values of f, such that intermediate pending sta
   (reset! _!x (m/observe (cc/fn [!] (! 42) #())))
   @_ps
   )
+
+(hyperfiddle.electric3/declare
+  ^{:dynamic true
+    :doc "
+A map of {`e-defn-qualified-sym e-defn-value}. To resolve e/defns at runtime.
+"}
+  *exports*)
+
+(defmacro exports "Experimental. Return a map {sym efn} of all e/defn tagged with ::e/export in the current ns" []
+  ;; We don't want to export all e/defns from all nss.
+  ;; Instead users can (def exports (e/exports)) and (def exports (merge ns1/exports ns2/exports))
+  (->> (r/exported-evars)
+    (eduction (filter #(= *ns* (.-ns %))))
+    (eduction (map symbol)
+      (map (cc/fn [sym] [`'~sym sym])))
+    (into {})))

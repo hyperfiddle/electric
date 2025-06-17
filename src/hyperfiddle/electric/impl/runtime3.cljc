@@ -1881,3 +1881,6 @@ entrypoint.
   ([])
   ([a] a)
   ([a & bs] `(do!* ~a ~@bs)))
+
+#?(:clj (defn all-vars "Return an eduction of all clojure vars in classpath." [] (->> (all-ns) (eduction (map ns-interns) (map vals) cat))))
+#?(:clj (defn exported-evars "Return an eduction of all exported Electric fn vars" [] (eduction (filter #(:hyperfiddle.electric3/export (meta %))) (all-vars))))
