@@ -417,6 +417,7 @@ accept the previous token and retain the new one."
 .hyperfiddle-electric-forms5__table-picker tr td:not(:has(*)) /* eventually contains only text */
 , .hyperfiddle-electric-forms5__table-picker tr td > *:only-child
  { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+.hyperfiddle-electric-forms5__table-picker tr td > a:only-child {display: inline-block; max-width:100%;}
 
 :where(.hyperfiddle-electric-forms5__table-picker) {
   background: repeating-linear-gradient(
