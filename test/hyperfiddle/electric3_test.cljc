@@ -2583,6 +2583,7 @@
     (swap! !x inc)
     (tick :server-reader)
     (tick :server-reader)
+    (tick :server-reader)
     % := 0))
 
 ;; unserializable varargs example adapted from

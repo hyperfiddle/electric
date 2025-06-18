@@ -94,10 +94,11 @@ Symmetric difference https://en.wikipedia.org/wiki/Symmetric_difference
 (def session-slot-store 7)
 (def session-slots 8)
 
-(def request-slot-local 0)
-(def request-slot-remote 1)
-(def request-slot-pending 2)
-(def request-slots 3)
+(def request-slot-ack 0)
+(def request-slot-local 1)
+(def request-slot-remote 2)
+(def request-slot-pending 3)  ;; inc on (zero? local) change, dec on (zero? ack) change
+(def request-slots 4)
 
 (def socket-slot-root 0)
 (def socket-slot-step 1)
@@ -110,15 +111,14 @@ Symmetric difference https://en.wikipedia.org/wiki/Symmetric_difference
 (def socket-slot-owner 8)
 (def socket-slot-pending 9)
 (def socket-slot-sessions 10)                                 ;; slot -> session
-(def socket-slot-requested-local 11)
-(def socket-slot-requested-remote 12)
-(def socket-slot-toggles 13)
-(def socket-slot-reader 14)
-(def socket-slot-writer 15)
-(def socket-slot-unacked-buffer 16)
-(def socket-slot-unacked-push 17)
-(def socket-slot-unacked-pull 18)
-(def socket-slots 19)
+(def socket-slot-requested 11)
+(def socket-slot-toggles 12)
+(def socket-slot-reader 13)
+(def socket-slot-writer 14)
+(def socket-slot-unacked-buffer 15)
+(def socket-slot-unacked-push 16)
+(def socket-slot-unacked-pull 17)
+(def socket-slots 18)
 
 (def event-slot-type 0)
 (def event-slot-target 1)
@@ -960,8 +960,7 @@ T T T -> (EXPR T)
                 (aset session session-slot-buffer (object-array 1))
                 (aset session session-slot-size (identity 0))
                 (aset session session-slot-store
-                  (when (call? slot)
-                    (long-array (bit-shift-left request-slots 1))))
+                  (when (call? slot) (long-array 6)))
                 (aset session session-slot-event
                   (if (= (signal-site signal) (peer-site peer))
                     (doto (object-array event-slots)
@@ -1038,6 +1037,12 @@ T T T -> (EXPR T)
       (aset request slot (unchecked-inc n))
       (aset request slot (unchecked-dec n)))
     (when-not (= (zero? n) (zero? (aget request slot)))
+      (when (== slot request-slot-ack)
+        (aset request request-slot-pending
+          (unchecked-dec (aget request request-slot-pending))))
+      (when (== slot request-slot-local)
+        (aset request request-slot-pending
+          (unchecked-inc (aget request request-slot-pending))))
       (reduce run (partial walk slot dir (signal-local? signal)) (signal-deps signal)))
     (when-not (= (zero? s) (zero? (request-state request)))
       (aset socket socket-slot-toggles
@@ -1046,15 +1051,19 @@ T T T -> (EXPR T)
     (when (signal-local? signal)
       (session-retry session))))
 
-(defn frame-toggle [^Frame frame dir]
+(defn propagate-call-request [^Frame frame dir slot]
   (let [^objects call-session (session-check-create (slot-signal (frame-slot frame)))
         ^longs call-store (aget call-session session-slot-store)
         ^Signal signal (slot-signal (frame-result-slot frame))]
-    (dotimes [slot request-slots]
-      (dotimes [_ (aget call-store (store-index slot false))]
-        (walk slot dir false signal))
-      (dotimes [_ (aget call-store (store-index slot true))]
-        (walk slot dir true signal)))))
+    (dotimes [_ (aget call-store (store-index slot false))]
+      (walk slot dir false signal))
+    (dotimes [_ (aget call-store (store-index slot true))]
+      (walk slot dir true signal))))
+
+(defn frame-toggle [^Frame frame dir]
+  (propagate-call-request frame dir request-slot-remote)
+  (propagate-call-request frame dir request-slot-local)
+  (propagate-call-request frame dir request-slot-ack))
 
 (defn output-item-dispose [^objects session pos]
   (let [^objects buffer (aget session session-slot-buffer)
@@ -1284,24 +1293,29 @@ T T T -> (EXPR T)
           (session-cancel session))
       (session-spawn session))))
 
-(defn session-request-remote-toggle [^Slot slot]
+(defn session-request-toggle [^Slot slot flag local]
   (let [^objects socket (get-socket (frame-peer (slot-frame slot)))
         signal (slot-signal slot)
-        dir (contains? (aset socket socket-slot-requested-remote
-                         (toggle! (aget socket socket-slot-requested-remote) slot)) slot)]
-    (walk request-slot-remote dir false signal)))
+        requested (aget socket socket-slot-requested)
+        x (get requested slot 0)
+        dir (not (bit-test x flag))]
+    (aset socket socket-slot-requested
+      (if dir
+        (dissoc! requested slot)
+        (let [x (bit-clear x flag)]
+          (if (zero? x)
+            (dissoc! requested slot)
+            (assoc! requested slot x)))))
+    (walk flag dir local signal)))
 
-(defn session-request-local-toggle [^Slot slot]
-  (let [^objects socket (get-socket (frame-peer (slot-frame slot)))
-        signal (slot-signal slot)
-        dir (contains? (aset socket socket-slot-requested-local
-                         (toggle! (aget socket socket-slot-requested-local) slot)) slot)]
-    (walk request-slot-pending true true signal)
-    (walk request-slot-local dir true signal)))
+(defn session-request-toggle-ack [slot]
+  (session-request-toggle slot request-slot-ack true))
 
-(defn session-ack-local-toggle [^Slot slot]
-  (let [signal (slot-signal slot)]
-    (walk request-slot-pending false true signal)))
+(defn session-request-toggle-local [slot]
+  (session-request-toggle slot request-slot-local true))
+
+(defn session-request-toggle-remote [slot]
+  (session-request-toggle slot request-slot-remote false))
 
 (defn pure-ack? [[_ r c f]]
   (-> (count c)
@@ -1334,7 +1348,7 @@ T T T -> (EXPR T)
              (when-not (= empty-msg msg)
                (when-not (pure-ack? msg)
                  (socket-unacked-push socket request)
-                 (reduce run session-request-local-toggle request))
+                 (reduce run session-request-toggle-local request))
                (reduce run session-toggle (persistent! (aget socket socket-slot-toggles)))
                (aset socket socket-slot-toggles nil)
                (try ((aget socket socket-slot-writer) msg)
@@ -1353,9 +1367,9 @@ T T T -> (EXPR T)
                           (reduce run
                             (fn [[a r c f]]
                               (dotimes [_ a]
-                                (reduce run session-ack-local-toggle
+                                (reduce run session-request-toggle-ack
                                   (socket-unacked-pull socket)))
-                              (reduce run session-request-remote-toggle r)
+                              (reduce run session-request-toggle-remote r)
                               (reduce-kv run input-append c)
                               (reduce run input-freeze f)) msgs)
                           (recur sigs (reduce cnt acks (eduction (remove pure-ack?) msgs))
@@ -1645,8 +1659,7 @@ T T T -> (EXPR T)
           (aset socket socket-slot-pending (identity 0))
           (aset socket socket-slot-shared {})
           (aset socket socket-slot-sessions {})
-          (aset socket socket-slot-requested-local (transient #{}))
-          (aset socket socket-slot-requested-remote (transient #{}))
+          (aset socket socket-slot-requested (transient {}))
           (aset socket socket-slot-writer (socket-writer opts socket))
           (aset socket socket-slot-reader (socket-reader opts root socket))
           (aset socket socket-slot-unacked-buffer (object-array 1))
