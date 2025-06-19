@@ -70,7 +70,7 @@ Symmetric difference https://en.wikipedia.org/wiki/Symmetric_difference
   #?(:clj (.incrementAndGet ^AtomicInteger (.-next-id peer))
      :cljs (set! (.-next-id peer) (inc (.-next-id peer)))))
 
-(deftype Signal [slot site deps meta input flow])
+(deftype Signal [slot site deps meta input request flow])
 
 (defn signal-site [^Signal signal]
   (.-site signal))
@@ -884,7 +884,7 @@ T T T -> (EXPR T)
 
 (defn make-signal [^Slot slot site mt deps flow]
   (let [input (m/store {} (i/fixed))]
-    (->Signal slot site deps mt input
+    (->Signal slot site deps mt input #?(:clj (AtomicInteger. 0) :cljs 0)
       (m/signal i/combine
         (if (= site (peer-site (frame-peer (slot-frame slot))))
           flow (i/latest-concat (i/fixed input)))))))
@@ -1571,24 +1571,27 @@ T T T -> (EXPR T)
        :cljs (let [reader (t/reader :json opts)]
                (fn [string] (t/read reader string))))))
 
+(defn slot-toggle [^Slot slot]
+  (let [^Peer peer (.-peer (slot-frame slot))]
+    ((.-request peer) #{slot})))
+
+(defn signal-up [^Signal signal]
+  (when (zero? #?(:clj  (.getAndIncrement ^AtomicInteger (.-request signal))
+                  :cljs (let [n (.-request signal)] (set! (.-request signal) (inc n)) n)))
+    (slot-toggle (signal-slot signal))))
+
+(defn signal-down [^Signal signal]
+  (when (zero? #?(:clj  (.decrementAndGet ^AtomicInteger (.-request signal))
+                  :cljs (let [n (dec (.-request signal))] (set! (.-request signal) n) n)))
+    (slot-toggle (signal-slot signal))))
+
 (defn incseq
   ([expr]
-   ;; expr can be Id
-   (if (instance? Slot expr)
-     (let [^Slot slot expr
-           ^Frame parent (.-frame slot)
-           ^Peer peer (.-peer parent)
-           request (.-request peer)
-           ;; TODO use signal refcount
-           !rc #?(:clj (AtomicInteger. 0) :cljs (volatile! 0))]
-       (m/sample {}
-         (m/observe
-           (fn [!] (! nil)
-             (when (zero? #?(:clj (.getAndIncrement !rc) :cljs (let [n @!rc] (vreset! !rc (inc n)) n)))
-               (request #{slot}))
-             #(when (zero? #?(:clj (.decrementAndGet !rc) :cljs (let [n (dec @!rc)] (vreset! !rc n) n)))
-                (request #{slot}))))
-         slot))
+   (m/sample {}
+     (m/observe
+       (fn [!] (! nil)
+         (deps expr run signal-up)
+         #(deps expr run signal-down)))
      expr))
   ;; compat, TODO change compiler
   ([_ expr] (incseq expr)))
