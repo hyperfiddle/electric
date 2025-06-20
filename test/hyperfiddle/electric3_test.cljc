@@ -2852,3 +2852,18 @@
       (reset! !r false)
       (tap :done)
       % := :done)))
+
+(tests
+  "mount point with a remote call"
+  (let [ps ((l/local {}
+              (let [mp (e/mount-point)]
+                ({} (e/input mp)
+                 (tap (e/server
+                        ({} (e/$ (e/fn []
+                                   ({} (e/client (kvs/insert! mp (e/tag) :bar))
+                                    (fn []))))     ;; unserializable value, should not transfer
+                         :foo))))))
+            tap tap)]
+    % := :foo
+    (tap :done)
+    % := :done))
