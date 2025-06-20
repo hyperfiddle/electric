@@ -71,24 +71,40 @@ Simple uncontrolled checkbox, e.g.
 #?(:cljs (defn tag-name [node] (-> node .-tagName .toLowerCase)))
 
 #?(:cljs (defn form-element-supports-before-after? [node]
-           (not (#{"button" "select" "textarea" "input"} (tag-name node)))))
+           (not (#{"select" "textarea" "input"} (tag-name node)))))
 
+;; TODO replace by a Field abstraction. HTML spec doesn't define a concept of
+;; fields: inputs are fields. We'd prefer to not add an extra abstraction, but
+;; we keep facing issues modeling label + input pairs in cute way. Problem: DOM
+;; inputs are not containers and do not support CSS pseudo-elements, so we
+;; cannot display input validation messages in pure CSS. The usual workaround is
+;; to add a wrapper around the input, and put the error message on or in the
+;; wrapper, but this pollutes the DOM by adding an accidental extra layer of
+;; markup. Other problem: labels are correlated 1:1 with inputs, (see the
+;; for="id" attr and aria-labelledby). If we want our forms to be accessible by
+;; defaults while preventing markup noise, either all inputs should be wrapped
+;; in a <label>, making grid layouts difficult, or we could auto-generate a
+;; correlation id for every label and their corresponding input. Asking the user
+;; to do so every time is cumbersome. Also input validity state and hints should
+;; semantically relate to the input and its label, eventually supporting RTL
+;; text flow. Having an explicit Field abstraction would allow us to correlate
+;; label, input, errors and hints without the need for a wrapper element (resort
+;; to electric dynamic scope), while still allowing the user to resort to a
+;; wrapper element if they need or want to.
 #?(:cljs
-   (defn parent-has-only-one-child-of-type? [node]
-     (-> node .-parentElement
-       (.getElementsByTagName (tag-name node))
-       .-length
-       (= 1))))
+   (defn parent-is-input-container-like? [node parent-node]
+     (js/console.log 'parent-is-input-container-like? (.getElementsByTagName parent-node (tag-name node)))
+     (= "label" (tag-name parent-node))))
 
 (e/defn SetValidity
-  ([throwable] (SetValidity dom/node throwable))
-  ([node throwable]
+  ([node parent-node throwable]
    (let [message (str (ex-message throwable))]
      (when (not-empty message)
-       (when-let [target-node (cond (form-element-supports-before-after? node) node
-                                    (parent-has-only-one-child-of-type? node) (.-parentElement node)
-                                    :else node)]
-         (dom/props target-node {:data-errormessage message})))
+       ;; TODO replace by a Field abstraction
+       (if (and (not (form-element-supports-before-after? node))
+             (parent-is-input-container-like? node parent-node))
+         (dom/props parent-node {:data-errormessage message})
+         (dom/props node {:data-errormessage message})))
      (.setCustomValidity node message)
      (e/on-unmount #(.setCustomValidity node "")))))
 
@@ -110,21 +126,22 @@ Simple uncontrolled checkbox, e.g.
   (e/client
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (e/When label (dom/label (dom/props {:for id}) (dom/text label)))
-    (dom/element as
-      (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)) :id id)))
-      (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
-            editing? (dom/Focused?)
-            waiting? (some? t)
-            error? (tx-error? err)
-            dirty? (e/Reconcile (or editing? waiting? error?))
-            unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
-            parsed-v (Parse unparsed-v)]
-        (SetValidity parsed-v)
-        (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; TODO - submit must reset input while focused
-        (when error? (dom/props {:aria-invalid true})) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
-        (when waiting? (dom/props {:aria-busy true}))
-        (e/When waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
-          [t {field-name parsed-v}])))))  ; edit request, bubbles upward to interpreter
+    (let [parent-node dom/node]
+      (dom/element as
+        (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)) :id id)))
+        (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
+              editing? (dom/Focused?)
+              waiting? (some? t)
+              error? (tx-error? err)
+              dirty? (e/Reconcile (or editing? waiting? error?))
+              unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-value))) (str (Unparse v)))) ; user input has precedence
+              parsed-v (Parse unparsed-v)]
+          (SetValidity dom/node parent-node parsed-v)
+          (when-not dirty? (set! (.-value dom/node) unparsed-v)) ; TODO - submit must reset input while focused
+          (when error? (dom/props {:aria-invalid true})) ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
+          (when waiting? (dom/props {:aria-busy true}))
+          (e/When waiting? ; return nothing, not nil - because edits are concurrent, also helps prevent spurious nils
+            [t {field-name parsed-v}]))))))  ; edit request, bubbles upward to interpreter
 
 (e/defn Output [field-name ; fields are named like the DOM <input name=...> - for coordination with form containers
                 v & {:keys [Unparse] :as props :or {Unparse (Lift str)}}]
@@ -163,7 +180,7 @@ proxy token t such that callback f! will run once the token is ack'ed. E.g. to a
             dirty? (or editing? waiting? error?)
             unparsed-v (e/Reconcile (if waiting? ((fn [] (-> e .-target .-checked))) (Unparse checked))) ; user input has precedence
             parsed-v (Parse unparsed-v)]
-        (SetValidity input-node parsed-v)
+        (SetValidity input-node dom/node parsed-v)
         (when (or (not dirty?) (#{"radio" :radio} type)) ; Radio's "don't damage user input" behavior handled at radiogroup level.
           (set! (.-checked input-node) unparsed-v)) ; FIXME DOM state isn't set when selecting two radios in a row in the same radiogroup.
         (when error? (dom/props input-node {:aria-invalid true}))  ; not to be confused with CSS :invalid. Only set from failed tx (err in token). Not set if form fail to validate.
