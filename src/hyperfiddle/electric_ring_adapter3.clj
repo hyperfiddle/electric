@@ -6,8 +6,6 @@
   (:refer-clojure :exclude [send])
   (:require [clojure.tools.logging :as log]
             [hyperfiddle.electric3 :as-alias e]
-            [hyperfiddle.electric.impl.runtime3 :as r]
-            [hyperfiddle.electric.debug3 :as dbg]
             [missionary.core :as m]
             [ring.websocket :as ws]
             [contrib.assert :as ca])
@@ -170,6 +168,9 @@
   [_ring-req _socket status-code & [reason]]
   (log/debug (GENERIC-WS-CLOSE-MESSAGES status-code "Client disconnected for an unexpected reason") {:status status-code :reason reason}))
 
+(defn subject-at [^objects arr slot]
+  (fn [!] (aset arr slot !) #(aset arr slot nil)))
+
 (defn electric-ws-handler
   "Return a map of generic ring-compliant handlers, describing how to start and manage an Electric server process hooked onto a websocket.
   Extensions (e.g. `hyperfiddle.electric-httpkit-adapter`) can extend the handler map as needed."
@@ -184,7 +185,7 @@
                     (aset state on-close-slot
                       ((m/join (fn [& _])
                          (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
-                         (write-msgs socket ((boot-fn) (r/subject-at state on-message-slot)))
+                         (write-msgs socket ((boot-fn) (subject-at state on-message-slot)))
                          (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL (write-msg socket "HEARTBEAT")))
                        {} (partial failure socket)))) ; Start Electric process
       :on-close   (fn on-close [_socket _status-code & [_reason]]
