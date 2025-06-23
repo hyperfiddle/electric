@@ -1022,23 +1022,23 @@ T T T -> (EXPR T)
     (aset session session-slot-delayed nil)
     (socket-consume (aget session session-slot-socket) event)))
 
-(defn session-update-request [^objects session slot dir]
+(defn session-update-request [^objects session flag dir]
   (let [^Signal signal (aget session session-slot-signal)
         ^objects socket (aget session session-slot-socket)
         ^longs request (aget session session-slot-request)
-        n (aget request slot)
+        n (aget request flag)
         s (request-state request)]
     (if dir
-      (aset request slot (unchecked-inc n))
-      (aset request slot (unchecked-dec n)))
-    (when-not (= (zero? n) (zero? (aget request slot)))
-      (when (== slot request-slot-ack)
+      (aset request flag (unchecked-inc n))
+      (aset request flag (unchecked-dec n)))
+    (when-not (= (zero? n) (zero? (aget request flag)))
+      (when (== flag request-slot-ack)
         (aset request request-slot-pending
           (unchecked-dec (aget request request-slot-pending))))
-      (when (== slot request-slot-local)
+      (when (== flag request-slot-local)
         (aset request request-slot-pending
           (unchecked-inc (aget request request-slot-pending))))
-      (reduce run (partial walk socket slot dir (signal-local? signal)) (signal-deps signal)))
+      (reduce run (partial walk socket flag dir (signal-local? signal)) (signal-deps signal)))
     (when-not (= (zero? s) (zero? (request-state request)))
       (aset socket socket-slot-toggles
         (toggle! (aget socket socket-slot-toggles)
