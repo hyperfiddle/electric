@@ -92,8 +92,7 @@ Simple uncontrolled checkbox, e.g.
 ;; to electric dynamic scope), while still allowing the user to resort to a
 ;; wrapper element if they need or want to.
 #?(:cljs
-   (defn parent-is-input-container-like? [node parent-node]
-     (js/console.log 'parent-is-input-container-like? (.getElementsByTagName parent-node (tag-name node)))
+   (defn parent-is-input-container-like? [parent-node]
      (= "label" (tag-name parent-node))))
 
 (e/defn SetValidity
@@ -102,7 +101,7 @@ Simple uncontrolled checkbox, e.g.
      (when (not-empty message)
        ;; TODO replace by a Field abstraction
        (if (and (not (form-element-supports-before-after? node))
-             (parent-is-input-container-like? node parent-node))
+             (parent-is-input-container-like? parent-node))
          (dom/props parent-node {:data-errormessage message})
          (dom/props node {:data-errormessage message})))
      (.setCustomValidity node message)
