@@ -36,26 +36,9 @@ Our mission is to raise the abstraction ceiling in web development in the same w
   </a>
 </div>
 
-# Tutorial and live examples
-
-- v3 live tutorial: https://electric.hyperfiddle.net/
-- v3 starter app: not yet generally available, [request early access here](https://www.hyperfiddle.net/early-access.html)
-
-# Talks and essays
-- [Talk: Electric Clojure v3: Differential Dataflow for UI (Getz 2024)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-v3-Differential-Dataflow-for-UI-Getz-2024-2e611cebd73f45dc8cc97c499b3aa8b8)
-- [Talk: Electric Clojure: compiler managed datasync for rich web apps (Getz 2023)](https://hyperfiddle-docs.notion.site/Talk-Electric-Clojure-compiler-managed-datasync-for-rich-web-apps-Getz-2023-e089a8c0caeb456daaf2f9675e3ac4e7)
-- [Talk: UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991)
-- [Talk: Missionary: a functional approach to massively concurrent application design (Noel 2023)](https://hyperfiddle-docs.notion.site/Talk-Missionary-a-functional-approach-to-massively-concurrent-application-design-Noel-2023-a74748f610c044328d19d038a6daffa1)
-- [You don't need a web framework, you need a web language (Getz 2021)](https://hyperfiddle.notion.site/Reactive-Clojure-You-don-t-need-a-web-framework-you-need-a-web-language-44b5bfa526be4af282863f34fa1cfffc)
-- [Talk: Functional effects and streaming systems in Clojure (Noel 2021)](https://hyperfiddle-docs.notion.site/Talk-Functional-effects-and-streaming-systems-in-Clojure-Noel-2021-f3f907e5e9b04d08a3be33d53a3cd18e)
-- https://clojureverse.org/t/electric-clojure-a-signals-dsl-for-fullstack-web-ui/9788
-- https://clojureverse.org/t/signals-vs-streams/9840/1
-
-# Community
-
-* slack support chatroom: #hyperfiddle @ [clojurians.net](https://clojurians.net/)
-* follow https://twitter.com/dustingetz for progress updates
-* **Contributing:** we do not currently accept PRs against Electric itself as this has historically not been productive for us. However, **we'd love for you to contribute demos!** Many of our coolest demos were started by early users, this is an amazing and productive way for you to get involved and collaborate with us. This will require a signed contributors agreement (like Clojure), DM dustingetz on slack.
+# Docs and getting started
+- [Tutorial and reference (google doc)](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/edit?tab=t.0#heading=h.m5gkjf7b16l)
+- v3 starter app: [request early access here](https://www.hyperfiddle.net/early-access.html)
 
 # License
 
