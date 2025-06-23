@@ -1294,14 +1294,14 @@ T T T -> (EXPR T)
   (let [signal (slot-signal slot)
         requested (aget socket socket-slot-requested)
         x (get requested slot 0)
-        dir (not (bit-test x flag))]
+        dir (not (bit-test x flag))
+        y (if dir
+            (bit-set x flag)
+            (bit-clear x flag))]
     (aset socket socket-slot-requested
-      (if dir
+      (if (zero? y)
         (dissoc! requested slot)
-        (let [x (bit-clear x flag)]
-          (if (zero? x)
-            (dissoc! requested slot)
-            (assoc! requested slot x)))))
+        (assoc! requested slot y)))
     (walk socket flag dir local signal)))
 
 (defn session-request-toggle-ack [socket slot]

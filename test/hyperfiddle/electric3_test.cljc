@@ -2867,3 +2867,23 @@
     % := :foo
     (tap :done)
     % := :done))
+
+(tests
+  "Runaway remote branch"
+  (let [!switch (atom true)
+        ps ((l/local {}
+              (e/client
+                (when (e/watch !switch) ; we start with the switch up
+                  ((fn [_] (reset! !switch false)) ; we get a server value then toggle the switch down (sequential)
+                   (do
+                     (tap :client-up)
+                     (e/on-unmount #(tap :client-down))
+                     (e/server
+                       (tap :server-up)
+                       (e/on-unmount #(tap :server-down))
+                       ))))))
+            tap tap)]
+    % := :client-up
+    % := :server-up
+    % := :client-down
+    % := :server-down))
