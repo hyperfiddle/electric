@@ -2900,3 +2900,8 @@
       % := [_ 1]
       (hash (first *1)) := (hash (first *3)) ; not the same hash – pure got rebuilt
       )))
+
+(tests
+  "nice error message on non-watchable `e/watch` call"
+  (with ((l/single {} (e/watch :foo)) tap tap)
+    (str/includes?  (ex-message %) "Not watchable: :foo") := true))

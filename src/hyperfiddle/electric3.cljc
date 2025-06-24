@@ -140,13 +140,16 @@ Syntax :
 Returns the current state of current continuous flow `cf`.
 " [& flows] `(join (r/fixed-signals ~@flows)))
 
+(cc/defn watchable! [ref]
+  (ca/is ref #?(:clj #(instance? clojure.lang.IRef %) :cljs #(satisfies? IWatchable %)) (str "Not watchable: " ref)))
+
 (defmacro watch "
 Syntax :
 ```clojure
 (watch !ref)
 ```
 Returns the current state of current reference `!ref`.
-" [ref] `(check-electric watch (input (m/watch ~ref))))
+" [ref] `(check-electric watch (input (m/watch (watchable! ~ref)))))
 
 (defmacro diff-by "
 Syntax :
