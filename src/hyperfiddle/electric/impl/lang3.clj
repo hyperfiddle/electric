@@ -1009,9 +1009,9 @@
                                  (under ts {::t ::catch, ::ex-type typ, ::sym sym}
                                    (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx (add-foreign-local env sym))) ts body)))))]
                        (case (->peer-type env)
-                         (:clj) (if (class? (resolve env typ))
-                                  (k typ)
-                                  (fail! env (str typ " is a JS class, cannot catch on JVM")))
+                         (:clj) (cond (= :default typ) (k 'Throwable)
+                                      (class? (resolve env typ)) (k typ)
+                                      :else (fail! env (str typ " is a JS class, cannot catch on JVM")))
                          (:cljs) (if (or (= :default typ) (analyze-cljs-symbol typ env))
                                    (k typ)
                                    (fail! env (str typ " is a JVM class, cannot catch on JS")))
