@@ -2905,3 +2905,8 @@
   "nice error message on non-watchable `e/watch` call"
   (with ((l/single {} (e/watch :foo)) tap tap)
     (str/includes?  (ex-message %) "Not watchable: :foo") := true))
+
+(tests
+  "e/Task failure conveyance"
+  (with ((l/single {} (e/Task (m/sp (throw (ex-info "boom" {}))))) {} tap)
+    (ex-message %) := "boom"))
