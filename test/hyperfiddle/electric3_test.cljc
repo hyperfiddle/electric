@@ -2887,3 +2887,18 @@
     % := :server-up
     % := :client-down
     % := :server-down))
+
+(tests
+  (let [!y (atom 1)
+        ps ((l/local {}
+              (let [x (identity :foo)]
+                (e/for [z (e/for [z (e/diff-by identity (e/as-vec (e/watch !y)))] ;; grow/shrink
+                            (if (let [!x (atom false)]             ;; false then true
+                                  (reset! !x true)
+                                  (e/watch !x))
+                              :bar (e/amb)))]
+                  (e/server (e/join (e/pure (tap [x z])))))))
+            tap tap)]
+    % := [:foo :bar]
+    (swap! !y inc)
+    % := [:foo :bar]))
