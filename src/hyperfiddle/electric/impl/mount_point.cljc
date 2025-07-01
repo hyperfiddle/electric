@@ -524,12 +524,12 @@ Mounting a block generates a grow for each active item having this block's frame
         (let [^objects prev (aget block block-slot-prev)
               ^objects next (aget block block-slot-next)
               ^objects call (aget block block-slot-parent)]
+          (aset block block-slot-prev nil)
+          (aset block block-slot-next nil)
           (if (identical? block prev)
             (let [^objects reader (aget call call-slot-reader)
                   ^objects parent (aget call call-slot-parent)
                   slot (r/frame-slot (aget block block-slot-frame))]
-              (aset block block-slot-prev nil)
-              (aset block block-slot-next nil)
               (call-release call)
               (if (identical? call (aget reader reader-slot-root))
                 (do (aset reader reader-slot-root nil)
