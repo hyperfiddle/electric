@@ -310,8 +310,9 @@ T T T -> (EXPR T)
          #?(:clj (alter-var-root #'*e (constantly e))
             :cljs (set! *e e))
          (let [clean-ex (clean-ex mt (str/join "\nvia: " (ex-messages e)))]
-           #?(:clj (log/error e))
-           ;; (println (ex-message clean-ex))
+           #?(:clj (log/error e)
+              :cljs ; console.error would print an irrelevant stacktrace
+              (.log js/console (str "[ERROR] " (ex-message clean-ex))))
            (throw clean-ex)))))
 
 (defn invoke-with [mt]
@@ -1389,7 +1390,8 @@ T T T -> (EXPR T)
                         (if-some [ed (cond (::unserializable (ex-data e)) (ex-data e)
                                            (::unserializable (ex-data (ex-cause e))) (ex-data (ex-cause e)))]
                           (let [msg (->unserializable-msg port* (:v ed))]
-                            #?(:clj (log/debug msg))
+                            #?(:clj (log/debug msg)
+                               :cljs (.debug js/console msg))
                             (throw (ex-info msg ed)))
                           (throw e))))))))
          (catch #?(:clj Throwable :cljs :default) e
