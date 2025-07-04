@@ -1488,10 +1488,16 @@ T T T -> (EXPR T)
                     #?(:clj missionary.impl.Propagator$Publisher :cljs missionary.impl.Propagator/Publisher)
                     (t/write-handler (fn [_] "_") (fn [_])) ; _ is transit's nil tag
                     #?@(:clj [clojure.lang.PersistentQueue (t/write-handler (fn [_] "_") (fn [_]))])
+
+                    ;; without this one can get `nil` or even `{}` on the other side, not an unserializable crash, ???
+                    #?(:clj Object :cljs js/Object)
+                    (t/write-handler
+                      (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true})))
+                      (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true}))))
                     })
         default (t/write-handler
                   (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true})))
-                  (fn [_]))]
+                  (fn [v] (throw (ex-info "unserializable" {:v v, ::unserializable true}))))]
     #?(:clj  (let [out (ByteArrayOutputStream.)
                    writer (t/writer out :json {:handlers handlers :default-handler default})]
                (fn [value] (.reset out) (t/write writer value) (.toString out)))
