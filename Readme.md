@@ -37,7 +37,8 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 </div>
 
 # Docs and getting started
-- [Tutorial and reference (google doc)](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/edit?tab=t.0#heading=h.m5gkjf7b16l)
+- [Mission statement, product overview, license, community](https://docs.google.com/document/d/1TgExchcIyWd4BH9qwb4vjp7uaBjWyBtPWEkGqSfvlTk/edit?tab=t.0)
+- [Tutorial and reference](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/edit?tab=t.0#heading=h.m5gkjf7b16l)
 - v3 starter app: [request early access here](https://www.hyperfiddle.net/early-access.html)
 
 # License
