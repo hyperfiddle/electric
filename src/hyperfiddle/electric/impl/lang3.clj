@@ -1020,7 +1020,7 @@
                                   (:cljs) (k (if (or (= :default typ) (analyze-cljs-symbol typ env)) typ :default)))))
                      (add-invoke ts form env))
 
-           (finally) (if (= ::try (::t (ts/->node ts (ts/find1 ts ::p p))))
+           (finally) (if (= ::try (::t (ts/->node ts p)))
                        (under ts {::t ::finally}
                          (fn [ts] (reduce (fn [ts nx] (analyze-foreign ts nx env)) ts (next form))))
                        (add-invoke ts form env))
