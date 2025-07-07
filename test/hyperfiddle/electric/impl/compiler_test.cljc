@@ -616,7 +616,7 @@
             (r/node ~'frame 0))))]))
 
 (def ^:dynamic *d* nil)
-(def fenv {:ns {:name 'hyperfiddle.electric.impl.compiler-test}
+(def fenv {::lang/ns {:name 'hyperfiddle.electric.impl.compiler-test}
            ::lang/peers {:client :cljs, :server :clj}
            :locals {'e1 {::lang/electric-let 1}
                     'e2 {::lang/electric-let 2}

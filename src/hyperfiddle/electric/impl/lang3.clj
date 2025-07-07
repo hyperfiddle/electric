@@ -25,8 +25,10 @@
 (defn electric-env? [env] (contains? env ::peers))
 (defn cljs-env? [env] (and (contains? env :locals) (not (electric-env? env))))
 (defn ->env-type [env] (if (:js-globals env) :cljs :clj))
-(defn normalize-env [env] (if (clj-env? env) {:locals env, :ns {:name (ns-name *ns*)}} env))
-(defn get-ns [env] (ca/is (-> env :ns :name) some? "No ns found in environment map" {:env env}))
+(defn normalize-env [env]
+  (let [env (if (clj-env? env) {:locals env} env)]
+    (assoc env ::ns {:name (ns-name *ns*)})))
+(defn get-ns [env] (ca/is (-> env ::ns :name) some? "No electric ns definition found in environment map" {:env env}))
 
 (defn serialized-require [sym]
   ;; we might be expanding clj code before the ns got loaded (during cljs compilation)
@@ -109,8 +111,8 @@
 (defn traceable [f] (case (namespace f) ("hyperfiddle.electric.impl.runtime3" "missionary.core" "hyperfiddle.incseq") false #_else true))
 
 (defn trace-crumb [o env]
-  (let [ns (-> env :ns :name), {:keys [line column]} (meta o)]
-    (str ns ":" line ":" column " " o)))
+  (let [{:keys [line column]} (meta o)]
+    (str (get-ns env) ":" line ":" column " " o)))
 
 (defn electric-sym? [sym]
   (let [s (name sym)]

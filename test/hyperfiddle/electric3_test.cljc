@@ -2058,15 +2058,15 @@
 #?(:clj
    (tests
      "e/fn multi-arity mistakes"
-     (try (lang/expand-all {:ns {:name (ns-name *ns*)}} '(e/fn Named ([x] x) ([y] y)))
+     (try (lang/expand-all {::lang/ns {:name (ns-name *ns*)}} '(e/fn Named ([x] x) ([y] y)))
           (catch Throwable e (tap e)))
      (ex-message %) := "Conflicting arity definitions in Named: [x] and [y]"
 
-     (try (lang/expand-all {:ns {:name (ns-name *ns*)}} '(e/fn Named ([x] x) ([& ys] ys)))
+     (try (lang/expand-all {::lang/ns {:name (ns-name *ns*)}} '(e/fn Named ([x] x) ([& ys] ys)))
           (catch Throwable e (tap e)))
      (ex-message %) := "Conflicting arity definitions in Named: [x] and [& ys]"
 
-     (try (lang/expand-all {:ns {:name (ns-name *ns*)}} '(e/fn ([x & ys] x) ([x y & zs] ys)))
+     (try (lang/expand-all {::lang/ns {:name (ns-name *ns*)}} '(e/fn ([x & ys] x) ([x y & zs] ys)))
           (catch Throwable e (tap e)))
      (ex-message %) := "Conflicting arity definitions: [x & ys] and [x y & zs]"))
 

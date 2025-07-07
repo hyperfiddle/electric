@@ -14,7 +14,7 @@
                                        (if (:js-globals &env)
                                          (assoc &env ::l/peers {:client :cljs, :server :cljs}, ::l/current :client)
                                          {:locals &env, ::l/peers {:client :clj, :server :clj}, ::l/current :client})
-                                       :ns '{:name 'hyperfiddle.electric.impl.expand3-test})
+                                       ::l/ns '{:name 'hyperfiddle.electric.impl.expand3-test})
                         ~o)))
 
 #?(:clj (defmacro test-peer-expansion [] (if (:js-globals &env) :cljs :clj)))
@@ -165,7 +165,7 @@
      (match
        (l/expand-all {::l/peers {:client :cljs, :server :clj}
                       ::l/current :server
-                      :ns {:name (ns-name *ns*)}
+                      ::l/ns {:name (ns-name *ns*)}
                       ::l/trace true}
          `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
        `(r/cannot-resolve (r/tracing tm/_ (tm/pair (r/tracing tm/_ (tm/pair 0 (r/tracing tm/_ (inc 1)))) 2))))
@@ -173,43 +173,43 @@
      (match
        (l/expand-all {::l/peers {:client :cljs, :server :clj}
                       ::l/current :client
-                      :ns {:name (ns-name *ns*)}
+                      ::l/ns {:name (ns-name *ns*)}
                       ::l/trace true}
          `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
        `(r/cannot-resolve (tm/pair (tm/pair 0 (r/tracing tm/_ (inc 1))) 2)))
 
      "expansion is peer-aware"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server, :ns {:name (ns-name *ns*)}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :server, ::l/ns {:name (ns-name *ns*)}}
        `[(test-peer-expansion) (::l/site :client (test-peer-expansion))])
      := `[:clj (::l/site :client :cljs)]
 
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name (ns-name *ns*)}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name (ns-name *ns*)}}
        `[(test-peer-expansion) (::l/site :server (test-peer-expansion))])
      := `[:cljs (::l/site :server :clj)]
 
      "cljs require-macros work in clj expansion"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(hyperfiddle.electric.impl.expand-macro/twice 1))
      := '[1 1]
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(mac/twice 1))
      := '[1 1]
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(twice 1))
      := '[1 1]
 
      "require referred macros work in cljs"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(referred))
      := :referred
 
      "required macros work in cljs when fully qualified"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(hyperfiddle.electric.impl.expand-require-referred/referred))
      := :referred
 
      "required macros work in cljs when alias qualified"
-     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, :ns {:name 'hyperfiddle.electric.impl.expand3-test}}
+     (l/expand-all {::l/peers {:client :cljs, :server :clj}, ::l/current :client, ::l/ns {:name 'hyperfiddle.electric.impl.expand3-test}}
        '(ref/referred))
      := :referred
 
@@ -221,6 +221,6 @@
                         (binding [*ns* (create-ns 'hyperfiddle.electric.impl.expand-unloaded)]
                           (l/expand-all {::l/peers {:client :cljs, :server :clj}
                                          ::l/current :server, ::l/me :client
-                                         :ns {:name 'hyperfiddle.electric.impl.expand-unloaded}}
+                                         ::l/ns {:name 'hyperfiddle.electric.impl.expand-unloaded}}
                             '(let [x 1])))))
      (throw (ex-info "clj macroexpansion for unloaded ns fails" {}))))
