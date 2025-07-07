@@ -484,16 +484,21 @@
 
 (defmethod analyze-symbol :clj [_ sym env] (analyze-clj-symbol sym env))
 
+(defn dotted-simple-symbol? [sym] (and (simple-symbol? sym) (str/includes? (str sym) ".")))
+(defn dot->ns-sym [sym] (let [parts (str/split (name sym) #"\.")] (symbol (str/join "." (butlast parts)) (last parts))))
+
 (def implicit-cljs-nses '#{goog goog.object goog.string goog.array Math String})
 (defn analyze-cljs-symbol [sym env]
   (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v)), ::meta (::cljs-ana/meta v)}
     (if-some [quald (when (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)))]
       {::type ::static, ::sym quald}
-      (if (or (cljs-ana/referred? @!a sym (get-ns env)) (cljs-ana/js-call? @!a sym (get-ns env)))
-        {::type ::static, ::sym sym}
-        (when (cljs-ana/imported? @!a sym (get-ns env))
-          {::type ::static, ::sym sym})))))
+      (or (when (and (dotted-simple-symbol? sym) (cljs-ana/find-var @!a (dot->ns-sym sym) (get-ns env))) ; (ns foo.bar) (deftype Baz) -> foo.bar.Baz
+            {::type ::static, ::sym sym})
+        (if (or (cljs-ana/referred? @!a sym (get-ns env)) (cljs-ana/js-call? @!a sym (get-ns env)))
+          {::type ::static, ::sym sym}
+          (when (cljs-ana/imported? @!a sym (get-ns env))
+            {::type ::static, ::sym sym}))))))
 
 (defmethod analyze-symbol :cljs [_ sym env] (analyze-cljs-symbol sym env))
 
