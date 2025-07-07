@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric.impl.cljs-analyzer2
   (:refer-clojure :exclude [find-var])
   (:require [cljs.analyzer]
+            [cljs.analyzer.api]
             [cljs.core] ; for cljs macroexpansion
             [cljs.env]
             [cljs.repl]
@@ -11,6 +12,7 @@
             [clojure.tools.reader.reader-types :as rt]
             [contrib.assert :as ca]
             [edamame.core :as ed]                 ; for cljs macroexpansion
+            [contrib.debug :as dbg]
             [clojure.walk :as walk]))
 
 (defn ns->basename [ns$] (-> ns$ name (.replace \- \_) (.replace \. \/)))
@@ -102,6 +104,12 @@
         alias (or alias (symbol (name src)))]
     (when-not (find-macro-var a src ns$)
       (list 'def alias))))
+#_(defmethod expand-differently 'taoensso.encore.signals/def-api [_ _ _ _ _]
+  `(do (taoensso.encore/defalias taoensso.encore.signals/level-aliases)
+       (declare help:filters help:handlers help:handler-dispatch-options get-filters get-min-levels get-handlers get-handlers-stats
+         without-filters set-kind-filter! with-kind-filter set-ns-filter! with-ns-filter set-id-filter! with-id-filter
+         set-min-level! with-min-level with-handler with-handler+ add-handler! remove-handler! stop-handlers! *ctx* set-ctx! with-ctx with-ctx+
+         *xfn* set-xfn! with-xfn with-xfn+)))
 
 (defn skip-docstring [args] (cond-> args (string? (first args)) next))
 (defn skip-attr-map [args] (cond-> args (map? (first args)) next))
@@ -132,9 +140,14 @@
                   (defprotocol? sym) (let [[_ nm & args] o, fns (-> args skip-docstring skip-inline-opts)]
                                        `(declare ~nm ~@(mapv first fns)))
                   (blacklisted sym) o ; reading compiler atom *during macroexpansion*
-                  :else (try (if-some [clj-ns (find-ns ns$)]
-                               (binding [*ns* clj-ns] (apply mac o env args)) ; fixes expansion of macros calling `eval`
-                               (apply mac o env args))
+                  ;; with-redefs here increases cljs compat of libraries that call into it at compile time (e.g. telemere/encore)
+                  ;; the cljs compiler state is not available in our analyzer, on purpose
+                  ;; Note the cyclic dependency with lang3. The analyzer doesn't have 1 global state atom but takes it as an argument.
+                  ;; Due to this lang3 needs to inject it into the cljs `resolve` fn. This isn't pretty but works.
+                  :else (try (with-redefs [cljs.analyzer.api/resolve (requiring-resolve 'hyperfiddle.electric.impl.lang3/cljs-analyzer-api-resolve-replacement)]
+                               (if-some [clj-ns (find-ns ns$)]
+                                 (binding [*ns* clj-ns] (apply mac o env args)) ; fixes expansion of macros calling `eval`
+                                 (apply mac o env args)))
                              (catch Throwable e (prn :cannot-expand (::ns-stack env) (cons mac args)) (throw e)))))
           o))
       o)))

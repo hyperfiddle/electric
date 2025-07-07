@@ -1,6 +1,7 @@
 (ns hyperfiddle.electric.impl.lang3
   (:refer-clojure :exclude [compile])
   (:require [cljs.analyzer]
+            [cljs.analyzer.api]
             [cljs.env]
             [clojure.string :as str]
             [contrib.assert :as ca]
@@ -393,6 +394,15 @@
                     (list* 'catch typ sym (mapv (fn-> -expand-all env2) body)))
           #_else (-expand-all o env)))
       (-expand-all o env)))
+
+(defn ->ns-sym [sym] (symbol (namespace sym)))
+
+(defn cljs-analyzer-api-resolve-replacement [env sym]
+  (let [ns$ (-> env :ns :name ca/is)]
+    (or (when-some [{full-name ::cljs-ana/name} (cljs-ana/find-var @!a sym ns$)]
+          {:op :var, :name full-name, :ns (->ns-sym full-name)})
+      (when-some [macro-var (cljs-ana/find-macro-var @!a sym ns$)]
+        {:op :var, :name (symbol macro-var), :ns (->ns-sym (symbol macro-var)) , :macro true}))))
 
 (defn expand-all [env o]
   (cljs-ana/analyze-nsT !a env (get-ns env))
