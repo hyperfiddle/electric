@@ -274,31 +274,34 @@
         (when (= "clojure.core" (namespace sym))
           (-> a ::nses (get 'cljs.core) ::defs (get (-> sym name symbol))))))))
 
-;; cljs analyzer has extra, clojure.core -> cljs.core, clojure.repl -> cljs.repl, do we need it?
 (defn find-macro-var [a sym ns$]
-  (when-not (find-var a sym ns$)
-    (-> (cond
-          (simple-symbol? sym)
-          (or (some-> (find-ns ns$) (find-ns-var sym))
-            (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
-            (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
-            (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
+  (or (when (and (qualified-symbol? sym) (= "clojure.core" (namespace sym)))
+        (find-macro-var a (symbol "cljs.core" (name sym)) ns$))
+    (when (and (qualified-symbol? sym) (= "clojure.repl" (namespace sym)))
+      (find-macro-var a (symbol "cljs.repl" (name sym)) ns$))
+    (when-not (find-var a sym ns$)
+      (-> (cond
+            (simple-symbol? sym)
+            (or (some-> (find-ns ns$) (find-ns-var sym))
+              (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
+              (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
+              (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
 
-          (#{"cljs.core" "clojure.core"} (namespace sym))
-          (safe-requiring-resolve sym)
+            (#{"cljs.core" "clojure.core"} (namespace sym))
+            (safe-requiring-resolve sym)
 
-          :else
-          (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
-            (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
+            :else
+            (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
+              (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
+                    (when (symbol? sym-ns$)
+                      (safe-require sym-ns$)
+                      (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
+                (when-some [sym-ns$ (-> a ::nses (get ns$) ::require-macros (get sym-ns$))]
                   (when (symbol? sym-ns$)
                     (safe-require sym-ns$)
                     (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
-              (when-some [sym-ns$ (-> a ::nses (get ns$) ::require-macros (get sym-ns$))]
-                (when (symbol? sym-ns$)
-                  (safe-require sym-ns$)
-                  (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
-              (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))))
-      (keep-if macro-var?))))
+                (some-> (find-ns sym-ns$) (find-ns-var sym-base$)))))
+        (keep-if macro-var?)))))
 
 (defn ->!a [] (let [!a (atom {})] (analyze-nsT !a (->cljs-env 'cljs.core) 'cljs.core) !a))
 
