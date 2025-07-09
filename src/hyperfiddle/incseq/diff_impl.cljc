@@ -18,10 +18,6 @@
     (unchecked-add (count (permutation d)))
     (zero?)))
 
-;; workaround - peek doesn't work on transient vectors :/
-(defn tpeek [tv]
-  (nth tv (dec (count tv))))
-
 (defn combine [x y]
   (let [grow-x (count (append x))
         grow-y (count (append y))
@@ -32,22 +28,20 @@
         permutation  (p/compose
                        (permutation x)
                        (p/split-swap size-between grow-y (shrink x))
-                       (permutation y))
-        a+p (reduce-kv (fn [a+p i x]
-                         (let [p (tpeek a+p)
-                               a (pop! a+p)
-                               j (unchecked-add size-before i)
-                               k (permutation j j)]
-                           (if (< k size-after)
-                             (-> a (conj! x) (conj! p))
-                             (conj! a (p/compose (p/rotation j max-degree)
-                                        p (p/rotation max-degree k))))))
-              (conj! (transient []) permutation) (append x))
-        permutation (tpeek a+p)
-        appendx (pop! a+p)
-        elided (unchecked-subtract grow-x (count appendx))
-        append (persistent! (reduce conj! appendx (append y)))
-        degree (unchecked-subtract max-degree elided)
-        shrink (unchecked-subtract degree size-after)]
-    ;; TODO remove shrunk reorders (still needed ?)
-    (diff append degree shrink permutation)))
+                       (permutation y))]
+    (loop [a (transient [])
+           d max-degree
+           p permutation
+           i 0
+           j size-before]
+      (if (< i grow-x)
+        (let [k (p j j)]
+          (if (< k size-after)
+            (recur (conj! a (nth (append x) i)) d p
+              (unchecked-inc i) (unchecked-inc j))
+            (recur a (unchecked-dec d)
+              (p/compose (p/rotation j d)
+                p (p/rotation d k))
+              (unchecked-inc i) j)))
+        (diff (persistent! (reduce conj! a (append y))) d
+          (unchecked-subtract d size-after) p)))))
