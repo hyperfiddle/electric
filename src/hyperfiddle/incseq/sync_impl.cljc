@@ -8,5 +8,5 @@
 
 (defmacro cas-sync [obj slot prev curr then else]
   (if (:js-globals &env)
-    `(do (aset ~obj ~slot ~curr) ~then)
+    `(if (identical? ~prev (aget ~obj ~slot)) (do (aset ~obj ~slot ~curr) ~then) ~else)
     `(if (.compareAndSet ^java.util.concurrent.atomic.AtomicReference (aget ~obj ~slot) ~prev ~curr) ~then ~else)))

@@ -2575,14 +2575,10 @@
               (e/for [x (e/diff-by {} (range (e/watch !x)))]
                 (e/server (tap x)))) tap tap)]
     (tick :server-reader)
-    (tick :server-reader)
-    (tick :server-reader)
     % := 0
     (swap! !x dec)
     (tick :server-reader)
     (swap! !x inc)
-    (tick :server-reader)
-    (tick :server-reader)
     (tick :server-reader)
     % := 0))
 
