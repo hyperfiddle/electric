@@ -965,6 +965,9 @@ T T T -> (EXPR T)
 (defn signal-local? [^Signal signal]
   (= (signal-site signal) (peer-site (frame-peer (slot-frame (signal-slot signal))))))
 
+(defn slot-path [slot]
+  (into [] (comp (take-while some?) (map slot-id)) (iterate (comp frame-slot slot-frame) slot)))
+
 (defn session-check-create [^objects socket ^Signal signal]
   (let [^Slot slot (signal-slot signal)]
     (if-some [^objects session (get (aget socket socket-slot-sessions) slot)]
@@ -1046,14 +1049,14 @@ T T T -> (EXPR T)
     (when-not (= (zero? n) (zero? (aget request flag)))
       (reduce run (partial walk socket flag dir (signal-local? signal)) (signal-deps signal)))))
 
-(defn propagate-call-request [^objects socket ^Frame frame dir slot]
+(defn propagate-call-request [^objects socket ^Frame frame dir flag]
   (let [^objects call-session (session-check-create socket (slot-signal (frame-slot frame)))
         ^longs call-store (aget call-session session-slot-store)
         ^Signal signal (slot-signal (frame-result-slot frame))]
-    (dotimes [_ (aget call-store (store-index slot false))]
-      (walk socket slot dir false signal))
-    (dotimes [_ (aget call-store (store-index slot true))]
-      (walk socket slot dir true signal))))
+    (dotimes [_ (aget call-store (store-index flag false))]
+      (walk socket flag dir false signal))
+    (dotimes [_ (aget call-store (store-index flag true))]
+      (walk socket flag dir true signal))))
 
 (defn frame-toggle [^objects socket ^Frame frame dir]
   (propagate-call-request socket frame dir request-slot-remote)
@@ -1438,7 +1441,8 @@ T T T -> (EXPR T)
           (reduce socket-request-toggle-ack socket r))))
     (reduce socket-request-toggle-remote socket request)
     (reduce input-append socket (map vector change diffs))
-    (reduce input-freeze socket freeze)))
+    (reduce input-freeze socket freeze)
+    (socket-upkeep socket)))
 
 (defn socket-emit [^objects socket msg]
   #_(apply prn (socket-site socket) '-> msg)
