@@ -2910,3 +2910,29 @@
   "e/Task failure conveyance"
   (with ((l/single {} (e/Task (m/sp (throw (ex-info "boom" {}))))) {} tap)
     (ex-message %) := "boom"))
+
+(tests
+  "e/Task without an initial value"
+  (let [dfv (m/dfv)]
+    (with ((l/single {}
+             (tap (e/Task dfv))
+             (tap :hi)) tap tap)
+      % := :hi
+      (dfv :bye)
+      % := :bye)))
+
+(tests
+  "e/Task with an initial value"
+  (let [dfv (m/dfv)]
+    (with ((l/single {} (tap (e/Task dfv :hi))) tap tap)
+      % := :hi
+      (dfv :bye)
+      % := :bye)))
+
+(tests
+  "e/Task with a failing task"
+  (let [dfv (m/dfv), task (m/sp (throw (m/? dfv)))]
+    (with ((l/single {} (tap (e/Task task :hi))) tap tap)
+      % := :hi
+      (dfv (ex-info "task crashed" {}))
+      (ex-message %) := "task crashed"))) ; TODO exception value comes from l/single's crash callback (last tap). Will fail when we introduce try/catch.
