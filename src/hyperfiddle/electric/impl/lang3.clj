@@ -398,7 +398,7 @@
 (defn ->ns-sym [sym] (symbol (namespace sym)))
 
 (defn cljs-analyzer-api-resolve-replacement [env sym]
-  (let [ns$ (-> env :ns :name ca/is)]
+  (when-some [ns$ (-> env :ns :name)]   ; `env` can be `{}`, e.g. in sci there's a case
     (or (when-some [{full-name ::cljs-ana/name} (cljs-ana/find-var @!a sym ns$)]
           {:op :var, :name full-name, :ns (->ns-sym full-name)})
       (when-some [macro-var (cljs-ana/find-macro-var @!a sym ns$)]
