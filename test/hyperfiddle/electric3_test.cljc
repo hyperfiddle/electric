@@ -2936,3 +2936,10 @@
       % := :hi
       (dfv (ex-info "task crashed" {}))
       (ex-message %) := "task crashed"))) ; TODO exception value comes from l/single's crash callback (last tap). Will fail when we introduce try/catch.
+
+;; m/sleep breaks entire test suite
+;; (tests
+;;   "e/Task with an initial value"
+;;   (with ((l/single {} (tap (e/Task (m/sleep 10 :bye) :hi))) tap tap)
+;;     % := :hi
+;;     % := :bye))
