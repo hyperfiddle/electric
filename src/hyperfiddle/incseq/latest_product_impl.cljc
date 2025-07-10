@@ -300,10 +300,11 @@
            (let [push (aget state slot-push)]
              (loop [pull push]
                (let [item (aget ready pull)
-                     pull (rem (unchecked-inc-int pull) arity)]
+                     p (rem (unchecked-inc-int pull) arity)]
                  (if (== item arity)
-                   (when-not (== pull push) (recur pull))
-                   (flush-ready state item pull)))))
+                   (when-not (== p push) (recur p))
+                   (do (aset ready pull arity)
+                       (flush-ready state item p))))))
            (throw e))
          (finally
            (aset state slot-push nil)
