@@ -94,19 +94,16 @@ Symmetric difference https://en.wikipedia.org/wiki/Symmetric_difference
 
 (def session-slot-socket 0)
 (def session-slot-signal 1)
-(def session-slot-request 2)
-(def session-slot-event 3)
-(def session-slot-buffer 4)
-(def session-slot-size 5)
-(def session-slot-delayed 6)
-(def session-slot-store 7)
-(def session-slot-updated 8)                                ;; linked list of sessions
-(def session-slots 9)
-
-(def request-slot-ack 0)
-(def request-slot-local 1)
-(def request-slot-remote 2)
-(def request-slots 3)
+(def session-slot-store 2)
+(def session-slot-request 3)
+(def session-slot-pending 4)
+(def session-slot-state 5)
+(def session-slot-event 6)
+(def session-slot-buffer 7)
+(def session-slot-size 8)
+(def session-slot-delayed 9)
+(def session-slot-updated 10)                                ;; linked list of sessions
+(def session-slots 11)
 
 (def socket-slot-root 0)
 (def socket-slot-step 1)
@@ -119,20 +116,21 @@ Symmetric difference https://en.wikipedia.org/wiki/Symmetric_difference
 (def socket-slot-owner 8)
 (def socket-slot-pending 9)
 (def socket-slot-sessions 10)                                 ;; slot -> session
-(def socket-slot-requested 11)
-(def socket-slot-updated 12)                                ;; linked list of sessions
-(def socket-slot-reader 13)
-(def socket-slot-writer 14)
-(def socket-slot-unacked-buffer 15)
-(def socket-slot-unacked-push 16)
-(def socket-slot-unacked-pull 17)
-(def socket-slot-message-acks 18)
-(def socket-slot-message-request 19)
-(def socket-slot-message-change 20)
-(def socket-slot-message-diffs 21)
-(def socket-slot-message-freeze 22)
-(def socket-slot-request-clock 23)
-(def socket-slots 24)
+(def socket-slot-dangling-frames 11)
+(def socket-slot-requested 12)
+(def socket-slot-updated 13)                                ;; linked list of sessions
+(def socket-slot-reader 14)
+(def socket-slot-writer 15)
+(def socket-slot-unacked-buffer 16)
+(def socket-slot-unacked-head 17)
+(def socket-slot-unacked-tail 18)
+(def socket-slot-message-acks 19)
+(def socket-slot-message-request 20)
+(def socket-slot-message-frames 21)
+(def socket-slot-message-change 22)
+(def socket-slot-message-diffs 23)
+(def socket-slot-message-freeze 24)
+(def socket-slots 25)
 
 (def event-slot-type 0)
 (def event-slot-target 1)
@@ -962,64 +960,119 @@ T T T -> (EXPR T)
 (defn call? [^Slot slot]
   (not (neg? (.-id slot))))
 
+(defn socket-unacked-push [^objects socket callback]
+  (let [^objects buffer (aget socket socket-slot-unacked-buffer)
+        cap (alength buffer)
+        push (aget socket socket-slot-unacked-tail)]
+    (if (nil? (aget buffer push))
+      (do (aset socket socket-slot-unacked-tail (rem (unchecked-inc push) cap))
+          (aset buffer push callback))
+      (let [c (bit-shift-left cap 1)
+            b (object-array c)
+            s (- cap push)]
+        (a/acopy buffer push b 0 s)
+        (a/acopy buffer 0 b s push)
+        (aset socket socket-slot-unacked-buffer b)
+        (aset socket socket-slot-unacked-head (+))
+        (aset socket socket-slot-unacked-tail (rem (unchecked-inc cap) c))
+        (aset b cap callback)))))
+
+(defn socket-unacked-pull [^objects socket]
+  (let [^objects buffer (aget socket socket-slot-unacked-buffer)
+        cap (alength buffer)
+        pull (aget socket socket-slot-unacked-head)
+        callback (aget buffer pull)]
+    (when (nil? callback) (throw (ex-info "Unexpected ack." {})))
+    (aset socket socket-slot-unacked-head
+      (rem (unchecked-inc pull) cap))
+    (aset buffer pull nil) callback))
+
 (defn signal-local? [^Signal signal]
   (= (signal-site signal) (peer-site (frame-peer (slot-frame (signal-slot signal))))))
 
 (defn slot-path [slot]
   (into [] (comp (take-while some?) (map slot-id)) (iterate (comp frame-slot slot-frame) slot)))
 
-(defn session-check-create [^objects socket ^Signal signal]
-  (let [^Slot slot (signal-slot signal)]
-    (if-some [^objects session (get (aget socket socket-slot-sessions) slot)]
-      session
-      (let [session (object-array session-slots)
-            event (if (= (signal-site signal) (peer-site (frame-peer (aget socket socket-slot-root))))
-                    (doto (object-array event-slots)
-                      (aset event-slot-type :output)
-                      (aset event-slot-target session))
-                    (m/store d/combine (d/empty-diff 0)))]
-        (aset socket socket-slot-sessions (assoc (aget socket socket-slot-sessions) slot session))
-        (aset session session-slot-socket socket)
-        (aset session session-slot-signal signal)
-        (aset session session-slot-request (a/long-array request-slots))
-        (aset session session-slot-buffer (object-array 1))
-        (aset session session-slot-size (+))
-        (aset session session-slot-store (when (call? slot) (long-array (bit-shift-left request-slots 1))))
-        (aset session session-slot-event event)
-        (aset session session-slot-updated session)
-        (if (signal-local? signal)
-          (do (aset socket socket-slot-pending
-                (inc (aget socket socket-slot-pending)))
-              (aset event event-slot-process
-                ((fs/flow (signal-flow signal))
-                 #(socket-step socket event)
-                 #(do (aset session session-slot-event nil)
-                      (socket-step socket event)))))
-          ((.-input signal) (ts/flow event)))
-        session))))
+(defn call-state [^longs call-store prefix]
+  (let [p (bit-shift-left prefix 2)]
+    (loop [i 0
+           n 0]
+      (if (< i 4)
+        (recur (unchecked-inc i)
+          (if (pos? (aget call-store (bit-or p i)))
+            (bit-or n (bit-shift-left 1 i)) n)) n))))
 
-(defn store-index [slot local]
-  (bit-or (bit-shift-left slot 1) (if local 1 0)))
+(defn session-spawn [^objects socket signal ^longs store ^longs request ^longs pending]
+  (let [session (object-array session-slots)
+        event (if (= (signal-site signal) (peer-site (frame-peer (aget socket socket-slot-root))))
+                (doto (object-array event-slots)
+                  (aset event-slot-type :output)
+                  (aset event-slot-target session))
+                (m/store d/combine (d/empty-diff 0)))]
+    (aset socket socket-slot-sessions (assoc (aget socket socket-slot-sessions) (signal-slot signal) session))
+    (aset session session-slot-socket socket)
+    (aset session session-slot-signal signal)
+    (aset session session-slot-store store)
+    (aset session session-slot-request request)
+    (aset session session-slot-pending pending)
+    (aset session session-slot-state (call-state request 0))
+    (aset session session-slot-buffer (object-array 1))
+    (aset session session-slot-size (+))
+    (aset session session-slot-event event)
+    (aset session session-slot-updated session)
+    (if (signal-local? signal)
+      (do (aset socket socket-slot-pending
+            (inc (aget socket socket-slot-pending)))
+          (aset event event-slot-process
+            ((fs/flow (signal-flow signal))
+             #(socket-step socket event)
+             #(do (aset session session-slot-event nil)
+                  (socket-step socket event)))))
+      ((.-input signal) (ts/flow event)))
+    session))
+
+(defn session-check-create ^objects [^objects socket ^Signal signal]
+  (let [slot (signal-slot signal)]
+    (if-some [session (get (aget socket socket-slot-sessions) slot)]
+      session (session-spawn socket signal
+                (when (call? slot) (long-array 8))
+                (a/long-array 4) (a/long-array 2)))))
 
 (declare session-update-request)
 
-(defn walk [^objects socket flag dir local ^Signal signal]
+(defn bump [n d]
+  (-> n
+    (unchecked-dec)
+    (unchecked-add d)
+    (unchecked-add d)))
+
+(defn binary [flags n]
+  (apply str
+    (map (fn [i]
+           (case (bit-and flags (bit-shift-left 1 i))
+             0 "0" "1")) (range (dec n) -1 -1))))
+
+;; flags - up? ack? local? from-local?
+(defn walk [^objects socket flags ^Signal signal]
+  #_(prn :walk (signal-slot signal) (binary flags 4))
   (if (call? (signal-slot signal))
     (let [^objects session (session-check-create socket signal)
           ^objects buffer (aget session session-slot-buffer)
-          ^longs store (aget session session-slot-store)]
-      (dotimes [i (aget session session-slot-size)]
-        (let [^objects item (aget buffer i)
-              frame (aget item item-slot-current)]
-          (walk socket flag dir local (slot-signal (frame-result-slot frame)))))
-      (let [i (store-index flag local)]
-        (if dir
-          (aset store i (unchecked-inc (aget store i)))
-          (aset store i (unchecked-dec (aget store i)))))
-      (session-update-request session flag dir))
-    (if (= local (signal-local? signal))
-      (reduce run (partial walk socket flag dir local) (signal-deps signal))
-      (session-update-request (session-check-create socket signal) flag dir))))
+          ^longs store (aget session session-slot-store)
+          index (bit-and flags 2r0111)
+          prev (aget store index)
+          curr (bump prev (bit-shift-right (bit-and flags 2r1000) 3))]
+      (aset store index curr)
+      (when-not (= (zero? prev) (zero? curr))
+        (dotimes [i (aget session session-slot-size)]
+          (let [^objects item (aget buffer i)
+                frame (aget item item-slot-current)]
+            (when (or (zero? (bit-and flags 2r0100)) (contains? (aget socket socket-slot-dangling-frames) frame))
+              (walk socket flags (slot-signal (frame-result-slot frame)))))))
+      (session-update-request session (bit-shift-right flags 1)))
+    (if (= (zero? (bit-and flags 2r0001)) (signal-local? signal))
+      (session-update-request (session-check-create socket signal) (bit-shift-right flags 1))
+      (reduce run (partial walk socket flags) (signal-deps signal)))))
 
 (defn peer-next-id [^Peer peer]
   #?(:clj (.incrementAndGet ^AtomicInteger (.-next-id peer))
@@ -1035,33 +1088,84 @@ T T T -> (EXPR T)
         built ((.-build cdef) frame)]
     (define-slot (->Slot frame (- -1 nodec)) {} built) frame))
 
-(defn session-update-request [^objects session flag dir]
+(defn pick ^long [^long n ^long i]
+  (bit-shift-right (bit-and n (bit-shift-left 1 i)) i))
+
+;; flags - up? ack? local?
+(defn session-update-request [^objects session flags]
   (let [^Signal signal (aget session session-slot-signal)
         ^objects socket (aget session session-slot-socket)
         ^longs request (aget session session-slot-request)
-        n (aget request flag)]
-    (when (identical? session (aget session session-slot-updated))
-      (aset session session-slot-updated (aget socket socket-slot-updated))
-      (aset socket socket-slot-updated session))
-    (if dir
-      (aset request flag (unchecked-inc n))
-      (aset request flag (unchecked-dec n)))
-    (when-not (= (zero? n) (zero? (aget request flag)))
-      (reduce run (partial walk socket flag dir (signal-local? signal)) (signal-deps signal)))))
+        index (bit-and 2r011 flags)
+        prev (aget request index)
+        curr (aset request index (bump prev (pick flags 2)))]
+    #_(prn :session-update-request (signal-slot signal) (binary flags 3) prev '-> curr)
+    (when-not (= (zero? prev) (zero? curr))
+      (when (identical? session (aget session session-slot-updated))
+        (aset session session-slot-updated (aget socket socket-slot-updated))
+        (aset socket socket-slot-updated session))
+      (reduce run (partial walk socket
+                    (bit-or (bit-shift-left flags 1)
+                      (if (signal-local? signal) 1 0)))
+        (signal-deps signal)))))
 
-(defn propagate-call-request [^objects socket ^Frame frame dir flag]
-  (let [^objects call-session (session-check-create socket (slot-signal (frame-slot frame)))
-        ^longs call-store (aget call-session session-slot-store)
-        ^Signal signal (slot-signal (frame-result-slot frame))]
-    (dotimes [_ (aget call-store (store-index flag false))]
-      (walk socket flag dir false signal))
-    (dotimes [_ (aget call-store (store-index flag true))]
-      (walk socket flag dir true signal))))
+(defn frame-call-store [^objects socket frame]
+  (aget (session-check-create socket
+          (slot-signal (frame-slot frame))) session-slot-store))
 
-(defn frame-toggle [^objects socket ^Frame frame dir]
-  (propagate-call-request socket frame dir request-slot-remote)
-  (propagate-call-request socket frame dir request-slot-local)
-  (propagate-call-request socket frame dir request-slot-ack))
+;; flags - up? ack?
+(defn propagate-call-state [^objects socket flags state signal]
+  (let [prefix (bit-shift-left flags 2)]
+    (dotimes [i 4]
+      (when (bit-test state i)
+        (walk socket (bit-or prefix i) signal)))))
+
+(defn socket-local-frame-up [^objects socket frame]
+  #_(prn :local-frame-up frame)
+  (let [signal (slot-signal (frame-result-slot frame))]
+    (propagate-call-state socket 2r10 (call-state (frame-call-store socket frame) 0) signal)
+    (aset socket socket-slot-message-frames
+      (conj! (aget socket socket-slot-message-frames) frame))))
+
+(defn socket-local-frame-down [^objects socket frame]
+  #_(prn :local-frame-down frame)
+  (let [frame-state (aget socket socket-slot-dangling-frames)
+        signal (slot-signal (frame-result-slot frame))]
+    (propagate-call-state socket 2r00 (call-state (frame-call-store socket frame) 0) signal)
+    (aset socket socket-slot-message-frames
+      (conj! (aget socket socket-slot-message-frames) frame))
+    (aset socket socket-slot-dangling-frames
+      (assoc! frame-state frame
+        (bit-or (call-state (frame-call-store socket frame) 1)
+          (if (contains? frame-state frame) 2r10000 0))))))
+
+(defn socket-local-frame-ack [^objects socket frame]
+  #_(prn :local-frame-ack frame)
+  (let [frame-state (aget socket socket-slot-dangling-frames)
+        signal (slot-signal (frame-result-slot frame))]
+    (doto socket
+      (aset socket-slot-dangling-frames
+        (if-some [state (get frame-state frame)]
+          (let [state- (bit-xor state 2r10000)]
+            (if (zero? (bit-and state 2r10000))
+              (do (propagate-call-state socket 2r11 state signal)
+                  (assoc! frame-state frame state-))
+              (do (propagate-call-state socket 2r01 state- signal)
+                  (dissoc! frame-state frame))))
+          (do (propagate-call-state socket 2r11 (call-state (frame-call-store socket frame) 1) signal)
+              (assoc! frame-state frame nil)))))))
+
+(defn socket-remote-frame-up [^objects socket frame]
+  #_(prn :remote-frame-up frame)
+  (let [signal (slot-signal (frame-result-slot frame))]
+    (propagate-call-state socket 2r10 (call-state (frame-call-store socket frame) 0) signal)
+    (propagate-call-state socket 2r11 (call-state (frame-call-store socket frame) 1) signal)))
+
+(defn socket-remote-frame-down [^objects socket frame]
+  #_(prn :remote-frame-down frame)
+  (let [signal (slot-signal (frame-result-slot frame))]
+    (propagate-call-state socket 2r00 (call-state (frame-call-store socket frame) 0) signal)
+    (propagate-call-state socket 2r01 (call-state (frame-call-store socket frame) 1) signal)))
 
 (defn output-item-dispose [^objects session pos]
   (let [^objects socket (aget session session-slot-socket)
@@ -1074,7 +1178,7 @@ T T T -> (EXPR T)
     (aset buffer pos nil)
     (when-some [event (aget item item-slot-event)]
       (event-cancel event))
-    (when (call? slot) (frame-toggle socket x false))))
+    (when (call? slot) (socket-local-frame-down socket x))))
 
 (defn input-item-spawn [^objects session pos init]
   (let [^objects socket (aget session session-slot-socket)
@@ -1082,7 +1186,7 @@ T T T -> (EXPR T)
         ^Slot slot (.-slot signal)
         ^objects buffer (aget session session-slot-buffer)
         ^objects item (object-array item-slots)]
-    (when (call? slot) (frame-toggle socket init true))
+    (when (call? slot) (socket-remote-frame-up socket init))
     (aset item item-slot-parent session)
     (aset item item-slot-position pos)
     (aset item item-slot-current init)
@@ -1097,8 +1201,8 @@ T T T -> (EXPR T)
         ^objects item (aget buffer i)
         p (aget item item-slot-current)]
     (when (call? slot)
-      (frame-toggle socket x true)
-      (frame-toggle socket p false))
+      (socket-remote-frame-up socket x)
+      (socket-remote-frame-down socket p))
     (aset item item-slot-current x)
     ((aget item item-slot-event) x)
     session))
@@ -1111,7 +1215,7 @@ T T T -> (EXPR T)
         ^objects buffer (aget session session-slot-buffer)
         ^objects item (aget buffer pos)
         x (aget item item-slot-current)]
-    (when (call? slot) (frame-toggle socket x false))
+    (when (call? slot) (socket-remote-frame-down socket x))
     (aset buffer pos nil)
     (aset session session-slot-size pos)))
 
@@ -1159,6 +1263,12 @@ T T T -> (EXPR T)
     (let [{:keys [grow degree shrink permutation change freeze]} diff
           ip (i/inverse permutation)
           ^objects buffer (session-ensure-capacity session degree)]
+      #_
+      (when-not (= (- degree grow) (aget session session-slot-size))
+        (prn :diff-corruption (slot-path slot)
+          (vec (aget session session-slot-request))
+          (vec (aget session session-slot-pending))
+          (aget session session-slot-state)))
       (loop [i 0
              append (transient [])
              change (transient change)]
@@ -1230,33 +1340,6 @@ T T T -> (EXPR T)
       (throw (new #?(:clj Error :cljs js/Error) "Uninitialized flow.")))
     session))
 
-(defn socket-unacked-push [^objects socket request]
-  (let [^objects buffer (aget socket socket-slot-unacked-buffer)
-        cap (alength buffer)
-        push (aget socket socket-slot-unacked-push)]
-    (aset buffer push request)
-    (let [i (rem (inc push) cap)]
-      (if (= i (aget socket socket-slot-unacked-pull))
-        (let [b (object-array (bit-shift-left cap 1))
-              j (- cap i)]
-          (a/acopy buffer i b 0 j)
-          (a/acopy buffer 0 b j i)
-          (aset socket socket-slot-unacked-buffer b)
-          (aset socket socket-slot-unacked-pull (+))
-          (aset socket socket-slot-unacked-push (+ cap)))
-        (aset socket socket-slot-unacked-push i)))))
-
-(defn socket-unacked-pull [^objects socket]
-  (let [^objects buffer (aget socket socket-slot-unacked-buffer)
-        cap (alength buffer)
-        pull (aget socket socket-slot-unacked-pull)
-        request (aget buffer pull)]
-    (when (= pull (aget socket socket-slot-unacked-push))
-      (throw (ex-info "Unexpected ack." {})))
-    (aset buffer pull nil)
-    (aset socket socket-slot-unacked-pull
-      (rem (inc pull) cap)) request))
-
 (defn session-cancel [^objects session]
   (let [^Signal signal (aget session session-slot-signal)]
     (if (signal-local? signal)
@@ -1282,44 +1365,35 @@ T T T -> (EXPR T)
     (aset session session-slot-delayed nil)
     (socket-consume (aget session session-slot-socket) event)))
 
-(defn socket-upkeep [^objects socket]
-  (loop [^objects session (aget socket socket-slot-updated)]
-    (if (nil? session)
-      (doto socket (aset socket-slot-updated nil))
-      (let [request (aget session session-slot-request)
-            signal (aget session session-slot-signal)
-            next (aget session session-slot-updated)]
-        (aset session session-slot-updated session)
-        (when (signal-local? signal) (session-retry session))
-        (when (zero? (-> (aget request request-slot-ack)
-                       (unchecked-add (aget request request-slot-local))
-                       (unchecked-add (aget request request-slot-remote))))
-          (session-detach session)
-          (session-cancel session))
-        (recur next)))))
-
-(defn session-request-toggle [^objects socket ^Slot slot flag local]
+;; flags - ack? local?
+(defn session-request-toggle [^objects socket ^Slot slot flags]
   (let [signal (slot-signal slot)
         requested (aget socket socket-slot-requested)
+        m (bit-shift-left 1 flags)
         x (get requested slot 0)
-        dir (not (bit-test x flag))
-        y (if dir
-            (bit-set x flag)
-            (bit-clear x flag))]
+        y (bit-xor x m)]
     (aset socket socket-slot-requested
       (if (zero? y)
         (dissoc! requested slot)
         (assoc! requested slot y)))
-    (walk socket flag dir local signal)))
+    (walk socket
+      (-> (bit-and flags 1)
+        (bit-or (bit-shift-left flags 1))
+        (bit-or (bit-shift-left (bit-shift-right (bit-and y m) flags) 3)))
+      signal)))
 
 (defn socket-request-toggle-ack [^objects socket slot]
-  (doto socket (session-request-toggle slot request-slot-ack true)))
+  (doto socket
+    (session-request-toggle slot 2r11)))
 
 (defn socket-request-toggle-local [^objects socket slot]
-  (doto socket (session-request-toggle slot request-slot-local true)))
+  (doto socket
+    (session-request-toggle slot 2r01)))
 
 (defn socket-request-toggle-remote [^objects socket slot]
-  (doto socket (session-request-toggle slot request-slot-remote false)))
+  (doto socket
+    (session-request-toggle slot 2r00)
+    (session-request-toggle slot 2r10)))
 
 (defn pure-ack? [[_ r c d f]]
   (-> (count c)
@@ -1330,20 +1404,36 @@ T T T -> (EXPR T)
 
 (def empty-msg [0 #{} [] [] []])
 
-(defn inhibited? [^longs request]
-  (zero? (unchecked-add
-           (aget request request-slot-local)
-           (aget request request-slot-remote))))
-
-(defn socket-request-tick [^objects socket]
-  ((aget socket socket-slot-request-clock) nil))
-
 (defn socket-request [^objects socket r]
-  (if (zero? (count r))
-    (socket-request-tick socket)
-    (do (reduce socket-request-toggle-local socket r)
-        (aset socket socket-slot-message-request
-          (sym-diff (aget socket socket-slot-message-request) r)))))
+  (reduce socket-request-toggle-local socket r)
+  (aset socket socket-slot-message-request
+    (reduce toggle! (aget socket socket-slot-message-request) r)))
+
+(defn half-state ^long [^long pending ^long request]
+  (bit-or
+    (bit-shift-left
+      (bit-xor (bit-and pending 1) request) 1)
+    (if (zero? pending) 0 1)))
+
+(defn active ^long [^long pending ^long request]
+  (-> (bit-xor (bit-and pending 1) request)
+    (bit-xor (if (zero? pending) 0 1))))
+
+(defn current-pending [^longs pending diff i]
+  (-> (aget pending i)
+    (unchecked-add (pick diff i))
+    (unchecked-subtract (pick diff (bit-or i 2)))))
+
+(defn update-pending [^longs pending diff i]
+  (aset pending i (current-pending pending diff i)))
+
+(defn session-active ^long [^objects session]
+  (let [pending (aget session session-slot-pending)
+        curr (call-state (aget session session-slot-request) 0)
+        diff (bit-xor (aget session session-slot-state) curr)]
+    (bit-or
+      (active (current-pending pending diff 0) (pick curr 0))
+      (active (current-pending pending diff 1) (pick curr 1)))))
 
 (defn socket-output [^objects socket ^objects event]
   (let [ps (aget event event-slot-process)
@@ -1355,7 +1445,7 @@ T T T -> (EXPR T)
       (if (nil? (aget session session-slot-event))
         (socket-terminate socket event)
         (try @ps (catch #?(:clj Throwable :cljs :default) _)))
-      (if (inhibited? (aget session session-slot-request))
+      (if (zero? (session-active session))
         (session-delay session event)
         (if (nil? (aget session session-slot-event))
           (do (socket-terminate socket event)
@@ -1396,7 +1486,7 @@ T T T -> (EXPR T)
         ^Signal signal (aget session session-slot-signal)
         ^Slot slot (.-slot signal)]
     (if-some [pos (aget item item-slot-position)]
-      (if (inhibited? (aget session session-slot-request))
+      (if (zero? (session-active session))
         (session-delay session event)
         (if (nil? (aget item item-slot-event))
           (do (socket-terminate socket event)
@@ -1412,9 +1502,9 @@ T T T -> (EXPR T)
                 x (aset item item-slot-current @ps)]
             (when-not (= p x)
               (when (call? slot)
-                (frame-toggle socket x true)
+                (socket-local-frame-up socket x)
                 (when-not (identical? p item)
-                  (frame-toggle socket p false)))
+                  (socket-local-frame-down socket p)))
               (if-some [d (get diffs slot)]
                 (aset socket socket-slot-message-diffs
                   (assoc! diffs slot (update d :change assoc pos x)))
@@ -1427,6 +1517,42 @@ T T T -> (EXPR T)
         (socket-terminate socket event)
         (try @ps (catch #?(:clj Throwable :cljs :default) _))))))
 
+(defn session-upkeep [^objects session]
+  (let [^longs pending (aget session session-slot-pending)
+        prev-state (aget session session-slot-state)
+        curr-state (aset session session-slot-state (call-state (aget session session-slot-request) 0))
+        diff-state (bit-xor prev-state curr-state)
+        prev-local (half-state (aget pending 0) (pick prev-state 0))
+        prev-remote (half-state (aget pending 1) (pick prev-state 1))
+        curr-local (half-state (update-pending pending diff-state 0) (pick curr-state 0))
+        curr-remote (half-state (update-pending pending diff-state 1) (pick curr-state 1))]
+    #_(prn :socket-upkeep (signal-slot (aget session session-slot-signal))
+        [:local prev-local '-> curr-local] [:remote prev-remote '-> curr-remote])
+    (if (and (zero? curr-local) (zero? curr-remote))
+      (do (session-cancel session)
+          (session-detach session))
+      (when (or (and (zero? curr-remote) (< curr-local prev-local))
+              (and (zero? curr-local) (< curr-remote prev-remote)))
+        (session-cancel session)
+        (session-detach session)
+        (session-spawn
+          (aget session session-slot-socket)
+          (aget session session-slot-signal)
+          (aget session session-slot-store)
+          (aget session session-slot-request)
+          (aget session session-slot-pending))))))
+
+(defn socket-upkeep [^objects socket]
+  (loop [^objects session (aget socket socket-slot-updated)]
+    (if (nil? session)
+      (doto socket (aset socket-slot-updated nil))
+      (let [next (aget session session-slot-updated)]
+        (aset session session-slot-updated session)
+        (when (signal-local? (aget session session-slot-signal))
+          (session-retry session))
+        (session-upkeep session)
+        (recur next)))))
+
 (defn socket-message [^objects socket msg]
   (let [msg ((aget socket socket-slot-reader) msg)
         [acks request change diffs freeze] msg]
@@ -1435,10 +1561,9 @@ T T T -> (EXPR T)
       (aset socket socket-slot-message-acks
         (inc (aget socket socket-slot-message-acks))))
     (dotimes [_ acks]
-      (let [r (socket-unacked-pull socket)]
-        (when-not (zero? (count r))
-          (socket-request-tick socket)
-          (reduce socket-request-toggle-ack socket r))))
+      (let [callback (socket-unacked-pull socket)]
+        (reduce socket-request-toggle-ack socket (peek callback))
+        (reduce socket-local-frame-ack socket (pop callback))))
     (reduce socket-request-toggle-remote socket request)
     (reduce input-append socket (map vector change diffs))
     (reduce input-freeze socket freeze)
@@ -1458,10 +1583,11 @@ T T T -> (EXPR T)
 
 (defn socket-message-reset [^objects socket]
   (aset socket socket-slot-message-acks (+))
-  (aset socket socket-slot-message-request (sym-diff))
   (aset socket socket-slot-message-change (transient []))
   (aset socket socket-slot-message-diffs (transient {}))
-  (aset socket socket-slot-message-freeze (transient [])))
+  (aset socket socket-slot-message-freeze (transient []))
+  (aset socket socket-slot-message-request (transient #{}))
+  (aset socket socket-slot-message-frames (transient [])))
 
 (defn socket-transfer [^objects socket]
   (when (pos? (aget socket socket-slot-pending))
@@ -1479,18 +1605,20 @@ T T T -> (EXPR T)
              :output (socket-output socket event)
              :item (socket-item socket event))))
        (let [acks (aget socket socket-slot-message-acks)
-             request (aget socket socket-slot-message-request)
              change (persistent! (aget socket socket-slot-message-change))
              diffs (persistent! (aget socket socket-slot-message-diffs))
              freeze (persistent! (aget socket socket-slot-message-freeze))
+             request (persistent! (aget socket socket-slot-message-request))
+             callback (persistent! (conj! (aget socket socket-slot-message-frames) request))
              msg [acks request change (into [] (map diffs) change) freeze]]
          (socket-message-reset socket)
          (socket-upkeep socket)
          (when-not (= empty-msg msg)
            (when-not (pure-ack? msg)
-             (socket-unacked-push socket request))
+             (socket-unacked-push socket callback))
            (socket-emit socket msg)))
        (catch #?(:clj Throwable :cljs :default) e
+         #_(pst e)
          (aset socket socket-slot-step nil)
          (socket-upkeep socket)
          (socket-cancel socket)
@@ -1688,13 +1816,6 @@ T T T -> (EXPR T)
       (apply dispatch "<root>" ((defs main)))
       (make-frame peer nil 0 :client))))
 
-(defn socket-request-clock [^objects socket]
-  (m/observe
-    (fn [!]
-      (! nil)
-      (aset socket socket-slot-request-clock !)
-      #(aset socket socket-slot-request-clock nil))))
-
 (defn root-socket [^Frame root opts subject]
   (m/eduction (remove nil?)
     (m/stream
@@ -1707,17 +1828,18 @@ T T T -> (EXPR T)
           (aset socket socket-slot-pending (+))
           (aset socket socket-slot-shared {})
           (aset socket socket-slot-sessions {})
+          (aset socket socket-slot-dangling-frames (transient {}))
           (aset socket socket-slot-requested (transient {}))
           (aset socket socket-slot-writer (socket-writer opts socket))
           (aset socket socket-slot-reader (socket-reader opts root socket))
           (aset socket socket-slot-unacked-buffer (object-array 1))
-          (aset socket socket-slot-unacked-pull (+))
-          (aset socket socket-slot-unacked-push (+))
+          (aset socket socket-slot-unacked-head (+))
+          (aset socket socket-slot-unacked-tail (+))
           (aset socket socket-slot-sync #?(:clj (AtomicReference. nil) :cljs nil))
           (socket-message-reset socket)
           (socket-claim socket)
           (aset socket socket-slot-message (socket-spawn socket :message (m/relieve into (m/zip vector (m/observe subject)))))
-          (aset socket socket-slot-request (socket-spawn socket :request (m/zip {} (socket-request-clock socket) (.-request peer))))
+          (aset socket socket-slot-request (socket-spawn socket :request (.-request peer)))
           (socket-yield socket)
           (step) (->Socket socket))))))
 

@@ -197,8 +197,6 @@
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
-     % := :step-s
-     (s->c @s-ps)
      (hash-set % % %) := #{:foo :step-c :step-s}
      (s->c @s-ps)
      (c->s @c-ps)
@@ -224,8 +222,6 @@
                 #(rcf/tap :step-s)
                 #(prn :done-s)))
      (c->s @c-ps)
-     % := :step-s
-     (s->c @s-ps)
      % := :step-s
      (s->c @s-ps)
      (hash-set % % %) := #{:foo :step-c :step-s}
@@ -257,8 +253,6 @@
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
-     % := :step-s
-     (s->c @s-ps)
      (hash-set % %) := #{:step-c :step-s}
      (s->c @s-ps)
      (c->s @c-ps)
@@ -266,12 +260,10 @@
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
-     % := :step-s
-     (s->c @s-ps)
-     (hash-set % %) := #{:step-c :step-s}
+     (hash-set % % %) := #{:step-c :step-s :foo}
      (s->c @s-ps)
      (c->s @c-ps)
-     (hash-set % %) := #{:foo :step-c}
+     % := :step-c
      (c->s @c-ps)))
 
 #?(:clj ; FIXME fails in cljs
@@ -295,8 +287,6 @@
      (c->s @c-ps)
      % := :step-s
      (s->c @s-ps)
-     % := :step-s
-     (s->c @s-ps)
      (hash-set % % %) := #{2 :step-c :step-s}
      (s->c @s-ps)
      (c->s @c-ps)
@@ -318,13 +308,9 @@
                         #(rcf/tap :root-step)
                         #(rcf/tap :root-done))]
     % := :reader-spawn
-    % := :writer-step
-    % := :root-step
-    @client-root-ps := (i/empty-diff 0)
-    @client-writer-ps
     % := :reader-dispose
-    % := :root-step
     % := :writer-step
+    % := :root-step
     @client-root-ps := (i/empty-diff 0)
     (try @client-writer-ps
          (catch #?(:clj Throwable :cljs :default) _

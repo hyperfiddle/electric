@@ -2578,6 +2578,7 @@
     % := 0
     (swap! !x dec)
     (tick :server-reader)
+    (tick :server-reader)
     (swap! !x inc)
     (tick :server-reader)
     % := 0))
