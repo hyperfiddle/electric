@@ -993,6 +993,8 @@ T T T -> (EXPR T)
 (defn slot-path [slot]
   (into [] (comp (take-while some?) (map slot-id)) (iterate (comp frame-slot slot-frame) slot)))
 
+(def check (comp #{[]} slot-path))
+
 (defn call-state [^longs call-store prefix]
   (let [p (bit-shift-left prefix 2)]
     (loop [i 0
@@ -1054,7 +1056,6 @@ T T T -> (EXPR T)
 
 ;; flags - up? ack? local? from-local?
 (defn walk [^objects socket flags ^Signal signal]
-  #_(prn :walk (signal-slot signal) (binary flags 4))
   (if (call? (signal-slot signal))
     (let [^objects session (session-check-create socket signal)
           ^objects buffer (aget session session-slot-buffer)
@@ -1099,7 +1100,9 @@ T T T -> (EXPR T)
         index (bit-and 2r011 flags)
         prev (aget request index)
         curr (aset request index (bump prev (pick flags 2)))]
-    #_(prn :session-update-request (signal-slot signal) (binary flags 3) prev '-> curr)
+    #_
+    (when (check (signal-slot (aget session session-slot-signal)))
+      (prn :session-update-request (binary flags 3) prev '-> curr))
     (when-not (= (zero? prev) (zero? curr))
       (when (identical? session (aget session session-slot-updated))
         (aset session session-slot-updated (aget socket socket-slot-updated))
@@ -1258,46 +1261,65 @@ T T T -> (EXPR T)
           (if (< k (count cycle))
             (recur j k) j))))))
 
+(defn active ^long [^long pending ^long request]
+  (-> (bit-xor (bit-and pending 1) request)
+    (bit-xor (if (zero? pending) 0 1))))
+
+(defn current-pending [^longs pending diff i]
+  (-> (aget pending i)
+    (unchecked-add (pick diff i))
+    (unchecked-subtract (pick diff (bit-or i 2)))))
+
+(defn session-active ^long [^objects session]
+  (let [pending (aget session session-slot-pending)
+        curr (call-state (aget session session-slot-request) 0)
+        diff (bit-xor (aget session session-slot-state) curr)]
+    (bit-or
+      (active (current-pending pending diff 0) (pick curr 0))
+      (active (current-pending pending diff 1) (pick curr 1)))))
+
 (defn input-append [^objects socket [slot diff]]
   (when-some [^objects session (get (aget socket socket-slot-sessions) slot)]
-    (let [{:keys [grow degree shrink permutation change freeze]} diff
-          ip (i/inverse permutation)
-          ^objects buffer (session-ensure-capacity session degree)]
-      #_
-      (when-not (= (- degree grow) (aget session session-slot-size))
-        (prn :diff-corruption (slot-path slot)
-          (vec (aget session session-slot-request))
-          (vec (aget session session-slot-pending))
-          (aget session session-slot-state)))
-      (loop [i 0
-             append (transient [])
-             change (transient change)]
-        (if (< i grow)
-          (let [pos (aget session session-slot-size)
-                j (ip pos pos)]
-            (aset session session-slot-size (unchecked-inc pos))
-            (recur (unchecked-inc i)
-              (conj! append (input-item-spawn session pos (get change j)))
-              (dissoc! change j)))
-          (let [append (persistent! append)
-                change (persistent! change)]
-            (p/decompose apply-cycle buffer permutation)
-            (reduce-kv input-change-at session change)
-            (reduce input-freeze-at session freeze)
-            (dotimes [_ shrink] (input-remove-last session))
-            ((aget session session-slot-event)
-             (d/diff append degree shrink ip)))))))
+    (when-not (zero? (session-active session))
+      (let [{:keys [grow degree shrink permutation change freeze]} diff
+            ip (i/inverse permutation)
+            ^objects buffer (session-ensure-capacity session degree)]
+        #_
+        (when-not (= (- degree grow) (aget session session-slot-size))
+          (prn :diff-corruption (slot-path slot)
+            (vec (aget session session-slot-request))
+            (vec (aget session session-slot-pending))
+            (aget session session-slot-state)))
+        (loop [i 0
+               append (transient [])
+               change (transient change)]
+          (if (< i grow)
+            (let [pos (aget session session-slot-size)
+                  j (ip pos pos)]
+              (aset session session-slot-size (unchecked-inc pos))
+              (recur (unchecked-inc i)
+                (conj! append (input-item-spawn session pos (get change j)))
+                (dissoc! change j)))
+            (let [append (persistent! append)
+                  change (persistent! change)]
+              (p/decompose apply-cycle buffer permutation)
+              (reduce-kv input-change-at session change)
+              (reduce input-freeze-at session freeze)
+              (dotimes [_ shrink] (input-remove-last session))
+              ((aget session session-slot-event)
+               (d/diff append degree shrink ip))))))))
   socket)
 
 (defn input-freeze [^objects socket ^Slot slot]
   (when-some [^objects session (get (aget socket socket-slot-sessions) slot)]
-    (let [^objects buffer (aget session session-slot-buffer)]
-      (loop [i 0]
-        (when (< i (alength buffer))
-          (when-some [^objects item (aget buffer i)]
-            ((aget item item-slot-event))
-            (recur (unchecked-inc i))))))
-    ((aget session session-slot-event)))
+    (when-not (zero? (session-active session))
+      (let [^objects buffer (aget session session-slot-buffer)]
+        (loop [i 0]
+          (when (< i (alength buffer))
+            (when-some [^objects item (aget buffer i)]
+              ((aget item item-slot-event))
+              (recur (unchecked-inc i))))))
+      ((aget session session-slot-event))))
   socket)
 
 (defn socket-cancel [^objects socket]
@@ -1415,25 +1437,8 @@ T T T -> (EXPR T)
       (bit-xor (bit-and pending 1) request) 1)
     (if (zero? pending) 0 1)))
 
-(defn active ^long [^long pending ^long request]
-  (-> (bit-xor (bit-and pending 1) request)
-    (bit-xor (if (zero? pending) 0 1))))
-
-(defn current-pending [^longs pending diff i]
-  (-> (aget pending i)
-    (unchecked-add (pick diff i))
-    (unchecked-subtract (pick diff (bit-or i 2)))))
-
 (defn update-pending [^longs pending diff i]
   (aset pending i (current-pending pending diff i)))
-
-(defn session-active ^long [^objects session]
-  (let [pending (aget session session-slot-pending)
-        curr (call-state (aget session session-slot-request) 0)
-        diff (bit-xor (aget session session-slot-state) curr)]
-    (bit-or
-      (active (current-pending pending diff 0) (pick curr 0))
-      (active (current-pending pending diff 1) (pick curr 1)))))
 
 (defn socket-output [^objects socket ^objects event]
   (let [ps (aget event event-slot-process)
@@ -1522,12 +1527,16 @@ T T T -> (EXPR T)
         prev-state (aget session session-slot-state)
         curr-state (aset session session-slot-state (call-state (aget session session-slot-request) 0))
         diff-state (bit-xor prev-state curr-state)
-        prev-local (half-state (aget pending 0) (pick prev-state 0))
-        prev-remote (half-state (aget pending 1) (pick prev-state 1))
-        curr-local (half-state (update-pending pending diff-state 0) (pick curr-state 0))
-        curr-remote (half-state (update-pending pending diff-state 1) (pick curr-state 1))]
-    #_(prn :socket-upkeep (signal-slot (aget session session-slot-signal))
-        [:local prev-local '-> curr-local] [:remote prev-remote '-> curr-remote])
+        prev-remote (half-state (aget pending 0) (pick prev-state 0))
+        prev-local (half-state (aget pending 1) (pick prev-state 1))
+        curr-remote (half-state (update-pending pending diff-state 0) (pick curr-state 0))
+        curr-local (half-state (update-pending pending diff-state 1) (pick curr-state 1))]
+    #_
+    (when (check (signal-slot (aget session session-slot-signal)))
+      (prn :session-upkeep
+        prev-state curr-state diff-state
+        [:local prev-local '-> curr-local]
+        [:remote prev-remote '-> curr-remote]))
     (if (and (zero? curr-local) (zero? curr-remote))
       (do (session-cancel session)
           (session-detach session))
