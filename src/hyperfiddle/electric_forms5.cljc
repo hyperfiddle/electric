@@ -28,7 +28,7 @@
       (dom/On "input" #(-> % .-target .-value (?substring maxlength)) (str v)) ; (str v) passes through
       )))
 
-(e/defn Checkbox [checked & {:keys [id type label] :as props
+(e/defn Checkbox [checked & {:keys [id type label title] :as props
                              :or {type "checkbox" id (random-uuid)}}]
   (e/client
     (e/amb
@@ -44,7 +44,7 @@
         ;;  - ?
         (set! (.-checked dom/node) (boolean checked))
         (dom/On "change" #(-> % .-target .-checked) (boolean checked))) ; checked passes through
-      (e/When label (dom/label (dom/props {:for id}) (dom/text label))))))
+      (e/When label (dom/label (dom/props {:for id, :title title}) (dom/text label))))))
 
 (defn -noempty [<x] (m/eduction (remove hyperfiddle.incseq/empty-diff?) <x))
 (e/defn Swallow-empty-diffs [x] (e/join (-noempty (e/pure x))))
