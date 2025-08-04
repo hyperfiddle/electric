@@ -1262,8 +1262,7 @@ T T T -> (EXPR T)
             (recur j k) j))))))
 
 (defn active ^long [^long pending ^long request]
-  (-> (bit-xor (bit-and pending 1) request)
-    (bit-xor (if (zero? pending) 0 1))))
+  (if (< pending 2) request 0))
 
 (defn current-pending [^longs pending diff i]
   (-> (aget pending i)
