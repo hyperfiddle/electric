@@ -2899,3 +2899,17 @@
     % := [:foo :bar]
     (swap! !y inc)
     % := [:foo :bar]))
+
+(tests "always propagate remote call acks"
+  (let [!x (atom true)
+        ps ((l/local {}
+              (when (e/watch !x)
+                (let [res (e/server
+                            (e/input
+                              (m/observe
+                                (fn [!]
+                                  (! nil)
+                                  #(tap :dispose)))))]
+                  (case res res)))) tap tap)]
+    (reset! !x false)
+    % := :dispose))

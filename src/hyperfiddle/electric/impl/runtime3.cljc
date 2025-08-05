@@ -1068,7 +1068,8 @@ T T T -> (EXPR T)
         (dotimes [i (aget session session-slot-size)]
           (let [^objects item (aget buffer i)
                 frame (aget item item-slot-current)]
-            (when (or (zero? (bit-and flags 2r0100)) (contains? (aget socket socket-slot-dangling-frames) frame))
+            (when (or (zero? (bit-and flags 2r0100)) (not (signal-local? signal))
+                    (contains? (aget socket socket-slot-dangling-frames) frame))
               (walk socket flags (slot-signal (frame-result-slot frame)))))))
       (session-update-request session (bit-shift-right flags 1)))
     (if (= (zero? (bit-and flags 2r0001)) (signal-local? signal))
