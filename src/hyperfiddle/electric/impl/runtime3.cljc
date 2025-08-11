@@ -1037,7 +1037,7 @@ T T T -> (EXPR T)
   (let [slot (signal-slot signal)]
     (if-some [session (get (aget socket socket-slot-sessions) slot)]
       session (session-spawn socket signal
-                (when (call? slot) (long-array 8))
+                (when (call? slot) (a/long-array 8))
                 (a/long-array 4) (a/long-array 2)))))
 
 (declare session-update-request)
