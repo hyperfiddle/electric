@@ -115,7 +115,7 @@
 (defn skip-attr-map [args] (cond-> args (map? (first args)) next))
 (defn skip-inline-opts [args] (cond-> args (keyword? (first args)) (-> nnext recur)))
 
-(let [blacklisted '#{cljs.core/exists? cljs.core/str cljs.core/extend-type}
+(let [blacklisted '#{cljs.core/exists? cljs.core/str cljs.core/extend-type cljs.core/binding}
       short-circuit-def '#{clojure.core/defn, cljs.core/defn, clojure.core/defn-, cljs.core/defn-, cljs.spec.alpha/def}
       declare? '#{clojure.core/declare cljs.core/declare}
       deftype? '#{clojure.core/deftype cljs.core/deftype}
