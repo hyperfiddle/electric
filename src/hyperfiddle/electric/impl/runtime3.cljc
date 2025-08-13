@@ -1011,6 +1011,9 @@ T T T -> (EXPR T)
                   (aset event-slot-type :output)
                   (aset event-slot-target session))
                 (m/store d/combine (d/empty-diff 0)))]
+    #_
+    (when (check (signal-slot signal))
+      (prn :session-spawn))
     (aset socket socket-slot-sessions (assoc (aget socket socket-slot-sessions) (signal-slot signal) session))
     (aset session session-slot-socket socket)
     (aset session session-slot-signal signal)
@@ -1286,10 +1289,7 @@ T T T -> (EXPR T)
             ^objects buffer (session-ensure-capacity session degree)]
         #_
         (when-not (= (- degree grow) (aget session session-slot-size))
-          (prn :diff-corruption (slot-path slot)
-            (vec (aget session session-slot-request))
-            (vec (aget session session-slot-pending))
-            (aget session session-slot-state)))
+          (prn :diff-corruption (slot-path slot)))
         (loop [i 0
                append (transient [])
                change (transient change)]
@@ -1364,6 +1364,9 @@ T T T -> (EXPR T)
 
 (defn session-cancel [^objects session]
   (let [^Signal signal (aget session session-slot-signal)]
+    #_
+    (when (check (signal-slot signal))
+      (prn :session-cancel))
     (if (signal-local? signal)
       (do (when-some [event (aget session session-slot-event)]
             (event-cancel event))
@@ -1540,8 +1543,8 @@ T T T -> (EXPR T)
     (if (and (zero? curr-local) (zero? curr-remote))
       (do (session-cancel session)
           (session-detach session))
-      (when (or (and (zero? curr-remote) (< curr-local prev-local))
-              (and (zero? curr-local) (< curr-remote prev-remote)))
+      (when (or (and (< curr-remote 2) (< curr-local prev-local))
+              (and (< curr-local 2) (< curr-remote prev-remote)))
         (session-cancel session)
         (session-detach session)
         (session-spawn
