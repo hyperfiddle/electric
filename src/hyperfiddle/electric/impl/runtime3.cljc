@@ -1630,7 +1630,7 @@ T T T -> (EXPR T)
              (socket-unacked-push socket callback))
            (socket-emit socket msg)))
        (catch #?(:clj Throwable :cljs :default) e
-         #?(:clj (log/debug e), :cljs (js/console.debug "DEBUG" e (.-stack e)))
+         #_(pst e)
          (aset socket socket-slot-step nil)
          (socket-upkeep socket)
          (socket-cancel socket)
