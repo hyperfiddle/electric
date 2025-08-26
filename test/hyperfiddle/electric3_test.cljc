@@ -2913,3 +2913,20 @@
                   (case res res)))) tap tap)]
     (reset! !x false)
     % := :dispose))
+
+(tests "socket upkeep after each ack"
+  (let [client-writer (m/store + 0)
+        !x (atom [0])
+        ps ((l/local {::lang/client-writer-clock (m/ap (m/?> (m/seed (range (m/?> client-writer)))) nil)}
+              (e/client
+                (let [F (e/fn [] (tap :foo))                 ;; -1
+                      G (e/fn [] (F))]                       ;; -2
+                  (e/for [_ (e/diff-by identity (e/watch !x))]
+                    (e/server (G))))))
+            tap tap)]
+    (client-writer 3)
+    % := :foo
+    (swap! !x pop)     ;; for shrink on client, but not yet on server
+    (swap! !x conj 1)  ;; for grow on client, but not yet on server
+    (client-writer 3)
+    % := :foo))

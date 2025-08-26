@@ -1549,7 +1549,8 @@ T T T -> (EXPR T)
     (dotimes [_ acks]
       (let [callback (socket-unacked-pull socket)]
         (reduce socket-request-toggle-ack socket (peek callback))
-        (reduce socket-local-frame-ack socket (pop callback))))
+        (reduce socket-local-frame-ack socket (pop callback)))
+      (socket-upkeep socket))
     (reduce socket-request-toggle-remote socket request)
     (reduce input-append socket (map vector change diffs))
     (reduce input-freeze socket freeze)
