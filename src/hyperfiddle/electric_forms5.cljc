@@ -428,8 +428,8 @@ accept the previous token and retain the new one."
 .hyperfiddle-electric-forms5__table-picker tr td { grid-row: calc(1 + var(--row-index)); }
 
 /* cosmetic defaults */
-:where(.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) td) { background-color: #ddd; }
-:where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) td) { color: white; background-color: #0064e1; /* finder color */ }
+:where(.hyperfiddle-electric-forms5__table-picker tr:hover:has(*) :is(td, th)) { background-color: #ddd; }
+:where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):has(*) :is(td,th)) { color: white; background-color: #0064e1; /* finder color */ }
 :where(.hyperfiddle-electric-forms5__table-picker tr:is([aria-selected=true],[aria-checked=true]):not([aria-busy=true]):has(*) td) a { color: white; }
 .hyperfiddle-electric-forms5__table-picker tr td {position: relative; contain: size;}
 .hyperfiddle-electric-forms5__table-picker tr td:not(:has(*)) /* eventually contains only text */
