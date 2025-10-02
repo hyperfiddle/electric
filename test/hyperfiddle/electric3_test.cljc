@@ -2544,7 +2544,7 @@
   (with ((l/single {} (tap ({} (e/fn [] (e/fn Self [] Self)) :ok))) {} {})
     % := :ok))
 
-(tests "do not transfer output in state 101"
+(tests "do not transfer output in state 6"
   (let [!x (atom 1)]
     (with ((l/local {}
              (e/server
@@ -2561,7 +2561,7 @@
       (swap! !x inc)
       % := 1)))
 
-(tests "input change and freeze are ignored in state x00"
+(tests "input change and freeze are ignored in states 0 and 2"
   (let [!x (atom 1)
         clocks (atom {})
         clock (fn [k]
@@ -2929,4 +2929,46 @@
     (swap! !x pop)     ;; for shrink on client, but not yet on server
     (swap! !x conj 1)  ;; for grow on client, but not yet on server
     (client-writer 3)
+    % := :foo))
+
+(tests
+  (let [client-writer (m/store + 0)
+        step (fn [!x v] (compare-and-set! !x nil #(reset! !x nil)))
+        mount (fn [t v] (tap :mount))
+        !x (atom false)
+        ps ((l/local {::lang/client-writer-clock (m/ap (m/?> (m/seed (range (m/?> client-writer)))) nil)}
+              (e/client
+                (let [F (e/fn [] (tap :foo))
+                      G (e/fn [] (F))
+                      e (e/watch !x)
+                      !y (atom nil)
+                      t (e/watch !y)]
+                  (step !y e)
+                  (e/for [[token v]
+                          (e/diff-by identity
+                            (e/as-vec
+                              (if (some? t)
+                                [t e] (e/amb))))]
+                    (mount token v)
+                    (case (e/server (G))
+                      (token))))))
+            tap tap)]
+    % := :mount
+    (client-writer 6)
+    % := :foo
+    (swap! !x not)
+    ;; new token created
+    ;; for branch is mounted and kept alive, waiting for round-trip to burn token
+    % := :mount
+    (swap! !x not)
+    ;; new token, immediately discarded due to cas fail
+    ;; e changed, diff-by identity treats it as grow/shrink
+    ;; for child branch is discarded, another one is mounted
+    % := :mount
+    (client-writer 4)
+    % := :foo
+    (client-writer 3)
+    (swap! !x not)
+    % := :mount
+    (client-writer 2)
     % := :foo))
