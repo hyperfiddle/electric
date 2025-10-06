@@ -239,17 +239,19 @@ accept the previous token and retain the new one."
         (let [parsed-v (Parse unparsed-v)]
           (dom/props {:role "radiogroup", :data-errormessage (not-empty (ex-message parsed-v))})
           (dom/props (dissoc (set/rename-keys props {:required :aria-required}) :Parse :Unparse :as))
-          (reset! !selected (Body parsed-v))
-          (let [focused? (dom/Focused-in?)]
-            focused? ; force event handler - temporary
-            ;; TODO use focused? to put focus on aria-checked element on focus enter
-            ;; TODO intercept arrow keys to focus next/previous/first/last checkable elements.
-            (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
-              [(after-ack t (fn picker-after-ack [] (swap! !selected assoc 0 nil))) ; [t v] -> [nil v]
-               {k parsed-v}]
-              (e/When (not focused?)
-                (swap! !selected assoc 1 (Unparse selected-v)) ; [nil v1] -> [nil v2]
-                (e/amb)))))))))
+          (let [[token index event] (Body parsed-v)]
+            (reset! !selected [token index])
+            (let [focused? (dom/Focused-in?)]
+              focused? ; force event handler - temporary
+              ;; TODO use focused? to put focus on aria-checked element on focus enter
+              ;; TODO intercept arrow keys to focus next/previous/first/last checkable elements.
+              (if (some? t) ; "don't damage user input" – only track authoritative value in absence of a token
+                [(after-ack t (fn picker-after-ack [] (swap! !selected assoc 0 nil))) ; [t v] -> [nil v]
+                 {k parsed-v
+                  ::event event}]
+                (e/When (not focused?)
+                  (swap! !selected assoc 1 (Unparse selected-v)) ; [nil v1] -> [nil v2]
+                  (e/amb))))))))))
 
 (e/defn RadioPicker! ; TODO implement RadioPicker and use Picker (no !)
   [k selected-v
@@ -400,12 +402,13 @@ accept the previous token and retain the new one."
                           :role "radio" :tabindex "0"}) ; tabindex enables focus – items with role=radio must be focusable
               ;; FIXME e/for forces transfer of return value: prevents site-neutral impl. Returning token forces this entire branch to run on client, and so Row is called on client.
               (Row row-index)
-              (let [[t _err] (e/Token (e/amb ; click + space is aria-compliant
-                                        (dom/On* "click" filter-link-clicks nil)
-                                        (dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil)))]
+              (let [event (e/amb ; click + space is aria-compliant
+                            (dom/On* "click" filter-link-clicks nil)
+                            #_(dom/On* "keypress" #(when (= "Space" (.-code %)) (doto % (.preventDefault))) nil))
+                    [t _err] (e/Token event)]
                 (dom/props {:aria-checked (e/Reconcile (or (= row-index selected-index) (= row-index authoritative-selected-index)))
                             :aria-busy (some? t)})
-                (e/When t [(e/->Token "out of TablePicker!" t) row-index])))))))
+                (e/When t [(e/->Token "out of TablePicker!" t) row-index event])))))))
     :as as
     :Parse Parse
     :Unparse Unparse
