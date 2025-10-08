@@ -1655,15 +1655,15 @@ T T T -> (EXPR T)
                     Frame   (t/write-handler
                               (fn [_] "frame")
                               (fn [^Frame frame]
-                                (let [slot (.-slot frame)
-                                      id (.-id frame)
-                                      shared (aget socket socket-slot-shared)]
-                                  [slot id
-                                   (when-not (nil? slot)
-                                     (when-not (contains? shared [slot id])
+                                (when-some [^Slot slot (.-slot frame)]
+                                  (let [site (.-site frame)
+                                        id (.-id frame)
+                                        shared (aget socket socket-slot-shared)]
+                                    [site id
+                                     (when-not (contains? shared [site id])
                                        (aset socket socket-slot-shared
-                                         (assoc shared [slot id] frame))
-                                       (.-ctor frame)))])))
+                                         (assoc shared [site id] frame))
+                                       [(.-frame slot) (.-id slot) (.-ctor frame)])]))))
                     Ap      (t/write-handler
                               (fn [_] "ap")
                               (fn [^Ap ap]
@@ -1680,7 +1680,7 @@ T T T -> (EXPR T)
                               (fn [_] "join")
                               (fn [^Join join]
                                 [(.-input join)]))
-                    Id    (t/write-handler
+                    Id      (t/write-handler
                               (fn [_] "id")
                               (fn [^Id id]
                                 [(.-x id)]))
@@ -1711,7 +1711,7 @@ T T T -> (EXPR T)
        :cljs (let [writer (t/writer :json {:handlers (assoc handlers :default default)})]
                (fn [value] (t/write writer value))))))
 
-(defn socket-reader [opts ^Frame root ^objects socket]
+(defn socket-reader [opts ^objects socket]
   (let [opts
         {:handlers (merge
                      (::t/read-handlers opts {})
@@ -1719,14 +1719,15 @@ T T T -> (EXPR T)
                                          (fn [[frame id]]
                                            (->Slot frame id)))
                       "frame"          (t/read-handler
-                                         (fn [[slot id ctor]]
-                                           (let [shared (aget socket socket-slot-shared)]
-                                             (if (nil? ctor)
-                                               (if (nil? slot)
-                                                 root (get shared [slot id]))
-                                               (let [frame (make-frame (frame-peer root) slot id (signal-site (slot-signal slot)) ctor)]
-                                                 (aset socket socket-slot-shared
-                                                   (assoc shared [slot id] frame)) frame)))))
+                                         (fn [desc]
+                                           (let [root (aget socket socket-slot-root)]
+                                             (if-some [[site id fresh] desc]
+                                               (let [shared (aget socket socket-slot-shared)]
+                                                 (if-some [[parent call-id ctor] fresh]
+                                                   (let [frame (make-frame (frame-peer root) (->Slot parent call-id) id site ctor)]
+                                                     (aset socket socket-slot-shared
+                                                       (assoc shared [site id] frame)) frame)
+                                                   (get shared [site id]))) root))))
                       "join"           (t/read-handler
                                          (fn [[input]]
                                            (->Join {} input nil)))
@@ -1838,7 +1839,7 @@ T T T -> (EXPR T)
           (aset socket socket-slot-sessions {})
           (aset socket socket-slot-requested (transient {}))
           (aset socket socket-slot-writer (socket-writer opts socket))
-          (aset socket socket-slot-reader (socket-reader opts root socket))
+          (aset socket socket-slot-reader (socket-reader opts socket))
           (aset socket socket-slot-unacked-buffer (object-array 1))
           (aset socket socket-slot-unacked-head (+))
           (aset socket socket-slot-unacked-tail (+))
