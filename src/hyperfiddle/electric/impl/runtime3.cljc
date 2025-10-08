@@ -1286,7 +1286,7 @@ T T T -> (EXPR T)
         l (pick flags request-flag-local)
         r (pick flags request-flag-remote)]
     (-> r
-      (bit-or (bit-shift-left (bit-xor (if (zero? delay) l 1) a) 1))
+      (bit-or (bit-shift-left (if (zero? delay) (bit-xor l a) 1) 1))
       (bit-or (bit-shift-left a 2)))))
 
 (defn input-append [^objects socket [slot diff]]
