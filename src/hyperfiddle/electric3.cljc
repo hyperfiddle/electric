@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric3
-  (:refer-clojure :exclude [fn defn apply letfn for declare])
+  (:refer-clojure :exclude [fn defn apply letfn for declare #?(:cljs Range)])
   (:require [hyperfiddle.electric.impl.missionary-util :as mu]
             [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
@@ -168,7 +168,7 @@ Stabilizes successive states of collection `xs` with identity. Returns each item
 " ;; TODO optimize
   [xs] `(diff-by identity ~xs))
 
-(defn Range "
+(hyperfiddle.electric3/defn Range "
 Syntax :
 ```clojure
 (for [i (Range end)] (F i))
