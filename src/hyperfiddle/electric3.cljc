@@ -159,6 +159,28 @@ Syntax :
 Stabilizes successive states of collection `xs` with function `kf`. Returns each item as a table.
 " [f xs] `(->> (pure ~xs) (m/reductions i/patch-vec) (m/latest (partial eduction cat)) (i/diff-by ~f) (join)))
 
+(defmacro diff "
+Syntax :
+```clojure
+(diff xs)
+```
+Stabilizes successive states of collection `xs` with identity. Returns each item as a table.
+" ;; TODO optimize
+  [xs] `(diff-by identity ~xs))
+
+(defn Range "
+Syntax :
+```clojure
+(for [i (Range end)] (F i))
+(for [i (Range start end)] (F i))
+(for [i (Range start end step)] (F i))
+```
+Returns numbers between `start` (inclusive, default 0) and `end` (exclusive) by `step` increments (default 1) as a table.
+" ;; TODO optimize
+  ([end] (diff (range end)))
+  ([start end] (diff (range start end)))
+  ([start end step] (diff (range start end step))))
+
 (defmacro drain "
 Syntax :
 ```clojure
