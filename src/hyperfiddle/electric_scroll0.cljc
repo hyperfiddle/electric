@@ -13,7 +13,10 @@
                   (fn [!]
                     (let [sample (fn [] (! [(.. scrollable -scrollTop) ; optimization - detect changes (pointless)
                                             (.. scrollable -scrollHeight) ; snapshot height to detect layout shifts in flipped mode
-                                            (.. scrollable -clientHeight)]))] ; measured viewport height (scrollbar length)
+                                            (.. scrollable -clientHeight) ; measured viewport height (scrollbar length)
+                                            (.. scrollable -scrollLeft)
+                                            (.. scrollable -scrollWidth)
+                                            (.. scrollable -clientWidth)]))]
                       (sample) #_(! [0 0 0]) ; don't emit 0 when flow is rebuilt
                       (.addEventListener scrollable "scroll" sample #js {"passive" true})
                       #(.removeEventListener scrollable "scroll" sample))))
@@ -46,16 +49,19 @@
                                row-height))]
              (compute-overquery overquery-factor record-count offset limit))))
 
-(e/defn Scroll-window ; returns [offset, limit]
+(e/defn Scroll-window ; returns [offsetV, limitV, offsetH, limitH]
   [row-height record-count node
-   #_& {:keys [overquery-factor]
-        :or {overquery-factor 1}}]
+   #_& {:keys [column-width overquery-factor]
+        :or {column-width row-height
+             overquery-factor 1}}]
   (e/client
     ((fn [_] (set! (.-scrollTop dom/node) 0)) record-count) ; scroll to top on search or navigate
     ; backlog: don't touch scrollTop when records are inserted (e.g., live chat view)
-    (let [[clientHeight] (e/input (resize-observer node))
-          [scrollTop scrollHeight #_clientHeight] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
-      (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor))))
+    (let [[clientHeight clientWidth] (e/input (resize-observer node))
+          [scrollTop scrollHeight _clientHeight scrollLeft scrollWidth #_clientWidth] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
+      (concat
+        (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor)
+        (compute-scroll-window column-width record-count clientWidth scrollLeft (max 1.5 overquery-factor))))))
 
 (e/defn Spool2 [cnt xs! offset limit] ; legacy
   (->> xs!
