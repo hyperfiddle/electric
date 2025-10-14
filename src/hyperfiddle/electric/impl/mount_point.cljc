@@ -327,7 +327,7 @@ Mounting a block generates a grow for each active item having this block's frame
     (aset reader reader-slot-alive
       (inc (aget reader reader-slot-alive)))
     (let [ps ((if-some [slot (call-slot call)]
-                slot
+                (r/incseq slot)
                 (f/flow (r/invariant (aget ^objects (aget call call-slot-children) block-slot-frame))))
               #(let [^objects reader (aget call call-slot-reader)
                      ^objects state (aget reader reader-slot-state)

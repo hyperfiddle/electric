@@ -228,9 +228,7 @@
      (s->c @s-ps)
      (c->s @c-ps)
      % := :step-c
-     (c->s @c-ps)
-     % := :step-s
-     (s->c @s-ps)))
+     (c->s @c-ps)))
 
 #?(:clj ; FIXME fails in cljs
    (tests
