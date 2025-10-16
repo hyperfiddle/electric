@@ -18,8 +18,7 @@
            #?(:clj missionary.impl.Propagator$Publisher)
            #?(:clj (clojure.lang IFn IDeref))
            #?(:clj (java.io ByteArrayInputStream ByteArrayOutputStream Writer))
-           #?(:clj (java.util.concurrent.locks ReentrantLock))
-           #?(:clj (java.util.concurrent.atomic AtomicInteger))))
+           #?(:clj (java.util.concurrent.locks ReentrantLock))))
 
 ;; turned off until missionary.core/amb= gets an int type hint
 ;; #?(:clj (set! *warn-on-reflection* true))
@@ -46,9 +45,8 @@
 (def peer-slot-site 2)                                      ;; :client or :server
 (def peer-slot-defs 3)
 (def peer-slot-remote 4)
-(def peer-slot-next-id 5)
-(def peer-slot-channel-ready 6)
-(def peer-slots 7)
+(def peer-slot-channel-ready 5)
+(def peer-slots 6)
 
 (def remote-slot-peer 0)
 (def remote-slot-input 1)
@@ -116,6 +114,10 @@
 (def input-sub-slot-next 4)
 (def input-sub-slot-diff 5)
 (def input-sub-slots 6)
+
+(def call-slot-port 0)
+(def call-slot-rank 1)
+(def call-slots 2)
 
 ;; Pure | Ap | Join | Slot
 (defprotocol Expr
@@ -572,10 +574,6 @@ T T T -> (EXPR T)
 (defn peer-site [^objects peer]
   (aget peer peer-slot-site))
 
-(defn next-id! [^objects peer]
-  #?(:clj (.incrementAndGet ^AtomicInteger (aget peer peer-slot-next-id))
-     :cljs (aset peer peer-slot-next-id (inc (aget peer peer-slot-next-id)))))
-
 (defn peer-resolve [^objects peer key]
   (let [defs (peer-defs peer)]
     (when-not (contains? defs key) (throw (error (str (pr-str key) " not defined"))))
@@ -598,7 +596,7 @@ T T T -> (EXPR T)
 
 (declare incseq frame-result-slot)
 
-(deftype Frame [peer slot id site ctor ^objects nodes ^objects tags
+(deftype Frame [peer slot rank site ctor ^objects nodes ^objects tags
                 ^:unsynchronized-mutable ^:mutable hash-memo]
   #?(:clj Object)
   #?(:cljs IHash)
@@ -606,14 +604,14 @@ T T T -> (EXPR T)
     (if-some [h hash-memo]
       h (set! hash-memo (-> (hash Frame)
                           (hash-combine (hash peer))
-                          (hash-combine (hash site))
-                          (hash-combine (hash id))))))
+                          (hash-combine (hash slot))
+                          (hash-combine (hash rank))))))
   #?(:cljs IEquiv)
   (#?(:clj equals :cljs -equiv) [_ other]
     (and (instance? Frame other)
       (= peer (.-peer ^Frame other))
-      (= site (.-site ^Frame other))
-      (= id (.-id ^Frame other))))
+      (= slot (.-slot ^Frame other))
+      (= rank (.-rank ^Frame other))))
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((incseq this (frame-result-slot this)) step done)))
@@ -789,7 +787,7 @@ T T T -> (EXPR T)
           ^Frame frame (.-frame slot)]
       (if (neg? id)
         (aget ^objects (.-nodes frame) (- -1 id))
-        (aget ^objects (.-tags frame) id))))
+        (aget ^objects (aget ^objects (.-tags frame) id) call-slot-port))))
   IFn
   (#?(:clj invoke :cljs -invoke) [this step done]
     ((port-flow (slot-port this)) step done)))
@@ -822,7 +820,7 @@ T T T -> (EXPR T)
          path ()]
     (if-some [^Slot slot (.-slot frame)]
       (recur (.-frame slot)
-        (conj path [(.-id slot) (.-id ^Frame frame)]))
+        (conj path [(.-id slot) (.-rank ^Frame frame)]))
       (vec path))))
 
 (defn port-coordinates [^objects port]
@@ -1450,15 +1448,15 @@ T T T -> (EXPR T)
                     Frame   (t/write-handler
                               (fn [_] "frame")
                               (fn [^Frame frame]
-                                (when-some [^Slot slot (.-slot frame)]
-                                  (let [site (.-site frame)
-                                        id (.-id frame)
-                                        shared (aget channel channel-slot-shared)]
-                                    [site id
-                                     (when-not (contains? shared [site id])
+                                (let [slot (.-slot frame)
+                                      rank (.-rank frame)
+                                      shared (aget channel channel-slot-shared)]
+                                  [slot rank
+                                   (when-not (nil? slot)
+                                     (when-not (contains? shared [slot rank])
                                        (aset channel channel-slot-shared
-                                         (assoc shared [site id] frame))
-                                       [(.-frame slot) (.-id slot) (.-ctor frame)])]))))
+                                         (assoc shared [slot rank] frame))
+                                       (.-ctor frame)))])))
                     Ap      (t/write-handler
                               (fn [_] "ap")
                               (fn [^Ap ap]
@@ -1514,16 +1512,17 @@ T T T -> (EXPR T)
                                          (fn [[frame id]]
                                            (->Slot frame id)))
                       "frame"          (t/read-handler
-                                         (fn [desc]
+                                         (fn [[slot rank ctor]]
                                            (let [^objects remote (aget channel channel-slot-remote)
                                                  ^objects peer (aget remote remote-slot-peer)
-                                                 root (aget peer peer-slot-root)]
-                                             (if-some [[site id fresh] desc]
-                                               (let [shared (aget channel channel-slot-shared)]
-                                                 (if-some [[parent call-id ctor] fresh]
-                                                   (let [frame (make-frame peer (->Slot parent call-id) id site ctor)]
-                                                     (aset channel channel-slot-shared (assoc shared [site id] frame))
-                                                     frame) (get shared [site id]))) root))))
+                                                 shared (aget channel channel-slot-shared)]
+                                             (if (nil? ctor)
+                                               (if (nil? slot)
+                                                 (aget peer peer-slot-root)
+                                                 (get shared [slot rank]))
+                                               (let [frame (make-frame peer slot rank (port-site (slot-port slot)) ctor)]
+                                                 (aset channel channel-slot-shared
+                                                   (assoc shared [slot rank] frame)) frame)))))
                       "join"           (t/read-handler
                                          (fn [[input]]
                                            (->Join {} input nil)))
@@ -1612,9 +1611,31 @@ T T T -> (EXPR T)
 (defn create-call [^Slot slot site expr]
   (let [^Frame parent (.-frame slot)
         ^objects peer (.-peer parent)
-        expr (ap {} (pure (fn [ctor] (make-frame peer slot (next-id! peer) site ctor))) expr)
+        call (object-array call-slots)
+        expr (ap {}
+               (pure (fn [ctor]
+                       (let [rank (aget call call-slot-rank)
+                             frame (make-frame peer slot rank site ctor)]
+                         (aset call call-slot-rank (inc rank)) frame)))
+               expr)
         pexpr (peephole expr)]
-    (make-port slot site {} (deps pexpr update-inc {} site) pexpr)))
+    #_(if (not= expr pexpr)
+      (do
+        (prn 'call-before) (clojure.pprint/pprint (as-stats expr))
+        (prn 'call-after) (clojure.pprint/pprint (as-stats pexpr)))
+      (do (prn 'call) (clojure.pprint/pprint (as-stats pexpr))))
+    (aset call call-slot-port
+      (make-port slot site {}
+        (deps pexpr update-inc {} site)
+        pexpr
+        #_(i/latest-product
+          (fn [ctor]
+            (let [rank (aget call call-slot-rank)
+                  frame (make-frame peer slot rank site ctor)]
+              (aset call call-slot-rank (inc rank)) frame))
+            expr)))
+    (aset call call-slot-rank (identity 0))
+    call))
 
 (defn define-call
   "Defines call site id for given frame."
@@ -1671,7 +1692,6 @@ T T T -> (EXPR T)
     (aset peer peer-slot-remote remote)
     (aset peer peer-slot-site site)
     (aset peer peer-slot-defs defs)
-    (aset peer peer-slot-next-id #?(:clj (AtomicInteger. 0) :cljs 0))
     (aset remote remote-slot-peer peer)
     (aset remote remote-slot-inputs {})
     (aset remote remote-slot-outputs {})
