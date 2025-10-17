@@ -50,18 +50,61 @@
 (defn decompose [rf r p]
   (loop [p p
          r r]
-    (case p
-      {} r
-      (let [[i j] (first p)]
-        (let [c (loop [c [i]
-                       j j]
-                  (let [c (conj c j)
-                        j (p j)]
-                    (if (== i j)
-                      c (recur c j))))
-              r (rf r c)]
-          (if (reduced? r)
-            @r (recur (apply dissoc p c) r)))))))
+    (if-some [[i j] (first p)]
+      (let [c (loop [c (transient [i])
+                     j j]
+                (let [c (conj! c j)
+                      k (p j)]
+                  (if (== i k)
+                    (persistent! c)
+                    (recur c k))))
+            r (rf r c)]
+        (if (reduced? r)
+          @r (recur (persistent! (reduce dissoc! (transient p) c)) r))) r)))
+
+(defn transpositions [rf r p]
+  (if-some [[i j] (first p)]
+    (loop [p (dissoc! (transient p) i)
+           r (rf r i j)
+           i i
+           j j]
+      (if (reduced? r)
+        @r (let [k (p j)
+                 p (dissoc! p j)]
+             (if (== i k)
+               (let [p (persistent! p)]
+                 (if-some [[i j] (first p)]
+                   (recur (dissoc! (transient p) i)
+                     (rf r i j) i j) r))
+               (recur p (rf r j k) i k))))) r))
+
+(defn reverse-transpositions [rf r p]
+  (if-some [[i j] (first p)]
+    (loop [p (dissoc! (transient p) i)
+           r (rf r i j)
+           i i
+           j j]
+      (if (reduced? r)
+        @r (let [k (p j)
+                 p (dissoc! p j)]
+             (if (== i k)
+               (let [p (persistent! p)]
+                 (if-some [[i j] (first p)]
+                   (recur (dissoc! (transient p) i)
+                     (rf r i j) i j) r))
+               (recur p (rf r i k) i k))))) r))
+
+(defn assoc-if-absent! [m k v]
+  (when (contains? m k) (throw (new #?(:clj Error :cljs js/Error) "compose failure - non-disjoint permutations")))
+  (assoc! m k v))
+
+(defn safe-merge [x y]
+  (persistent! (reduce-kv assoc-if-absent! (transient x) y)))
+
+(defn compose-disjoint [x y]
+  (if (< (count x) (count y))
+    (safe-merge y x)
+    (safe-merge x y)))
 
 (defn compose
   ([] {})
@@ -116,9 +159,6 @@
                   (rf r y x))]
           (if (reduced? r)
             @r (recur r (unchecked-dec-int i)))))))
-
-(defn transpositions [rf r p]
-  (decompose (partial cycle-transpositions rf) r p))
 
 (defn transposition-rotations [rf r i j]
   (let [k (dec j)

@@ -27,7 +27,7 @@
 
 (deftest ident
   (let [d1 (s/diff [:foo :bar] 2 0 {})
-        d2 (s/diff [:baz] 3 0 {})
+        d2 (s/diff [:baz] 3 0 {2 0 0 1 1 2})
         q (queue)
         ps ((flow identity
               (fn [step done]

@@ -120,7 +120,7 @@
     (range (unchecked-multiply j r) total-card
       (unchecked-multiply degree r))))
 
-(defn compute-diff [^objects state l r grow degree shrink cycles]
+(defn compute-diff [^objects state l r grow degree shrink permutation]
   (let [lr (unchecked-multiply l r)
         size-after (unchecked-subtract degree shrink)
         size-before (unchecked-subtract degree grow)
@@ -132,7 +132,31 @@
         lr-size-after (unchecked-multiply lr size-after)
         lr-degree (unchecked-multiply lr degree)
         create-offset (unchecked-subtract lr-degree r-create)
-        remove-offset (unchecked-subtract lr-size-after r-size-after)]
+        remove-offset (unchecked-subtract lr-size-after r-size-after)
+        permutation (p/compose
+                      (reduce p/compose-disjoint {}
+                        (eduction
+                          (map (fn [k]
+                                 (p/split-swap
+                                   (unchecked-subtract create-offset (unchecked-multiply k r-degree))
+                                   r-create
+                                   (unchecked-multiply k r-size-before))))
+                          (range l)))
+                      (p/decompose
+                        (fn [p cycle]
+                          (->> cycle
+                            (map (partial combine-indices lr-degree degree r))
+                            (apply map (comp p/cycle vector))
+                            (reduce p/compose-disjoint p)))
+                        {} permutation)
+                      (reduce p/compose-disjoint {}
+                        (eduction
+                          (map (fn [k]
+                                 (p/split-swap
+                                   (unchecked-add r-size-after (unchecked-multiply k r-degree))
+                                   (unchecked-subtract remove-offset (unchecked-multiply k r-size-after))
+                                   r-remove)))
+                          (range l))))]
     (d/diff (into []
               (mapcat (fn [i]
                         (eduction
@@ -141,41 +165,14 @@
                                    (aset counts 0 j)
                                    (let [result ((aget state slot-thunk))]
                                      (aset counts 1 lr-size-after) result))))
-                          (combine-indices lr-size-after size-after r i))))
+                          (combine-indices lr-size-after size-after r (permutation i i)))))
               (range size-before degree))
-      lr-degree (unchecked-multiply lr shrink)
-      (p/compose
-        (reduce p/compose {}
-          (eduction
-            (map (fn [k]
-                   (p/split-swap
-                     (unchecked-subtract create-offset (unchecked-multiply k r-degree))
-                     r-create
-                     (unchecked-multiply k r-size-before))))
-            (range l)))
-        (p/recompose
-          (eduction
-            (map (fn [cycle]
-                   (->> cycle
-                     (map (partial combine-indices lr-degree degree r))
-                     (apply map vector))))
-            cycles))
-        (reduce p/compose {}
-          (eduction
-            (map (fn [k]
-                   (p/split-swap
-                     (unchecked-add r-size-after (unchecked-multiply k r-degree))
-                     (unchecked-subtract remove-offset (unchecked-multiply k r-size-after))
-                     r-remove)))
-            (range l)))))))
+      lr-degree (unchecked-multiply lr shrink) permutation)))
 
-(defn apply-cycle [^objects buffer cycle]
-  (let [k (peek cycle)
-        x (aget buffer k)]
-    (aset buffer
-      (reduce (fn [k l] (aset buffer l (aget buffer k)) l)
-        k (pop cycle)) x)
-    buffer))
+(defn transpose [^objects buffer i j]
+  (let [x (aget buffer i)]
+    (aset buffer i (aget buffer j))
+    (aset buffer j x) buffer))
 
 (defn clear-slot [^objects buffer i]
   (aset buffer i nil) buffer)
@@ -203,19 +200,19 @@
                   append (d/append diff)
                   degree (d/degree diff)
                   shrink (d/shrink diff)
+                  permutation (d/permutation diff)
                   grow (count append)
                   size-before (unchecked-subtract degree grow)
-                  size-after (unchecked-subtract degree shrink)
-                  cycles (p/decompose into #{} (d/permutation diff))]
+                  size-after (unchecked-subtract degree shrink)]
               (reduce-kv (fn [_ i x] (aset buffer (unchecked-add size-before i) x)) nil append)
-              (reduce apply-cycle buffer cycles)
+              (p/reverse-transpositions transpose buffer permutation)
               (reduce clear-slot buffer (range size-after degree))
               (aset counts j size-after)
               (recur
                 (d/combine d
                   (loop [l 1, r 1, j j]
                     (case j
-                      1 (compute-diff state l r grow degree shrink cycles)
+                      1 (compute-diff state l r grow degree shrink permutation)
                       (let [c (aget counts j)
                             k (bit-shift-right j 1)]
                         (if (odd? j)
