@@ -13,6 +13,7 @@
         {:keys [class-dir src-dirs] :as opts} (build/defaults (basis :aliases [:release]) opts)]
     (tools.build/write-pom opts)
     (tools.build/copy-dir {:src-dirs src-dirs, :target-dir class-dir})
+    (tools.build/copy-dir {:src-dirs ["../electric-secret/src"], :target-dir class-dir :include "**/clojure_tools_logging_aot_fix.clj"}) ; fix tools.logging LoggerFactory pinned by AOT. See comment in ns.
     (tools.build/compile-clj {:basis (basis :aliases [:release :build-deps])
                               :class-dir class-dir
                               :ns-compile '[hyperfiddle.electric.impl.entrypoint hyperfiddle.electric.impl.auth hyperfiddle.electric.impl.jwt hyperfiddle.electric.impl.auth0 hyperfiddle.electric.shadow-cljs.hooks3]
