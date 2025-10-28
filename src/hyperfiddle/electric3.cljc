@@ -583,11 +583,13 @@ Run thunk f on a thread, returning (e/amb) while awaiting and then the result. S
   ([f!]          (join (offload-clear-stale (join (i/items (pure f!))))))
   ([f! executor] (join (offload-clear-stale (join (i/items (pure f!))) executor))))
 
+(cc/defn- throwing-cancel-on-interrupted! [x] (m/!) x)
+
 (hyperfiddle.electric3/defn Offload-latch "
 Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Buffer the latest
 result while awaiting subsequent values of f, such that intermediate pending states are not seen."
-  ([f!]          (join (offload-latch-stale (join (i/items (pure f!))))))
-  ([f! executor] (join (offload-latch-stale (join (i/items (pure f!))) executor))))
+  ([f!]          (join (offload-latch-stale (join (i/items (pure (comp throwing-cancel-on-interrupted! f!)))))))
+  ([f! executor] (join (offload-latch-stale (join (i/items (pure (comp throwing-cancel-on-interrupted! f!)))) executor))))
 
 (hyperfiddle.electric3/defn Offload
   "Run thunk f on a thread, returning (e/amb) while awaiting and then the result. Buffer the latest
