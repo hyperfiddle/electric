@@ -44,9 +44,9 @@
 
 #?(:cljs (defn compute-scroll-window [row-height record-count clientHeight scrollTop overquery-factor]
            (let [padding-top 0 ; e.g. sticky header row
-                 limit (math/ceil (/ (- clientHeight padding-top) row-height)) ; aka page-size
+                 limit (math/ceil (/ (- clientHeight padding-top) (max row-height 1))) ; aka page-size
                  offset (int (/ (clamp scrollTop 0 (* record-count row-height)) ; prevent overscroll past the end
-                               row-height))]
+                               (max row-height 1)))]
              (compute-overquery overquery-factor record-count offset limit))))
 
 (e/defn Scroll-window ; returns [offsetV, limitV, offsetH, limitH]
