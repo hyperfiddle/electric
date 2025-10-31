@@ -117,7 +117,14 @@
         [-7 -6 -5 -4 -3 -2 -1]]))
 
 (let [index-ring index-ring] ; FIXME without this let, below rcf test crashes at the repl
-  (e/defn IndexRing [size offset] (e/diff-by {} (index-ring size offset))))
+  ; todo rename to Tape ?
+  (e/defn IndexRing "
+Optimized virtual scroll primitive for datagrids that need smooth scrolling. Implements the 'Tape' strategy to minimize
+the number of DOM effects down to perform only a single change operation per scroll row, at the cursor point. The DOM
+elements do not rotate in the DOM, they remain fixed in starting order, which means userland must reorder the rows e.g.
+with css `grid-row: var(--order)`. For box css layouts, this can yield subframe scroll latency because row ordering
+occurs in the GPU - no javascript required. It feels incredibly lightweight and fast."
+    [size offset] (e/diff-by {} (index-ring size offset))))
 
 (tests
   (let [size 7
@@ -148,3 +155,22 @@
                (mapv #(+ offset (mod % size)) (range start (+ size start) step))))]
   (e/defn Ring [size offset step]
     (e/diff-by {} (ring size offset step))))
+
+(e/defn Window "
+Simplest virtual scroll primitive supporting both incremental edge loads and incremental
+resolution changes via the `step` parameter. Performs grow/shrink at the edges.
+Note: as of Q4 2025, the grow/shrink that this primitive produces incur extra latency
+at the Electric layer and therefore this primitive is not optimal."
+  ([offset limit] (Window offset limit 1)) ; todo confirm arg order
+  ([offset limit step] (e/Range offset (+ offset limit) step)))
+
+(e/defn Raster "
+Virtual scroll primitive optimized for small viewports, such as typeahead picklists.
+Recomputes all cells on change with no reuse of cell values across frame evolutions.
+Performs zero rotation/grow/shrink, i.e. recycling all DOM elements."
+  [offset limit] (e/diff-by {} (range offset (+ offset limit))))
+
+(e/defn Tape [offset size] "
+IndexRing but with flipped arguments. Avoids breaking callers and userland.
+"
+  (IndexRing size offset))
