@@ -1203,6 +1203,12 @@ T T T -> (EXPR T)
       (bit-or (bit-shift-left (if (zero? delay) (bit-xor l a) 1) 1))
       (bit-or (bit-shift-left a 2)))))
 
+(defn session-inhibited [^objects session]
+  (let [^longs request (aget session session-slot-request)]
+    (and (zero? (aget request request-flag-remote))
+      (or (zero? (aget request request-flag-local))
+        (pos? (aget session session-slot-delay))))))
+
 (defn input-append [^objects socket [slot diff]]
   (when-some [^objects session (get (aget socket socket-slot-sessions) slot)]
     (case (session-state (request-state (aget session session-slot-request)) (aget session session-slot-delay))
@@ -1360,8 +1366,8 @@ T T T -> (EXPR T)
       (if (nil? (aget session session-slot-event))
         (socket-terminate socket event)
         (try @ps (catch #?(:clj Throwable :cljs :default) _)))
-      (case (session-state (request-state (aget session session-slot-request)) (aget session session-slot-delay))
-        (8r6) (session-delay session event)
+      (if (session-inhibited session)
+        (session-delay session event)
         (if (nil? (aget session session-slot-event))
           (do (socket-terminate socket event)
               (aset socket socket-slot-message-freeze
@@ -1401,8 +1407,8 @@ T T T -> (EXPR T)
         ^Signal signal (aget session session-slot-signal)
         ^Slot slot (.-slot signal)]
     (if-some [pos (aget item item-slot-position)]
-      (case (session-state (request-state (aget session session-slot-request)) (aget session session-slot-delay))
-        (8r6) (session-delay session event)
+      (if (session-inhibited session)
+        (session-delay session event)
         (if (nil? (aget item item-slot-event))
           (do (socket-terminate socket event)
               (if-some [d (get diffs slot)]
