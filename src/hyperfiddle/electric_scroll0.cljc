@@ -94,6 +94,11 @@
     (mapv #(+ offset (mod % size)) (range start (+ size start)))))
 
 (tests
+  (index-ring 7 0) := [0 1 2 3 4 5 6]
+  (index-ring 7 1) := [7 1 2 3 4 5 6] ; point change at array index 0
+  (index-ring 7 2) := [7 8 2 3 4 5 6] ; point change at array index 1
+  (index-ring 7 3) := [7 8 9 3 4 5 6] ; point change at array index 2
+
   (let [size 7]
     (mapv #(index-ring size %) (range (inc size)))
     := [[0  1  2  3  4  5  6]
