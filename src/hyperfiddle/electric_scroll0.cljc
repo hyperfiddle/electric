@@ -23,6 +23,51 @@
              (mx/throttle 16) ; RAF interval
              (m/relieve {}))))
 
+#?(:cljs (defn scroll-state2
+           "
+Like `scroll-state` but:
+ - doesn't force browsers to recompute layout – far more performant
+ - doesn't react on scrollWidth and scrollHeight – to be fixed"
+           [scrollable]
+           (let [!state (object-array [(.-scrollTop scrollable)
+                                       (.-scrollHeight scrollable)
+                                       (.-clientHeight scrollable)
+                                       (.-scrollLeft scrollable)
+                                       (.-scrollWidth scrollable)
+                                       (.-clientWidth scrollable)])
+                 in-raf? (atom false)
+                 emit (fn [!] (! (into [] (array-seq !state))))
+                 schedule (fn [callback]
+                            (when (compare-and-set! in-raf? false true)
+                              (.requestAnimationFrame js/window
+                                (fn [_]
+                                  (reset! in-raf? false)
+                                  (callback)))))]
+             (->> (m/observe
+                    (fn [!]
+                      (let [sizes (js/ResizeObserver. ; fires after layout flush
+                                    (fn [entries _]
+                                      (let [r (.-contentRect (aget entries 0))]
+                                        (doto !state
+                                          (aset 5 (.-width r))
+                                          (aset 2 (.-height r))))
+                                      (schedule #(emit !))))
+                            on-scroll (fn [^js event] ; do not read scrollTop/Left synchronously, it may trigger an expensive layout pass in some cases (e.g. sticky element in scroll container or ios/safari scroll container as grid or subgrid)
+                                        (let [t (.-target event)]
+                                          (schedule
+                                            (fn []
+                                              (doto !state
+                                                (aset 0 (.-scrollTop t))
+                                                (aset 3 (.-scrollLeft t)))
+                                              (emit !)))))]
+                        (.observe sizes scrollable)
+                        (.addEventListener scrollable "scroll" on-scroll #js{:passive true})
+                        (emit !)
+                        #(do (.disconnect sizes)
+                             (.removeEventListener scrollable "scroll" on-scroll)))))
+               (mx/throttle 16)
+               (m/relieve {})))))
+
 #?(:cljs (defn resize-observer [node]
            (->>
              (m/observe (fn [!] (! [(.-clientHeight node)
@@ -57,8 +102,7 @@
   (e/client
     ((fn [_] (set! (.-scrollTop dom/node) 0)) record-count) ; scroll to top on search or navigate
     ; backlog: don't touch scrollTop when records are inserted (e.g., live chat view)
-    (let [[clientHeight clientWidth] (e/input (resize-observer node))
-          [scrollTop scrollHeight _clientHeight scrollLeft scrollWidth #_clientWidth] (e/input (scroll-state node))] ; smooth scroll has already happened, cannot quantize
+    (let [[scrollTop scrollHeight clientHeight scrollLeft scrollWidth clientWidth] (e/input (scroll-state2 node))] ; smooth scroll has already happened, cannot quantize
       (concat
         (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor)
         (compute-scroll-window column-width record-count clientWidth scrollLeft (max 1.5 overquery-factor))))))
