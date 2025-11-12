@@ -28,45 +28,47 @@
 Like `scroll-state` but:
  - doesn't force browsers to recompute layout – far more performant
  - doesn't react on scrollWidth and scrollHeight – to be fixed"
+           ;; TODO move the RAF compare-and-set logic out and as flow transformer
+           ;; Such that the RAF is scheduled after throttle
            [scrollable]
-           (let [!state (object-array [(.-scrollTop scrollable)
-                                       (.-scrollHeight scrollable)
-                                       (.-clientHeight scrollable)
-                                       (.-scrollLeft scrollable)
-                                       (.-scrollWidth scrollable)
-                                       (.-clientWidth scrollable)])
-                 in-raf? (atom false)
-                 emit (fn [!] (! (into [] (array-seq !state))))
-                 schedule (fn [callback]
-                            (when (compare-and-set! in-raf? false true)
-                              (.requestAnimationFrame js/window
-                                (fn [_]
-                                  (reset! in-raf? false)
-                                  (callback)))))]
-             (->> (m/observe
-                    (fn [!]
-                      (let [sizes (js/ResizeObserver. ; fires after layout flush
-                                    (fn [entries _]
-                                      (let [r (.-contentRect (aget entries 0))]
-                                        (doto !state
-                                          (aset 5 (.-width r))
-                                          (aset 2 (.-height r))))
-                                      (schedule #(emit !))))
-                            on-scroll (fn [^js event] ; do not read scrollTop/Left synchronously, it may trigger an expensive layout pass in some cases (e.g. sticky element in scroll container or ios/safari scroll container as grid or subgrid)
-                                        (let [t (.-target event)]
-                                          (schedule
-                                            (fn []
-                                              (doto !state
-                                                (aset 0 (.-scrollTop t))
-                                                (aset 3 (.-scrollLeft t)))
-                                              (emit !)))))]
-                        (.observe sizes scrollable)
-                        (.addEventListener scrollable "scroll" on-scroll #js{:passive true})
-                        (emit !)
-                        #(do (.disconnect sizes)
-                             (.removeEventListener scrollable "scroll" on-scroll)))))
-               (mx/throttle 16)
-               (m/relieve {})))))
+           (->> (m/observe
+                  (fn [!]
+                    (let [!state (object-array [(.-scrollTop scrollable)
+                                                (.-scrollHeight scrollable)
+                                                (.-clientHeight scrollable)
+                                                (.-scrollLeft scrollable)
+                                                (.-scrollWidth scrollable)
+                                                (.-clientWidth scrollable)])
+                          in-raf? (atom false)
+                          emit (fn [!] (! (into [] (array-seq !state))))
+                          schedule (fn [callback]
+                                     (when (compare-and-set! in-raf? false true)
+                                       (.requestAnimationFrame js/window
+                                         (fn [_]
+                                           (reset! in-raf? false)
+                                           (callback)))))
+                          sizes (js/ResizeObserver. ; fires after layout flush
+                                  (fn [entries _]
+                                    (let [r (.-contentRect (aget entries 0))]
+                                      (doto !state
+                                        (aset 5 (.-width r))
+                                        (aset 2 (.-height r))))
+                                    (schedule #(emit !))))
+                          on-scroll (fn [^js event] ; do not read scrollTop/Left synchronously, it may trigger an expensive layout pass in some cases (e.g. sticky element in scroll container or ios/safari scroll container as grid or subgrid)
+                                      (let [t (.-target event)]
+                                        (schedule
+                                          (fn []
+                                            (doto !state
+                                              (aset 0 (.-scrollTop t))
+                                              (aset 3 (.-scrollLeft t)))
+                                            (emit !)))))]
+                      (.observe sizes scrollable)
+                      (.addEventListener scrollable "scroll" on-scroll #js{:passive true})
+                      (emit !)
+                      #(do (.disconnect sizes)
+                           (.removeEventListener scrollable "scroll" on-scroll)))))
+             (mx/throttle 16)
+             (m/relieve {}))))
 
 #?(:cljs (defn resize-observer [node]
            (->>
