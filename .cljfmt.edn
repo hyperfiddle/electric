@@ -1,4 +1,7 @@
 {:indents {#re ".*" [[:inner 0]]}
+ :remove-surrounding-whitespace? false
+ :remove-trailing-whitespace? false
+ :remove-consecutive-blank-lines? false
  :test-code [(sui/ui-grid {:columns 2}
                (sui/ui-grid-row {}
                  (sui/ui-grid-column {:width 12}
