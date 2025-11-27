@@ -190,7 +190,7 @@
 
 (defn item-transfer [^Item item]
   (let [^objects state (.-state item)
-        parent (aget state item-slot-parent)
+        ^objects parent (aget state item-slot-parent)
         held (acquire parent)]
     (if (identical? item (aget state item-slot-current))
       (do (input-transfer parent)

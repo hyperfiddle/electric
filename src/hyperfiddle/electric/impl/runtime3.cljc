@@ -1011,16 +1011,16 @@ T T T -> (EXPR T)
 
 (defn session-spawn [^objects socket signal ^longs request delay]
   (let [session (object-array session-slots)
-        event (if (= (signal-site signal) (peer-site (frame-peer (aget socket socket-slot-root))))
-                (doto (object-array event-slots)
-                  (aset event-slot-type :output)
-                  (aset event-slot-target session))
-                (m/store d/combine (d/empty-diff 0)))]
+        ^objects event (if (= (signal-site signal) (peer-site (frame-peer (aget socket socket-slot-root))))
+                         (doto (object-array event-slots)
+                           (aset event-slot-type :output)
+                           (aset event-slot-target session))
+                         (m/store d/combine (d/empty-diff 0)))]
     (aset socket socket-slot-sessions (assoc (aget socket socket-slot-sessions) (signal-slot signal) session))
     (aset session session-slot-socket socket)
     (aset session session-slot-signal signal)
     (aset session session-slot-request request)
-    (aset session session-slot-flags (request-state request))
+    (aset session session-slot-flags ^Object (request-state request))
     (aset session session-slot-delay delay)
     (aset session session-slot-buffer (object-array 1))
     (aset session session-slot-size (+))
@@ -1034,7 +1034,7 @@ T T T -> (EXPR T)
              #(socket-step socket event)
              #(do (aset session session-slot-event nil)
                   (socket-step socket event)))))
-      ((.-input signal) (ts/flow event)))
+      ((.-input ^Signal signal) (ts/flow event)))
     session))
 
 (defn session-check-create ^objects [^objects socket ^Signal signal]
@@ -1050,7 +1050,7 @@ T T T -> (EXPR T)
     (let [^objects session (session-check-create socket signal)
           ^longs request (aget session session-slot-request)
           prev (aget request flag)
-          curr (aset request flag (unchecked-add prev diff))]
+          curr (aset request flag ^long (unchecked-add prev diff))]
       (when-not (= (zero? prev) (zero? curr))
         #_
         (prn :request-toggle (signal-slot signal)
@@ -1452,7 +1452,7 @@ T T T -> (EXPR T)
         prev-flags (aget session session-slot-flags)
         prev-delay (aget session session-slot-delay)
         prev-state (session-state prev-flags prev-delay)
-        curr-flags (aset session session-slot-flags (request-state request))
+        curr-flags (aset session session-slot-flags ^Object (request-state request))
         curr-delay (aset session session-slot-delay
                      (if (zero? prev-state)
                        prev-delay (current-delay prev-delay prev-flags curr-flags)))
