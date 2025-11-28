@@ -39,7 +39,8 @@
 (defn wrap-flow [nm flow {:keys [reductions] :as opts}]
   (if-not (@wrap? nm opts)
     flow
-    (let [mt (dl/get *mt)]
+    (let [mt (dl/get *mt)
+          reductions @reductions]
       (fn [step done]
         (let [id (random-uuid)
               rd-array (object-array (* 2 (count reductions)))
@@ -248,15 +249,15 @@
 
 (defn wrap-uninitialized
   ([nm flow] (wrap-uninitialized nm flow {}))
-  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) uninitialized-checks))))
+  ([nm flow opts] (wrap-flow nm flow (delay (update opts :reductions (fnil into []) uninitialized-checks)))))
 
 (defn wrap-initialized
   ([nm flow] (wrap-initialized nm flow {}))
-  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) initialized-checks))))
+  ([nm flow opts] (wrap-flow nm flow (delay (update opts :reductions (fnil into []) initialized-checks)))))
 
 (defn wrap-incseq
   ([nm flow] (wrap-incseq nm flow {}))
-  ([nm flow opts] (wrap-flow nm flow (update opts :reductions (fnil into []) incseq-checks))))
+  ([nm flow opts] (wrap-flow nm flow (delay (update opts :reductions (fnil into []) incseq-checks)))))
 
 
 ;;;;;;;;;;;
