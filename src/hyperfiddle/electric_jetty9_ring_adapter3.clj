@@ -74,6 +74,9 @@
 (def ELECTRIC-CONNECTION-TIMEOUT 59000) ; https://www.notion.so/hyperfiddle/electric-server-heartbeat-issues-4243f981954c419f8eb0785e8e789fb7?pvs=4
 (def ELECTRIC-HEARTBEAT-INTERVAL 45000)
 
+(defn subject-at [^objects arr slot]
+  (fn [!] (aset arr slot !) #(aset arr slot nil)))
+
 (defn electric-jetty9-ws-adapter
   "Start and manage an Electric server process hooked onto a websocket."
   ([boot-fn] (electric-jetty9-ws-adapter boot-fn nil))
@@ -88,7 +91,7 @@
                     (aset state on-close-slot
                       ((m/join (fn [& _])
                          (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
-                         (write-msgs ws ((boot-fn) (r/subject-at state on-message-slot)))
+                         (write-msgs ws ((boot-fn) (subject-at state on-message-slot)))
                          (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL #(send! ws %)))
                        {} (partial failure ws)))) ; Start Electric process
       :on-close   (fn on-close [ws status-code reason]
