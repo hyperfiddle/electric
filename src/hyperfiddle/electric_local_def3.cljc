@@ -5,7 +5,6 @@
            [missionary Cancelled])
   (:require [clojure.core :as cc]
             [contrib.assert :as ca]
-            #?(:clj [fipp.edn])
             [contrib.cljs-target]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric.impl.lang3 :as lang]

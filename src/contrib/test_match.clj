@@ -1,6 +1,7 @@
 (ns contrib.test-match
-  (:require [hyperfiddle.rcf :as rcf :refer [tests]]
-            [fipp.ednize]))
+  (:require
+   [hyperfiddle.rcf :as rcf :refer [tests]]
+   ))
 
 (set! *warn-on-reflection* true)
 
@@ -37,8 +38,6 @@
       (= a (.-a ^Diff that)) (= b (.-b ^Diff that))))
   clojure.lang.IPersistentCollection
   (equiv [this that] (.equals this that))
-  fipp.ednize/IEdn
-  (-edn [_] (list '<<DIFF  a b))
   )
 
 (tests
@@ -51,7 +50,6 @@
 
 (deftype Missing []
   Object (toString [_] "_")
-  fipp.ednize/IEdn (-edn [_] '_)
   )
 (defmethod print-method Missing [_ ^java.io.Writer w] (.write w "_"))
 (def missing (Missing.))

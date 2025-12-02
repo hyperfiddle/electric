@@ -11,7 +11,6 @@
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred referred-fn]]
             #?(:clj [contrib.test-match :as tm])
             #?(:cljs [goog.math :as gm])
-            [fipp.edn]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
             [clojure.string :as str])
@@ -36,7 +35,7 @@
 (defmacro match [code matcher]
   `(let [ret# ~code, matcher# (->code ~matcher) match# (tm/test-match ret# matcher#)]
      ret# := match#
-     (when (not= ret# match#) (fipp.edn/pprint match#))
+     (when (not= ret# match#) (l/pprint-code match#))
      match#))
 
 ;; no `:=`, these just need to compile

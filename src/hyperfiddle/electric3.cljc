@@ -14,7 +14,6 @@
             [contrib.measure :as cm]
             [hyperfiddle.rcf :as rcf :refer [tests]]
             #?(:clj [contrib.triple-store :as ts])
-            #?(:clj [fipp.edn])
             [missionary.core :as m]
             [contrib.missionary-contrib :as mx]
             [clojure.math :as math]

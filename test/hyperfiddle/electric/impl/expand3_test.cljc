@@ -26,7 +26,7 @@
 (defmacro match [code matcher]
   `(let [ret# ~code, matcher# ~matcher match# (tm/test-match ret# matcher#)]
      ret# := match#
-     (when (not= ret# match#) (fipp.edn/pprint match#))
+     (when (not= ret# match#) (l/pprint-code match#))
      match#))
 
 #?(:clj

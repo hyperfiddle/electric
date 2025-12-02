@@ -10,7 +10,6 @@
             [contrib.walk :as cw]
             [clojure.set :as set]
             [contrib.triple-store :as ts]
-            [fipp.edn]
             [hyperfiddle.electric3 :as-alias e]
             [hyperfiddle.electric.impl.pures-fns :as pure-fns]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]
@@ -278,8 +277,13 @@
                                  "missionary.core" "m"
                                  "clojure.core" nil}))
 
+(defn pprint-code [form]
+  (binding [clojure.pprint/*print-pprint-dispatch*  clojure.pprint/code-dispatch
+            clojure.pprint/*print-right-margin* 120]
+    (clojure.pprint/pprint form)))
+
 (let [rewrite #(cond-> % (or (symbol? %) (keyword? %)) pp-aliaser)]
-  (defn pprint-source [source] (fipp.edn/pprint (cw/postwalk rewrite source) {:width 120})))
+  (defn pprint-source [source] (pprint-code (cw/postwalk rewrite source))))
 
 (defn +meta [env o]
   (if (instance? clojure.lang.IObj o)
@@ -1655,14 +1659,14 @@
 
 (defn compile [nm form env]
   (let [expanded (expand-all env `(::ctor ~form))]
-    (when (::print-expansion env) (fipp.edn/pprint expanded))
+    (when (::print-expansion env) (pprint-code expanded))
     (compile* nm env
       (analyze expanded
         '_ env (->ts)))))
 
 (defn ->source [env root-key efn]
   (let [expanded (expand-all env efn)
-        _ (when (::print-expansion env) (fipp.edn/pprint expanded))
+        _ (when (::print-expansion env) (pprint-code expanded))
         ts (analyze expanded '_ env (->ts))
         ts (analyze-electric env ts)
         ctors (mapv #(emit-ctor ts % env root-key) (get-ordered-ctors-e ts))
