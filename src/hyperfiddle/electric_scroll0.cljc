@@ -137,7 +137,8 @@ Like `scroll-state` but:
   "
   [size offset]
   (let [start (- size offset)]
-    (mapv #(+ offset (mod % size)) (range start (+ size start)))))
+    (->> (range start (+ size start))
+      (mapv #(+ offset (mod % size))))))
 
 (tests
   (index-ring 7 0) := [0 1 2 3 4 5 6]
@@ -172,7 +173,7 @@ Like `scroll-state` but:
   (e/defn IndexRing "
 Optimized virtual scroll primitive for datagrids that need smooth scrolling. Implements the 'Tape' strategy to minimize
 the number of DOM effects down to perform only a single change operation per scroll row, at the cursor point. The DOM
-elements do not rotate in the DOM, they remain fixed in starting order, which means userland must reorder the rows e.g.
+elements do not rotate in the DOM, they remainfixed in starting order, which means userland must reorder the rows e.g.
 with css `grid-row: var(--order)`. For box css layouts, this can yield subframe scroll latency because row ordering
 occurs in the GPU - no javascript required. It feels incredibly lightweight and fast."
     [size offset] (e/diff-by {} (index-ring size offset))))
@@ -215,7 +216,12 @@ at the Electric layer and therefore this primitive is not optimal."
   ([offset limit] (Window offset limit 1)) ; todo confirm arg order
   ([offset limit step] (e/Range offset (+ offset limit) step)))
 
-(e/defn Raster "
+(comment
+  (range 0 (+ 0 5)) := '(0 1 2 3 4)    ; mount 0 1 2 3 4
+  (range 1 (+ 1 5)) := '(1 2 3 4 5)    ; unmount 0, mount 5
+  (range 2 (+ 2 5)) := '(2 3 4 5 6))   ; unmount 1, mount 6
+
+(e/defn Repaint "
 Virtual scroll primitive optimized for small viewports, such as typeahead picklists.
 Recomputes all cells on change with no reuse of cell values across frame evolutions.
 Performs zero rotation/grow/shrink, i.e. recycling all DOM elements."
