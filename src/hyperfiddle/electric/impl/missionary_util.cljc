@@ -36,11 +36,11 @@
   #?(:clj (instance? missionary.Cancelled o)
      :cljs (= (.-constructor o) js/missionary.Cancelled)))
 
-(defn wrap-flow [nm flow {:keys [reductions] :as opts}]
-  (if-not (@wrap? nm opts)
+(defn wrap-flow [nm flow opts-delayed]
+  (if-not (@wrap? nm opts-delayed)
     flow
     (let [mt (dl/get *mt)
-          reductions @reductions]
+          reductions (:reductions @opts-delayed)]
       (fn [step done]
         (let [id (random-uuid)
               rd-array (object-array (* 2 (count reductions)))

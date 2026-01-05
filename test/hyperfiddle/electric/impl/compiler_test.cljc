@@ -35,7 +35,7 @@
 (defmacro match [code matcher]
   `(let [ret# ~code, matcher# (->code ~matcher) match# (tm/test-match ret# matcher#)]
      ret# := match#
-     (when (not= ret# match#) (l/pprint-code match#))
+     (when (not= ret# match#) (lang/pprint-code match#))
      match#))
 
 ;; no `:=`, these just need to compile
