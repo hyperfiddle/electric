@@ -6,9 +6,15 @@
             [hyperfiddle.incseq :as i]
             [hyperfiddle.kvs :as kvs]
             [missionary.core :as m]
-            [hyperfiddle.electric.impl.runtime3 :as r])
+            [hyperfiddle.electric.impl.runtime3 :as r]
+            [hyperfiddle.electric.impl.lang3 :as lang]
+            [clojure.test.check.properties :as tc-prop]
+            [clojure.test.check.generators :as tc-gen]
+            [clojure.test.check.clojure-test :as tct])
+
   #?(:cljs (:require-macros [hyperfiddle.electric3-network-test :refer [with-electric]]))
-  (:import [missionary Cancelled]))
+  (:import [missionary Cancelled]
+           #?(:clj [clojure.lang ExceptionInfo])))
 
 (declare tap step)
 (defmacro with-electric [[tap step] opts eform & body]
@@ -220,3 +226,77 @@
                  (when (or (nil? n0) (< steps n0)) (<s> [steps seed])))))))
     (<s>))
   )
+
+;; property based codegen tests
+
+(defn tf-server [form] `(e/server (identity ~form)))
+(defn tf-client [form] `(e/client (identity ~form)))
+
+(defn assert= [v pred-v]
+  (when-not (= v pred-v) (throw (ex-info (str v " not= " pred-v) {})))
+  v)
+
+(defn tf-case-server [form]
+  (let [x (gensym "x")]
+    `(let [~x ~form] (case ~(tf-server x) 42 (assert= ~x 42) 43 (assert= ~x 43) #_else 0))))
+
+(defn tf-case-client [form]
+  (let [x (gensym "x")]
+    `(let [~x ~form] (case ~(tf-client x) 42 (assert= ~x 42) 43 (assert= ~x 43) #_else 0))))
+
+(defn tf-e-for [form]
+  `(e/for [~'x ~form] ~'x))
+
+(defn tf-shrink-grow-server [form]
+  `(e/for [~'x (e/server (e/diff-by identity (e/as-vec ~form)))] ~'x))
+
+(defn tf-shrink-grow-client [form]
+  `(e/for [~'x (e/client (e/diff-by identity (e/as-vec ~form)))] ~'x))
+
+(defn wrap-with-check [form x1 x2]
+  `(let [~'!x (atom 42)]
+     (with-electric [~'tap ~'step] {} (let [~'x (e/watch ~'!x)] (~'tap ~form))
+       (~'step #{~x1})
+       (swap! ~'!x inc)
+       (~'step #{~x2}))))
+
+(def gen-code-tfs
+  (tc-gen/vector
+    (tc-gen/elements [:server :client :server :client :server :client
+                      :case-server :case-client
+                      :e-for :shrink-grow-server :shrink-grow-client
+                      ])
+    1 5))
+
+(defn transform-code [form transform-kw]
+  (case transform-kw
+    :server (tf-server form)
+    :client (tf-client form)
+    :case-server (tf-case-server form)
+    :case-client (tf-case-client form)
+    :e-for (tf-e-for form)
+    :shrink-grow-server (tf-shrink-grow-server form)
+    :shrink-grow-client (tf-shrink-grow-client form)
+    ))
+
+(def prop-program-42
+  (tc-prop/for-all [tfs gen-code-tfs]
+    (let [code (wrap-with-check (reduce transform-code 'x tfs) 42 43)]
+      (try (eval code)
+           (catch ExceptionInfo e (throw (ex-info "check failed" {:code (with-out-str (lang/pprint-source code))} e))))
+      true)))
+
+;; reproduces the conditional glitch
+;; (tct/defspec program-42-spec 20 prop-program-42)
+
+(def prop-program-42-42
+  (tc-prop/for-all [tfs1 gen-code-tfs, tfs2 gen-code-tfs]
+    (let [code (wrap-with-check `[~(reduce transform-code 'x tfs1)
+                                  ~(reduce transform-code 'x tfs2)]
+                 [42 42] [43 43])]
+      (try (eval code)
+           (catch ExceptionInfo e (throw (ex-info "check failed" {:code (with-out-str (lang/pprint-source code))} e))))
+      true)))
+
+;; reproduces d-glitch
+;; (tct/defspec program-42-42-spec 20 prop-program-42-42)
