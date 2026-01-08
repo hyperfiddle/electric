@@ -94,6 +94,9 @@
                           (reduce-kv (fn [ac k pat] (assoc ac k (test-match missing pat))) v pat))
                         (->Diff v pat))
 
+                      (map? pat)        ; since `v` is not a map this is a diff
+                      (->Diff v pat)
+
                       (set? v)
                       (if (set? pat)
                         (reduce (fn [v nx] (if (contains? v nx) v (conj v (->Diff missing nx)))) v pat)
