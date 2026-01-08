@@ -381,13 +381,30 @@ v3 to expose the full differential diff lifecycle)"
     (or (not= :dev (:shadow.build/mode shadow-build-state)) ; only check config in dev mode
       (contains? (:hyperfiddle.electric.shadow-cljs/hooks3 shadow-build-state) 'hyperfiddle.electric.shadow-cljs.hooks3/reload-clj))))
 
+(defn- cancelled-is-fine "To silence Cancelled on hot code reload" [task]
+  (m/sp (try (m/? task) (catch Cancelled _))))
+
+#?(:cljs
+   (defn- with-default-shutdown-prints "Provide sane success/failure cljs shutdown callbacks" [task]
+     (cc/fn thunked-default-task-callbacks
+       ([] ((cancelled-is-fine task)
+            ;; printing on success is confusing, even "Electric shutdown successful",
+            ;; because this prints on every hot code reload and users might think something's wrong
+            (cc/fn [_])
+            ;; we need to be careful with wording on failure, something like
+            ;; "Electric crash" people might understand to be an electric bug
+            ;; but it might just be an unhandled exception in their application
+            (cc/fn [e] (js/console.error "Electric application crashed" e))))
+       ([s f] ((cancelled-is-fine task) s f))))) ; for retro-compat
+
 (defmacro boot-client [opts Main & args]
   (if (build-properly-configured? (deref cljs.env/*compiler*))
     (let [env (merge (lang/normalize-env &env) web-config opts )
           source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
-      `(cc/apply ~(if (::hot-swap opts) `r/boot-client-hot `r/boot-client-cold) (r/->defs {::Main ~source}) ::Main
-         ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
-         (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*)))
+      `(with-default-shutdown-prints
+         (cc/apply ~(if (::hot-swap opts) `r/boot-client-hot `r/boot-client-cold) (r/->defs {::Main ~source}) ::Main
+           ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
+           (hyperfiddle.electric-client3/connector hyperfiddle.electric-client3/*ws-server-url*))))
     (let [message "Electric compilation error: a required shadow build hook is missing. Please add `hyperfiddle.electric.shadow-cljs.hooks3/reload-clj under :build-hooks in shadow-cljs.edn"]
       (println message)
       `(cc/fn [] (println ~message)))))
