@@ -1463,7 +1463,12 @@
                                                               arg* (into [] (comp (filter (tagged :arg)) (map second)) (<arg*>))
                                                               pure* (into [] (comp (filter (tagged :pure))
                                                                                (mapcat (fn [[_t sym e]] [sym (emit ts e ctor-e env nm)]))) (<arg*>))]
-                                                          `[~fsym (let* ~pure* (fn ~fsym ~arg* ~(doall (map #(nth % 1) (<arg*>)))))]))})
+                                                          `[~fsym (let* ~pure*
+                                                                    ~(if (< (count arg*) 20)
+                                                                       `(fn* ~fsym (~arg* ~(doall (map #(nth % 1) (<arg*>)))))
+                                                                       `(fn* ~fsym ([~'& arg>20#]
+                                                                                    (let [~arg* arg>20#]
+                                                                                      ~(doall (map #(nth % 1) (<arg*>))))))))]))})
                               (ts/add {:db/id e, ::parent ap-e, ::type ::pure, ::site site})
                               (ts/add {:db/id (->id), ::parent e, ::type ::literal, ::v fsym, ::site site})))
 

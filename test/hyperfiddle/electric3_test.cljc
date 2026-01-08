@@ -2929,3 +2929,15 @@
     % := :mount
     (client-writer 2)
     % := :foo))
+
+
+;; this used to generate an fn with >20 params, which clojure doesn't support
+;; https://github.com/clojure/clojure/blob/a3fa897590f70207eea3573759739810f2b6ab6c/src/jvm/clojure/lang/Compiler.java#L6026
+(tests
+  (with ((l/single {}
+           (let [x (inc 1)]
+             (tap (first [:a :b :c
+                          x x x x x x x x x x
+                          x x x x x x x x x x
+                          x x x x x x x x x x])))) tap tap)
+    % := :a))
