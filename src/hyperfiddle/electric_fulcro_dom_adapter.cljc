@@ -5,6 +5,7 @@
             #?(:cljs [goog.object :as gobj])
             #?(:cljs [com.fulcrologic.fulcro.components :as comp :refer [defsc]])
             #?(:cljs [com.fulcrologic.fulcro.dom :as dom :refer [div]]))
+  (:import [missionary Cancelled])
   #?(:cljs (:require-macros [hyperfiddle.electric-fulcro-dom-adapter])))
 
 (def ^:private !props "Contains props of all fulcro->electric instances, keyed by `id`"
@@ -21,7 +22,7 @@
                               (let [reactor ((::electric-program (comp/props this)))
                                     process (reactor
                                               #(js/console.log "Reactor success:" %)
-                                              #(js/console.error "Reactor failure:" %))]
+                                              #(when-not (instance? Cancelled %) (js/console.error "Reactor failure:" %)))]
                                 (swap! !props assoc-in [(::id (comp/props this)) ::react-ref] (gobj/get this "container"))
                                 (comp/set-state! this {:process process})))
       :componentWillUnmount (fn [this]
