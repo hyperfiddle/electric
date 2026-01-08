@@ -262,9 +262,9 @@
            (let [a (inc 1), b (inc 2)] (::lang/ctor [b (::lang/ctor a)])))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 '{} (r/pure tm/_ (~'inc 2)))
-          (r/define-node ~'frame 1 '{} (r/pure tm/_ (~'inc 1)))
-          (r/pure tm/_ (r/ctor ::Main 1 (r/node ~'frame 0) (r/node ~'frame 1)))))
+          (r/define-node ~'frame 0 '{} (r/pure tm/_ (~'inc 1)))
+          (r/define-node ~'frame 1 '{} (r/pure tm/_ (~'inc 2)))
+          (r/pure tm/_ (r/ctor ::Main 1 (r/node ~'frame 1) (r/node ~'frame 0)))))
       (r/cdef 2 [] [] nil
         (fn [~'frame]
           (let [~'init-fn0 (let* [~'init-pure1 vector, ~'init-pure3 (r/ctor ::Main 2 (r/free ~'frame 1))]
@@ -473,15 +473,15 @@
   (match (l/test-compile ::Main (let [x (inc 1), y (dec 2)] [y x x y]))
     `[(r/cdef 0 [nil nil] [] nil
         (fn [~'frame]
-          (r/define-node ~'frame 0 '{} (r/pure tm/_ (~'dec 2)))
-          (r/define-node ~'frame 1 '{} (r/pure tm/_ (~'inc 1)))
+          (r/define-node ~'frame 0 '{} (r/pure tm/_ (~'inc 1)))
+          (r/define-node ~'frame 1 '{} (r/pure tm/_ (~'dec 2)))
           (r/ap '{} (r/pure tm/_ clojure.core/vector)
-            (r/node ~'frame 0) (r/node ~'frame 1) (r/node ~'frame 1) (r/node ~'frame 0))))])
+            (r/node ~'frame 1) (r/node ~'frame 0) (r/node ~'frame 0) (r/node ~'frame 1))))])
   (match (l/test-compile ::Main (let [x (inc 1)] [(::lang/call (::lang/ctor 1)) x x (::lang/call (::lang/ctor 2))]))
     `[(r/cdef 0 [nil] [nil nil] nil
         (fn [~'frame]
-          (r/define-call ~'frame 0 (r/pure tm/_ (r/ctor ::Main 1)))
           (r/define-node ~'frame 0 '{} (r/pure tm/_ (~'inc 1)))
+          (r/define-call ~'frame 0 (r/pure tm/_ (r/ctor ::Main 1)))
           (r/define-call ~'frame 1 (r/pure tm/_ (r/ctor ::Main 2)))
           (r/ap '{} (r/pure tm/_ clojure.core/vector)
             (r/join tm/_ (r/call ~'frame 0))
