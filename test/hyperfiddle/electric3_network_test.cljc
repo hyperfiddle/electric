@@ -1,6 +1,9 @@
 (ns hyperfiddle.electric3-network-test
   (:require [clojure.test :as t]
             [contrib.data :refer [->box]]
+            [contrib.debug :as dbg]
+            [contrib.walk :as walk]
+            [contrib.triple-store :as ts]
             [hyperfiddle.electric-local-def3 :as l]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
@@ -300,3 +303,248 @@
 
 ;; reproduces d-glitch
 ;; (tct/defspec program-42-42-spec 20 prop-program-42-42)
+
+
+;; sophisticated codegen:
+;; - can mutate any part of the source code. E.g. a `case` has many points (test value, each branch) to mutate
+;; how:
+;; - given an input set of atoms (e.g. x=42, y=0)
+;; - and their next state (e.g. x=10, y=1)
+;; - start with some static start value, e.g. [x y]
+;; - hold code in a triple store - allows arbitrary point mutations
+;; - create 2 triple store readers
+;;   1. generates the electric source code (s-exp)
+;;   2. calculates value at point given input set (interpreter)
+;; - the interpreter allows knowing what is the value at T0 and T1 so we can generate smart code
+;; - e.g. if value at point is [42 0] then [10 1] we know what `case` is interesting to generate
+;; generating/shrinking:
+;; - start with 1 mutation, keep adding one by one up to a limit (e.g. 10 or 20)
+;; - run each source with a number of network topologies (e.g. 10 or 100)
+;; - on hitting a failure case try removing each mutation one by one and repeat with a number of network topologies
+;; - loop over the removals until hitting a fixpoint
+;; benefits:
+;; - highly randomized source code = larger coverage
+;; - custom generator plugs in more easily into the network testing framework
+;; - custom generator allows custom (perfect) shrinking
+
+(defn ->->id [] (let [!i (long-array [-1])] (fn [] (aset !i 0 (unchecked-inc (aget !i 0))))))
+
+(defn add-singular-vector [{{:keys [->id inputs]} :o, :as ts} parent-id]
+  (let [vector-id (->id)]
+    (-> ts
+      (ts/add {:db/id vector-id, :type :vector, :parent parent-id})
+      (ts/add {:db/id (->id), :parent vector-id, :type :value, :value (rand-nth inputs)}))))
+
+(defn initialize-source-ts [inputs]
+  (let [->id (->->id)]
+    (-> (ts/->ts {:->id ->id, :inputs inputs})
+      (add-singular-vector -1))))
+
+(e/defn Server [x] (e/server (identity x)))
+(e/defn Client [x] (e/client (identity x)))
+
+(def source-mutations
+  [
+   (fn m!server [{{:keys [->id]} :o, :as ts}]
+     (let [server-id (->id)
+           id-to-mutate (loop []
+                          (let [id (rand-nth (vec (ts/key ts :type)))]
+                            (if (= :server (ts/? ts id :type))
+                              (recur)
+                              id)))
+           parent (ts/? ts id-to-mutate :parent)]
+       (-> ts
+         (ts/add {:db/id server-id, :parent parent, :type :server})
+         (ts/asc id-to-mutate :parent server-id))))
+   (fn m!add-value [{{:keys [->id inputs]} :o, :as ts}]
+     (let [vector-id (rand-nth (vec (ts/find ts :type :vector)))]
+       (ts/add ts {:db/id (->id), :parent vector-id, :type :value, :value (rand-nth inputs)})
+       ))
+   (fn m!case [{{:keys [->id]} :o, :as ts}]
+     (let [case-id (->id)
+           id-to-mutate (rand-nth (vec (ts/key ts :type)))
+           parent (ts/? ts id-to-mutate :parent)]
+       (-> ts
+         (ts/add {:db/id case-id, :parent parent, :type :case})
+         (ts/asc id-to-mutate :parent case-id)
+         (add-singular-vector case-id)
+         (add-singular-vector case-id))))
+   ])
+
+(defn mutate-source [ts]
+  ((rand-nth source-mutations) ts))
+
+(defn add-input-values [{{:keys [inputs]} :o, :as ts}]
+  (update ts :o assoc
+    :t0 (zipmap inputs (map #(keyword (str % 0)) inputs))
+    :t1 (zipmap inputs (map #(keyword (str % 1)) inputs))))
+
+(defn get-root-node-id [ts] (ts/find1 ts :parent -1))
+
+(defn compute-symbolic-return-value
+  ([ts time] (compute-symbolic-return-value ts time (get-root-node-id ts)))
+  ([ts time node-id]
+   ((fn rec [node-id]
+      (let [node (ts/->node ts node-id)]
+        (case (:type node)
+          (:server) (rec (ts/find1 ts :parent node-id))
+          (:vector) (mapv rec (ts/find ts :parent node-id))
+          (:case) (let [test&branches (sort (ts/find ts :parent node-id))]
+                    (rec (nth test&branches (inc time))))
+          (:null) nil
+          (:value) (:value node))))
+    node-id)))
+
+(defn get-mapping-in-time [ts time]
+  (-> ts :o (get (case time 0 :t0 1 :t1))))
+
+(defn compute-return-value
+  ([ts time] (compute-return-value ts time (get-root-node-id ts)))
+  ([ts time node-id]
+   (let [sym-ret (compute-symbolic-return-value ts time node-id)
+         mapping (get-mapping-in-time ts time)]
+     (walk/postwalk #(cond-> % (symbol? %) (mapping %)) sym-ret))))
+
+(defn generate-source
+  ([ts] (generate-source ts #{} (get-root-node-id ts)))
+  ([ts times node-id]
+   (let [node (ts/->node ts node-id)]
+     (case (:type node)
+       (:server) `(~'Server ~(generate-source ts times (ts/find1 ts :parent node-id)))
+       (:vector) `[~@(mapv #(generate-source ts times %) (sort (ts/find ts :parent node-id)))]
+       (:case) (let [[test branch0 branch1] (sort (ts/find ts :parent node-id))]
+                 `(~'case ~(generate-source ts times test)
+                   ~(compute-return-value ts 0 test) ~(generate-source ts (conj times 0) branch0)
+                   ~(compute-return-value ts 1 test) ~(generate-source ts (conj times 1) branch1)
+                   :unreachable))
+       (:null) nil
+       (:value) (case (count times)
+                  0 (:value node)
+                  1 (list 'assert= (:value node) (get (get-mapping-in-time ts (first times)) (:value node)))
+                  2 :unreachable)))))
+
+(defn generate-test [ts]
+  `(~'let [~'!inputs (~'atom ~(list 'quote (-> ts :o :t0))) #_ ~@(mapcat (fn [[s v]] `[~(banged s) (~'atom ~v)]) (-> ts :o :t0))]
+    (~'with-electric [~'tap ~'step] {}
+     (~'let [~'inputs (~'e/watch ~'!inputs)
+             ~@(mapcat (fn [s] `[~s (~'get ~'inputs ~(list 'quote s)) #_(~'e/watch ~(banged s))]) (-> ts :o :inputs))]
+      (~'tap ~(generate-source ts)))
+     (~'step #{~(compute-return-value ts 0)})
+     ~(list 'reset! '!inputs (list 'quote (-> ts :o :t1)))
+     (~'step #{~(compute-return-value ts 1)}))))
+
+(defn run-test [ts topo-test-count]
+  (let [code (generate-test ts)]
+    ;; (lang/pprint-source code)
+    (try (dotimes [_ topo-test-count] (eval code)) [:ok]
+         (catch #?(:clj Throwable :cljs :default) e
+           ;; (lang/pprint-source code)
+           [:ex e]))))
+
+(defn reparent [ts parent-id node-id]
+  (ts/asc ts node-id :parent parent-id))
+
+(defn reparent* [ts parent-id node-ids]
+  (reduce (fn [ts node-id] (reparent ts parent-id node-id)) ts node-ids))
+
+(defn delete-point [ts node-id]
+  (reduce delete-point (ts/del ts node-id) (ts/find ts :parent node-id)))
+
+(defn delete-point* [ts node-ids]
+  (reduce delete-point ts node-ids))
+
+(defn raise-point [ts point-to-raise-id new-position-id]
+  (let [point-to-raise (ts/->node ts point-to-raise-id)
+        new-position (ts/->node ts new-position-id)
+        delete-ids (disj (ts/find ts :parent new-position-id) point-to-raise-id)]
+    (-> ts
+      (ts/add (merge (select-keys new-position [:db/id :parent]) (dissoc point-to-raise :db/id :parent)))
+      (reparent* new-position-id (ts/find ts :parent test))
+      (delete-point* delete-ids))))
+
+(defn shrink-test [ts topo-test-count ex]
+  (let [run (fn [ts] (run-test ts topo-test-count))]
+    ((fn rec [ts ex node-id]
+       (let [node (ts/->node ts node-id)]
+         (case (:type node)
+           (:server) (let [child-id (ts/find1 ts :parent node-id)
+                           child-node (ts/->node ts child-id)]
+                       (if (= :server (:type child-node))
+                         (recur (-> ts (reparent node-id (ts/find1 ts :parent child-id)) (delete-point child-id))
+                           ex node-id)
+                         (recur ts ex child-id)))
+           (:vector) (let [[ts ex] (reduce (fn [[ts ex] node-id]
+                                             (let [next-ts (delete-point ts node-id)
+                                                   [t next-ex] (run next-ts)]
+                                               (case t
+                                                 :ex [next-ts next-ex]
+                                                 :ok [ts ex])))
+                                     [ts ex] (next (ts/find ts :parent node-id)))]
+                       (reduce (fn [[ts ex] node-id] (rec ts ex node-id)) [ts ex] (ts/find ts :parent node-id)))
+           (:case) (let [[test branch0 branch1] (sort (ts/find ts :parent node-id))
+                         next-ts (raise-point ts test node-id)
+                         [t next-ex] (run next-ts)]
+                     (case t
+                       :ex (recur next-ts next-ex node-id)
+                       :ok (let [next-ts (raise-point ts branch0 node-id)
+                                 [t next-ex] (run next-ts)]
+                             (case t
+                               :ex (recur next-ts next-ex node-id)
+                               :ok (let [next-ts (raise-point ts branch1 node-id)
+                                         [t next-ex] (run next-ts)]
+                                     (case t
+                                       :ex (recur next-ts next-ex node-id)
+                                       :ok (reduce (fn [[ts ex] node-id] (rec ts ex node-id)) [ts ex] (ts/find ts :parent node-id))))))))
+           #_else [ts ex])))
+     ts ex (get-root-node-id ts))))
+
+#?(:clj
+   (defn run-generated-test []
+     (let [ts (-> (initialize-source-ts '[a b c d])
+                mutate-source mutate-source mutate-source mutate-source mutate-source
+                add-input-values)
+           topo-test-count 16
+           [t ex] (run-test ts topo-test-count)]
+       (case t
+         :ok :ok
+         :ex (let [[ts ex] (shrink-test ts 32 ex)]
+               (lang/pprint-source (generate-test ts))
+               (throw ex))))))
+
+;; copied and further simplified from a `run-generated-test` run (d-glitch)
+(defn broken []
+  (let [!inputs (atom '{a :a0, b :b0})]
+    (with-electric [tap step] {}
+        (let [inputs (e/watch !inputs) a (get inputs 'a) b (get inputs 'b)]
+          (tap [a (Server b)]))
+      (step #{[:a0 :b0]})
+      (reset! !inputs '{a :a1, b :b1})
+      (step #{[:a1 :b1]}))))
+
+;; copied and further simplified from a `run-generated-test` run (conditional glitch)
+(defn broken-2 []
+  (let [!inputs (atom '{a :a0, b :b0})]
+    (with-electric [tap step] {}
+        (let [inputs (e/watch !inputs) a (get inputs 'a) b (get inputs 'b)]
+          (tap (case (Server b) :b0 (assert= a :a0) :b1 (assert= a :a1) :unreachable)))
+      (step #{:a0})
+      (reset! !inputs '{a :a1, b :b1})
+      (step #{:a1}))))
+
+(comment
+  (broken)
+  (broken-2)
+  (run-generated-test)
+  (-> (initialize-source-ts '[a b c d])
+    mutate-source
+    mutate-source
+    ;; mutate-source
+    ;; mutate-source
+    ;; mutate-source
+    ;; (#(do (run! (comp prn second) (:eav %)) %))
+    add-input-values
+    #_(#((juxt identity (fn [_] (-> % :o :t1)) (fn [v] (replace (-> % :o :t1) v))) (compute-symbolic-return-value % 1)))
+    generate-test
+    ;;eval
+    )
+  )
