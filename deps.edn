@@ -48,5 +48,5 @@
            :build {:extra-paths ["src-build"]
                    :ns-default  build
                    :extra-deps  {com.hyperfiddle/build {:local/root "../build"}}}
-           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-86cef0fb"}}}}
+           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-bcc21af7"}}}}
  }
