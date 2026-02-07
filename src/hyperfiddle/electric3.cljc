@@ -612,7 +612,7 @@ result while awaiting subsequent values of f, such that intermediate pending sta
   ([f!]          (Offload-latch f!))
   ([f! executor] (Offload-latch f! executor)))
 
-(hyperfiddle.electric3/declare ^{:doc "Bound to the HTTP request of the page in which the current Electric program is running."}
+(hyperfiddle.electric3/declare ^{:dynamic true :doc "Bound to the HTTP request of the page in which the current Electric program is running."}
   http-request)
 
 (cc/defn measure< [nm v] (cm/measure nm v))
