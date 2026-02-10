@@ -87,7 +87,6 @@
          keepalive-mailbox (m/mbx)]
      {:on-connect (fn on-connect [^WebSocketAdapter ws]
                     (log/debug "WS connect" ring-req)
-                    (.setMaxTextMessageSize (.getPolicy (.getSession ws)) (* 100 1024 1024))  ; Allow large value payloads, temporary.
                     (aset state on-close-slot
                       ((m/join (fn [& _])
                          (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
@@ -184,14 +183,20 @@
   ([jetty-server path entrypoint] (electric-jetty9-ws-install jetty-server path entrypoint identity))
   ([jetty-server path entrypoint middleware] (electric-jetty9-ws-install jetty-server path entrypoint middleware {}))
   ([jetty-server path entrypoint middleware
-    {:as config :keys [ws-max-idle-time ws-max-text-message-size] :or {ws-max-idle-time 500000 ws-max-text-message-size 65536}}] ; copied from proxy-ws-handler for documentation
+    {:keys [ws-idle-timeout ws-max-text-size ws-max-binary-size]
+     :or {ws-idle-timeout   (* 60 1000)          ; 60 seconds, match ring/run-jetty
+          ws-max-text-size   (* 100 1024 1024)    ; 100MB, match ring/run-jetty
+          ws-max-binary-size (* 100 1024 1024)}}] ; 100MB, match ring/run-jetty
+   (let [ws-config {:ws-max-idle-time ws-idle-timeout ; translate to proxy-ws-handler key names
+                    :ws-max-text-message-size ws-max-text-size
+                    :ws-max-binary-message-size ws-max-binary-size}]
    (letfn [(create-websocket-handler [context-path handler]
              (doto (ContextHandler.)
                (.setContextPath context-path) ; matches e.g. "/"
                (.setAllowNullPathInfo false) ; FIXME can we remove this? not sure what it does for just "/". It's really up to the user to canonicalize urls. https://javadoc.jetty.org/jetty-9/org/eclipse/jetty/server/handler/ContextHandler.html#setAllowNullPathInfo(boolean)
-               (.setHandler (proxy-ws-handler handler config))))
+               (.setHandler (proxy-ws-handler handler ws-config))))
            (add-websocket-handler [server path handler]
              (let [handlers [(create-websocket-handler path handler) (.getHandler server)]]
                (.setHandler server (doto (HandlerList.) (.setHandlers (into-array Handler handlers))))))]
      (doto jetty-server
-       (add-websocket-handler path (middleware (fn [ring-req] (electric-jetty9-ws-adapter (partial entrypoint ring-req) ring-req))))))))
+       (add-websocket-handler path (middleware (fn [ring-req] (electric-jetty9-ws-adapter (partial entrypoint ring-req) ring-req)))))))))

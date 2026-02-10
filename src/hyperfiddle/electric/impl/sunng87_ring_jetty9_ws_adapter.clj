@@ -221,14 +221,17 @@ https://github.com/sunng87/ring-jetty9-adapter/"
   "Returns a Jetty websocket handler"
   [ws {:as options
        :keys [ws-max-idle-time
-              ws-max-text-message-size]
+              ws-max-text-message-size
+              ws-max-binary-message-size]
        :or {ws-max-idle-time 500000
-            ws-max-text-message-size 65536}}]
+            ws-max-text-message-size 65536
+            ws-max-binary-message-size 65536}}]
   (proxy [WebSocketHandler] []
     (configure [^WebSocketServletFactory factory]
       (doto (.getPolicy factory)
         (.setIdleTimeout ws-max-idle-time)
-        (.setMaxTextMessageSize ws-max-text-message-size))
+        (.setMaxTextMessageSize ws-max-text-message-size)
+        (.setMaxBinaryMessageSize ws-max-binary-message-size))
       (.setCreator factory
                    (if (map? ws)
                      (reify-default-ws-creator ws)
