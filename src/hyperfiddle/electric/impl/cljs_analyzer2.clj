@@ -172,14 +172,16 @@
   (let [r (if (or (symbol? r) (string? r)) [r] r)
         [req$ & o] r, o (apply hash-map o)]
     (when (not= ns$ req$)
-      (let [req$ (or (?auto-alias-clojureT !a ns$ env reqk refk req$) req$)]
-        (add-require !a ns$ reqk req$ req$)
-        (when (:as o) (add-require !a ns$ reqk (:as o) req$))
-        (when (:refer o) (add-refers !a ns$ refk o req$))
-        (analyze-nsT !a (assoc env :ns {:name ns$}) #_(->cljs-env ns$) req$)
-        (when (:refer-macros o)
-          (add-requireT !a ns$ env reqk refk
-            (into [req$] cat (-> (select-keys o [:as]) (assoc :refer (:refer-macros o))))))))))
+      (if (:as-alias o)
+        (add-require !a ns$ reqk (:as-alias o) req$) ; :as-alias creates alias without loading ns
+        (let [req$ (or (?auto-alias-clojureT !a ns$ env reqk refk req$) req$)]
+          (add-require !a ns$ reqk req$ req$)
+          (when (:as o) (add-require !a ns$ reqk (:as o) req$))
+          (when (:refer o) (add-refers !a ns$ refk o req$))
+          (analyze-nsT !a (assoc env :ns {:name ns$}) #_(->cljs-env ns$) req$)
+          (when (:refer-macros o)
+            (add-requireT !a ns$ env reqk refk
+              (into [req$] cat (-> (select-keys o [:as]) (assoc :refer (:refer-macros o)))))))))))
 
 (defn -add-requiresT [!a ns$ env rs reqk refk]
   (run! #(add-requireT !a ns$ env reqk refk %) rs))
