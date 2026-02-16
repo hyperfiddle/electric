@@ -410,6 +410,7 @@
 
 (defn expand-all [env o]
   (cljs-ana/analyze-nsT !a env (get-ns env))
+  (cljs-ana/register-as-aliases-in-compiler! !a (get-ns env))
   (-expand-all o (assoc env ::electric true)))
 
 ;;;;;;;;;;;;;;;;

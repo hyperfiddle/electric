@@ -173,7 +173,8 @@
         [req$ & o] r, o (apply hash-map o)]
     (when (not= ns$ req$)
       (if (:as-alias o)
-        (add-require !a ns$ reqk (:as-alias o) req$) ; :as-alias creates alias without loading ns
+        (do (add-require !a ns$ reqk (:as-alias o) req$) ; :as-alias creates alias without loading ns
+            (swap! !a assoc-in [::nses ns$ ::as-aliases (:as-alias o)] req$))
         (let [req$ (or (?auto-alias-clojureT !a ns$ env reqk refk req$) req$)]
           (add-require !a ns$ reqk req$ req$)
           (when (:as o) (add-require !a ns$ reqk (:as o) req$))
@@ -253,6 +254,22 @@
 (defn macro-var? [vr] (and (instance? clojure.lang.Var vr) (.isMacro ^clojure.lang.Var vr)))
 
 (defn safe-requiring-resolve [sym] (try (requiring-resolve sym) (catch java.io.FileNotFoundException _)))
+
+(defn register-as-aliases-in-compiler!
+  "Workaround: shadow-cljs stores :as-alias as :reader-aliases but the CLJS
+  analyzer expects :as-aliases. When Electric's e/defn output contains
+  alias-qualified symbols (e.g. fs/f), the CLJS compiler warns because it
+  cannot resolve the alias. Register the alias as a namespace in the CLJS
+  compiler state so confirm-ns and confirm-var-exists find it.
+  Must be called during shadow-cljs compilation when cljs.env/*compiler* is bound."
+  [!a ns$]
+  (when-some [compiler cljs.env/*compiler*]
+    (doseq [[alias target] (-> @!a ::nses (get ns$) ::as-aliases)]
+      (swap! compiler update-in [:cljs.analyzer/namespaces alias]
+        #(or % (let [defs (when-some [ns (find-ns target)]
+                            (reduce-kv (fn [m k _] (assoc m k {:name (symbol (str alias) (str k))}))
+                              {} (ns-publics ns)))]
+                 {:name alias, :defs (or defs {})}))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;;; PUBLIC API ;;;
