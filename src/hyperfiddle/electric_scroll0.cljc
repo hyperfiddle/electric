@@ -98,7 +98,7 @@ Like `scroll-state` but:
 
 (e/defn Scroll-window ; returns [offsetV, limitV, offsetH, limitH]
   [row-height record-count node
-   #_& {:keys [column-width overquery-factor]
+   #_& {:keys [column-width column-record-count overquery-factor]
         :or {column-width row-height
              overquery-factor 1}}]
   (e/client
@@ -107,7 +107,10 @@ Like `scroll-state` but:
     (let [[scrollTop scrollHeight clientHeight scrollLeft scrollWidth clientWidth] (e/input (scroll-state2 node))] ; smooth scroll has already happened, cannot quantize
       (concat
         (compute-scroll-window row-height record-count clientHeight scrollTop overquery-factor)
-        (compute-scroll-window column-width record-count clientWidth scrollLeft (max 1.5 overquery-factor))))))
+        ;; Each axis may scroll over a different item set (e.g. transposed tables:
+        ;; vertical = columns, horizontal = rows). column-record-count lets the
+        ;; caller specify the horizontal item count independently.
+        (compute-scroll-window column-width (or column-record-count record-count) clientWidth scrollLeft (max 1.5 overquery-factor))))))
 
 (e/defn Spool2 [cnt xs! offset limit] ; legacy
   (->> xs!
