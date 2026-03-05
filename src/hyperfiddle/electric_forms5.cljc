@@ -15,11 +15,14 @@
 
 (defn ?substring [s maxlength] (cond-> s maxlength (subs 0 maxlength)))
 
-(e/defn Input [v & {:keys [type label id maxlength] :as props :or {type "text", id (random-uuid)}}]
+(e/defn Input [v & {:keys [type label id maxlength autofocus] :as props :or {type "text", id (random-uuid)}}]
   (e/client
     (e/When label (dom/label (dom/props {:for id}) (dom/text label)))
     (dom/input
       (dom/props (-> props (assoc :type type, :id id)))
+      ;; Focus on mount — HTML autofocus only works on page load, not dynamic insertion.
+      ;; .focus right after props ensures the element grabs focus the moment it enters the DOM.
+      ((fn [] (when autofocus (.requestAnimationFrame js/window #(.focus dom/node)))))
       (when-not (dom/Focused?)  ; "don't damage user input"
         (set! (.-value dom/node) (str v)))
       ;; event handler can't be guarded by focus – <input type=number> renders a
@@ -122,14 +125,17 @@ Simple uncontrolled checkbox, e.g.
 (defn tx-error? [error] (and error (not= ::discard error))) ; we are (ab)using the error channel to signal discard. This is an implementation detail. TODO revisit.
 
 (e/defn Input! [field-name ; fields are named like the DOM, <input name=...> - for coordination with form containers
-                v & {:keys [as name type label id Parse Unparse maxlength] :as props
+                v & {:keys [as name type label id Parse Unparse maxlength autofocus] :as props
                      :or {as :input, type "text", id (random-uuid) Parse Identity, Unparse (Lift str)}}]
   (e/client
     v ; ensure v is consumed to prevent surprising side effects on commit discard or dirty/not dirty (lazy let)
     (e/When label (dom/label (dom/props {:for id}) (dom/text label)))
     (let [parent-node dom/node]
       (dom/element as
-        (dom/props (-> props (dissoc :as :Parse :Unparse) (assoc :type type :name (or name (str field-name)) :id id)))
+        (dom/props (-> props (dissoc :as :Parse :Unparse :autofocus) (assoc :type type :name (or name (str field-name)) :id id)))
+        ;; Focus on mount — HTML autofocus only works on page load, not dynamic insertion.
+        ;; .focus right after props ensures the element grabs focus the moment it enters the DOM.
+        ((fn [] (when autofocus (.requestAnimationFrame js/window #(.focus dom/node)))))
         (let [e (dom/On* "input" identity nil) [t err] (e/Token e) ; reuse token until commit
               editing? (dom/Focused?)
               waiting? (some? t)
