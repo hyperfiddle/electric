@@ -112,7 +112,7 @@ Like `scroll-state` but:
         ;; Each axis may scroll over a different item set (e.g. transposed tables:
         ;; vertical = columns, horizontal = rows). column-record-count lets the
         ;; caller specify the horizontal item count independently.
-        (compute-scroll-window column-width (or column-record-count record-count) clientWidth scrollLeft (max 1.5 overquery-factor))))))
+        (compute-scroll-window column-width (or column-record-count record-count) clientWidth scrollLeft (max 1 overquery-factor))))))
 
 (e/defn Spool2 [cnt xs! offset limit] ; legacy
   (->> xs!
