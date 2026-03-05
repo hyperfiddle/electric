@@ -84,9 +84,10 @@ Like `scroll-state` but:
              (m/relieve {}))))
 
 #?(:cljs (defn compute-overquery [overquery-factor record-count offset limit]
-           (let [q-limit (* limit overquery-factor)
+           (let [q-limit (int (math/ceil (* limit overquery-factor))) ; ceil — limit is an item count, must be integer (1.5× overquery would produce fractional IndexRing size)
                  occluded (clamp (- q-limit limit) 0 record-count)
-                 q-offset (clamp (- offset (math/floor (/ occluded overquery-factor))) 0 record-count)]
+                 q-offset (clamp (- offset (math/floor (/ occluded overquery-factor)))
+                                0 (max 0 (- record-count q-limit)))] ; upper bound ensures offset + limit ≤ record-count — prevents IndexRing from producing out-of-grid indices at far end of scroll
              [q-offset q-limit])))
 
 #?(:cljs (defn compute-scroll-window [row-height record-count clientHeight scrollTop overquery-factor]
@@ -103,6 +104,7 @@ Like `scroll-state` but:
              overquery-factor 1}}]
   (e/client
     ((fn [_] (set! (.-scrollTop dom/node) 0)) record-count) ; scroll to top on search or navigate
+    ;; ((fn [_] (set! (.-scrollLeft dom/node) 0)) (or column-record-count record-count)) ; reset horizontal scroll on column set change
     ; backlog: don't touch scrollTop when records are inserted (e.g., live chat view)
     (let [[scrollTop scrollHeight clientHeight scrollLeft scrollWidth clientWidth] (e/input (scroll-state2 node))] ; smooth scroll has already happened, cannot quantize
       (concat
