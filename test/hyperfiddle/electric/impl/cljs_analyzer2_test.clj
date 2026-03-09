@@ -14,10 +14,10 @@
         !a (ana/->!a)
         _ (ana/analyze-nsT !a {} ns$)
         a @!a]
-    (t/is (nil? (ana/find-var !a 'non ns$ {})))
-    (t/is (nil? (ana/find-var !a 'first ns$ {})))
-    (t/is (= 'cljs.core/next (::ana/name (ana/find-var !a 'nxt ns$ {}))))
-    (t/are [x] (some? (ana/find-var !a x ns$ {}))
+    (t/is (nil? (ana/find-var !a 'non ns$)))
+    (t/is (nil? (ana/find-var !a 'first ns$)))
+    (t/is (= 'cljs.core/next (::ana/name (ana/find-var !a 'nxt ns$))))
+    (t/are [x] (some? (ana/find-var !a x ns$))
       'foo
       'bar
       'baz
@@ -47,12 +47,12 @@
         !a (ana/->!a)
         _ (ana/analyze-nsT !a {} ns$)
         a @!a]
-    (t/are [x] (nil? (ana/find-var !a x ns$ {}))
+    (t/are [x] (nil? (ana/find-var !a x ns$))
       'hyperfiddle.electric.impl.cljs-file-to-analyze.runtime/only-macro
       'run/only-macro
       'only-macro
       'next) ; renamed in :refer-clojure
-    (t/are [x] (some? (ana/find-var !a x ns$ {}))
+    (t/are [x] (some? (ana/find-var !a x ns$))
       'hyperfiddle.electric.impl.cljs-file-to-analyze.runtime/macro-and-runtime
       'run/macro-and-runtime
       'macro-and-runtime
@@ -65,7 +65,7 @@
         !a (ana/->!a)
         _ (ana/analyze-nsT !a {} ns$)
         a @!a]
-    (t/are [x] (nil? (ana/find-var !a x ns$ {}))
+    (t/are [x] (nil? (ana/find-var !a x ns$))
       'shadowed-by-let
       'shadowed-by-let-destructure
       'shadowed-by-fn
@@ -94,14 +94,14 @@
         !a (ana/->!a)
         _ (ana/analyze-nsT !a {} ns$)
         a @!a]
-    (t/is (some? (ana/find-var !a 'clojure.core/vector ns$ {})))))
+    (t/is (some? (ana/find-var !a 'clojure.core/vector ns$)))))
 
 (t/deftest non-required-var-can-be-found ; e.g. a macro from another ns might have expanded to it
   (let [ns$ 'cljs.source-map
         !a (ana/->!a)
         _ (ana/analyze-nsT !a {} ns$)
         a @!a]
-    (t/is (some? (ana/find-var !a 'cljs.source-map/encode 'cljs.core {})))))
+    (t/is (some? (ana/find-var !a 'cljs.source-map/encode 'cljs.core)))))
 
 (t/deftest npm-shadow-extension
   (let [ns$ 'hyperfiddle.electric.impl.cljs-file-to-analyze
@@ -129,21 +129,21 @@
     (t/is (nil? (-> @!a ::ana/ns-tasks (get runtime-ns$)))
       "dependency ::ns-tasks should not be set after structure-only analysis")
     ;; find-var for qualified alias triggers demand analysis
-    (t/is (some? (ana/find-var !a 'run/only-runtime ns$ {}))
+    (t/is (some? (ana/find-var !a 'run/only-runtime ns$))
       "find-var with alias should trigger demand analysis")
     (t/is (true? (-> @!a ::ana/ns-tasks (get runtime-ns$)))
       "::ns-tasks should be set after demand-triggered analysis")
     ;; find-var for referred symbol triggers demand analysis
     (let [!a2 (ana/->!a)
           _ (ana/analyze-ns-structureT !a2 {} ns$)]
-      (t/is (some? (ana/find-var !a2 'only-runtime ns$ {}))
+      (t/is (some? (ana/find-var !a2 'only-runtime ns$))
         "find-var for referred symbol should trigger demand analysis")
       (t/is (true? (-> @!a2 ::ana/ns-tasks (get runtime-ns$)))
         "::ns-tasks set after referred symbol demand analysis"))
     ;; find-var for fully-qualified symbol triggers demand analysis
     (let [!a3 (ana/->!a)
           _ (ana/analyze-ns-structureT !a3 {} ns$)]
-      (t/is (some? (ana/find-var !a3 (symbol (str runtime-ns$) "only-runtime") ns$ {}))
+      (t/is (some? (ana/find-var !a3 (symbol (str runtime-ns$) "only-runtime") ns$))
         "find-var for fully-qualified symbol should trigger demand analysis")
       (t/is (true? (-> @!a3 ::ana/ns-tasks (get runtime-ns$)))
         "::ns-tasks set after fully-qualified demand analysis"))))
