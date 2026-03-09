@@ -84,7 +84,7 @@
 
 (defn qualify-sym [sym env]
   (if (= :cljs (->peer-type env))
-    (some-> (cljs-ana/find-var @!a sym (get-ns env)) ::cljs-ana/name)
+    (some-> (cljs-ana/find-var !a sym (get-ns env)) ::cljs-ana/name)
     (do (serialized-require (ns-name *ns*))
         (some-> (resolve env sym) symbol))))
 
@@ -93,7 +93,7 @@
     (cond (= "." n) o
           (and (not= ".." n) (= \. (nth n e))) `(new ~(symbol (namespace f) (subs n 0 e)) ~@args)
           (re-find #"^\.[^.]" n) (list* '. (first args) (symbol (subs n 1)) (rest args))
-          (= :cljs (->peer-type env)) (if-some [mac (cljs-ana/find-macro-var @!a f (get-ns env))]
+          (= :cljs (->peer-type env)) (if-some [mac (cljs-ana/find-macro-var !a f (get-ns env))]
                                         (apply mac o (merge (->cljs-env (get-ns env)) env) args)
                                         o)
           :else (macroexpand-clj o env))))
@@ -371,6 +371,9 @@
                                                      (mapcat (fn [[sym v]] [sym (-expand-all (+meta v) env)])))))
                      (-expand-all (+meta (cons 'do body)) env))))
 
+          (satisfies? clojure.core/satisfies? cljs.core/satisfies?)
+          (recur (+meta `((fn [v#] (~(nth o 0) ~(nth o 1) v#)) ~(nth o 2))) env)
+
           (set!) (+meta (list 'set! (-expand-all (+meta (nth o 1)) env) (-expand-all (+meta (nth o 2)) env)))
 
           (var) (recur (+meta `(clojure.core/find-var '~(-> o second resolve symbol))) env)
@@ -403,9 +406,9 @@
 
 (defn cljs-analyzer-api-resolve-replacement [env sym]
   (when-some [ns$ (-> env :ns :name)]   ; `env` can be `{}`, e.g. in sci there's a case
-    (or (when-some [{full-name ::cljs-ana/name} (cljs-ana/find-var @!a sym ns$)]
+    (or (when-some [{full-name ::cljs-ana/name} (cljs-ana/find-var !a sym ns$)]
           {:op :var, :name full-name, :ns (->ns-sym full-name)})
-      (when-some [macro-var (cljs-ana/find-macro-var @!a sym ns$)]
+      (when-some [macro-var (cljs-ana/find-macro-var !a sym ns$)]
         {:op :var, :name (symbol macro-var), :ns (->ns-sym (symbol macro-var)) , :macro true}))))
 
 (defn expand-all [env o]
@@ -480,7 +483,7 @@
   (case (->env-type env)
     :clj (when-some [^clojure.lang.Var vr (resolve env sym)]
            (when (-> vr meta node?) (symbol vr)))
-    :cljs (when-some [vr (cljs-ana/find-var @!a sym (get-ns env))]
+    :cljs (when-some [vr (cljs-ana/find-var !a sym (get-ns env))]
             ;; temporary hack
             ;; the commented out expression should work, seems the new cljs analyzer loses the metadata
             ;; so we check it on clj side, which is safe for a clj-server/cljs-client setup
@@ -504,11 +507,11 @@
 
 (def implicit-cljs-nses '#{goog goog.object goog.string goog.array Math String})
 (defn analyze-cljs-symbol [sym env]
-  (if-some [v (cljs-ana/find-var @!a sym (get-ns env))]
+  (if-some [v (cljs-ana/find-var !a sym (get-ns env))]
     {::type ::var, ::sym (untwin (::cljs-ana/name v)), ::meta (::cljs-ana/meta v)}
     (if-some [quald (when (qualified-symbol? sym) (cljs-ana/ns-qualify @!a sym (get-ns env)))]
       {::type ::static, ::sym quald}
-      (or (when (and (dotted-simple-symbol? sym) (cljs-ana/find-var @!a (dot->ns-sym sym) (get-ns env))) ; (ns foo.bar) (deftype Baz) -> foo.bar.Baz
+      (or (when (and (dotted-simple-symbol? sym) (cljs-ana/find-var !a (dot->ns-sym sym) (get-ns env))) ; (ns foo.bar) (deftype Baz) -> foo.bar.Baz
             {::type ::static, ::sym sym})
         (if (or (cljs-ana/referred? @!a sym (get-ns env)) (cljs-ana/js-call? @!a sym (get-ns env)))
           {::type ::static, ::sym sym}
@@ -1115,7 +1118,8 @@
                             (::var) (addf ts (->u)
                                       {::t ::var, ::sym form, ::meta (::meta ret)
                                        ::resolved (let [lang (::lang ret)]
-                                                    (if (or (nil? lang) (= lang (->env-type env)))
+                                                    (if (or (nil? lang) (= lang (->env-type env))
+                                                          (= 'clojure.core/satisfies? (::sym ret)))
                                                       (::sym ret) `r/cannot-resolve))})
                             #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
 

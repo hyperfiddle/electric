@@ -96,13 +96,13 @@
 (def special? '#{if def fn* do let* loop* letfn* throw try catch finally
                  recur new set! ns deftype* defrecord* . js* & quote case* var ns*})
 
-(defmulti expand-differently (fn [sym _a _ns$ _env _form] sym))
+(defmulti expand-differently (fn [sym _!a _ns$ _env _form] sym))
 (defmethod expand-differently :default [_ _ _ _ _] ::no)
 (defmethod expand-differently 'malli.core/=> [_ _ _ _ form] (list 'def (second form)))
-(defmethod expand-differently 'taoensso.encore/defalias [_ a ns$ _ form]
+(defmethod expand-differently 'taoensso.encore/defalias [_ !a ns$ env form]
   (let [[alias src] (if (nnext form) (->> form (drop 1) (take 2)) [nil (second form)])
         alias (or alias (symbol (name src)))]
-    (when-not (find-macro-var a src ns$)
+    (when-not (find-macro-var !a src ns$)
       (list 'def alias))))
 #_(defmethod expand-differently 'taoensso.encore.signals/def-api [_ _ _ _ _]
   `(do (taoensso.encore/defalias taoensso.encore.signals/level-aliases)
@@ -122,13 +122,13 @@
       defrecord? '#{clojure.core/defrecord cljs.core/defrecord}
       defmacro? '#{clojure.core/defmacro cljs.core/defmacro}
       defprotocol? '#{clojure.core/defprotocol cljs.core/defprotocol}]
-  (defn expand [a ns$ ls env [f & args :as o]]
+  (defn expand [!a ns$ ls env [f & args :as o]]
     (if (symbol? f)
       (if (or (special? f) (ls f))
         o
-        (if-some [mac (find-macro-var a f ns$)]
+        (if-some [mac (find-macro-var !a f ns$)]
           (let [sym (symbol mac)
-                different (expand-differently sym a ns$ env o)]
+                different (expand-differently sym !a ns$ env o)]
             (cond (not= ::no different) different
                   (= 'hyperfiddle.rcf/tests sym) nil ; circular, we can skip rcf tests
                   (= 'hyperfiddle.electric3/defn sym) `(def ~(first args)) ; circular, don't go deeper
@@ -158,7 +158,7 @@
   (reduce (fn [_ nx] (swap! !a assoc-in [::nses ns$ refk (or (get (:rename o) nx) nx)] (mksym req$ '/ nx)))
     nil (:refer o)))
 
-(declare add-requireT analyze-nsT)
+(declare add-requireT analyze-nsT analyze-ns-structureT)
 
 (defn ?auto-alias-clojureT [!a ns$ env reqk refk req$]
   (when-not (ns->resource req$)
@@ -179,7 +179,7 @@
           (add-require !a ns$ reqk req$ req$)
           (when (:as o) (add-require !a ns$ reqk (:as o) req$))
           (when (:refer o) (add-refers !a ns$ refk o req$))
-          (analyze-nsT !a (assoc env :ns {:name ns$}) #_(->cljs-env ns$) req$)
+          (analyze-ns-structureT !a (assoc env :ns {:name ns$}) req$)
           (when (:refer-macros o)
             (add-requireT !a ns$ env reqk refk
               (into [req$] cat (-> (select-keys o [:as]) (assoc :refer (:refer-macros o)))))))))))
@@ -244,7 +244,7 @@
          (let*) (let [[_ bs & body] o
                       ls (transduce (partition-all 2) (completing (fn [ls [k v]] (rec ls !a v) (conj ls k))) ls bs)]
                   (rec ls !a (cons 'do body)))
-         #_else (let [o2 (expand @!a ns$ ls env o)]
+         #_else (let [o2 (expand !a ns$ ls env o)]
                   (if (identical? o o2)
                     (run! #(rec ls !a %) o)
                     (recur ls !a o2))))))
@@ -271,6 +271,26 @@
                               {} (ns-publics ns)))]
                  {:name alias, :defs (or defs {})}))))))
 
+(defn analyze-ns-structureT
+  "Structure-only analysis: parse the ns form to populate ::requires, ::refers,
+  ::imports etc. without walking top-level forms or expanding macros.
+  Recurses structure-only into all requires via add-requireT."
+  [!a env ns$]
+  (ca/is ns$ (complement #{'hyperfiddle.electric}) "cannot analyze old electric code")
+  (when-some [rs (some-> ns$ ns->resource)]
+    (let [env (update env ::ns-stack (fnil conj []) ns$)]
+      (try (loop [a @!a]
+             (or (-> a ::ns-structure-tasks (get ns$))
+               (if (compare-and-set! !a a (assoc-in a [::ns-structure-tasks ns$] true))
+                 (let [forms (resource-forms rs ns$)
+                       ns-form (first (filter #(and (seq? %) (seq %) (= 'ns (first %))) forms))]
+                   (when ns-form
+                     (add-ns-infoT !a env ns-form)))
+                 (recur @!a))))
+           (catch Throwable e
+             (prn :failed-to-analyze-structure (::ns-stack env))
+             (throw e))))))
+
 ;;;;;;;;;;;;;;;;;;
 ;;; PUBLIC API ;;;
 ;;;;;;;;;;;;;;;;;;
@@ -283,52 +303,68 @@
     (let [env (update env ::ns-stack (fnil conj []) ns$)]
       (try (loop [a @!a]
              (or (-> a ::ns-tasks (get ns$))
-               (if (compare-and-set! !a a (assoc-in a [::ns-tasks ns$] true))
+               (if (compare-and-set! !a a (-> a (assoc-in [::ns-tasks ns$] true) (assoc-in [::ns-structure-tasks ns$] true)))
                  (->> (resource-forms rs ns$) (reduce #(collect-defs !a ns$ env %2) nil))
                  (recur @!a))))
            (catch Throwable e
              (prn :failed-to-analyze (::ns-stack env))
              (throw e))))))
 
-(defn purge-ns [a ns$] (-> a (update ::ns-tasks dissoc ns$) (update ::nses dissoc ns$)))
+(defn purge-ns [a ns$] (-> a (update ::ns-tasks dissoc ns$) (update ::ns-structure-tasks dissoc ns$) (update ::nses dissoc ns$)))
 
-(defn find-var [a sym ns$]
-  (let [nsa (-> a ::nses (get ns$))]
+(defn- ensure-ns-analyzed!
+  "Trigger full analysis of ns$ on demand if it hasn't been analyzed yet."
+  [!a ns$]
+  (when (and ns$ (symbol? ns$) (not (-> @!a ::ns-tasks (get ns$))))
+    (analyze-nsT !a (->cljs-env ns$) ns$)
+    ;; Cache negative result if analyze-nsT didn't set ::ns-tasks (no resource found)
+    (when-not (-> @!a ::ns-tasks (get ns$))
+      (swap! !a assoc-in [::ns-tasks ns$] true))))
+
+(defn find-var [!a sym ns$]
+  (let [a @!a                                            ; snapshot for structure lookups
+        nsa (-> a ::nses (get ns$))]
     (if (simple-symbol? sym)
-      (or (-> nsa ::defs (get sym))
+      (or (-> nsa ::defs (get sym))                      ; current ns (already fully analyzed)
         (when-not (get (::excludes nsa) sym)
-          (-> a ::nses (get 'cljs.core) ::defs (get sym)))
+          (-> a ::nses (get 'cljs.core) ::defs (get sym))) ; cljs.core (always analyzed)
         (when-some [renamed (get (::refers nsa) sym)]
-          (-> a ::nses (get (symbol (namespace renamed))) ::defs (get (symbol (name renamed))))))
-      (or (-> a ::nses (get (-> sym namespace symbol)) ::defs (get (-> sym name symbol)))
+          (let [ref-ns$ (symbol (namespace renamed))]
+            (ensure-ns-analyzed! !a ref-ns$)
+            (-> @!a ::nses (get ref-ns$) ::defs (get (symbol (name renamed)))))))
+      (or (let [target-ns$ (-> sym namespace symbol)]
+            (ensure-ns-analyzed! !a target-ns$)
+            (-> @!a ::nses (get target-ns$) ::defs (get (-> sym name symbol))))
         (when-some [sym-ns$ (-> nsa ::requires (get (symbol (namespace sym))))]
-            (find-var a (symbol (name sym)) sym-ns$))
+          (ensure-ns-analyzed! !a sym-ns$)
+          (find-var !a (symbol (name sym)) sym-ns$))
         (when (= "clojure.core" (namespace sym))
           (-> a ::nses (get 'cljs.core) ::defs (get (-> sym name symbol))))))))
 
-(defn find-macro-var [a sym ns$]
+(defn find-macro-var [!a sym ns$]
   (or (when (and (qualified-symbol? sym) (= "clojure.core" (namespace sym)))
-        (find-macro-var a (symbol "cljs.core" (name sym)) ns$))
+        (find-macro-var !a (symbol "cljs.core" (name sym)) ns$))
     (when (and (qualified-symbol? sym) (= "clojure.repl" (namespace sym)))
-      (find-macro-var a (symbol "cljs.repl" (name sym)) ns$))
-    (when-not (find-var a sym ns$)
+      (find-macro-var !a (symbol "cljs.repl" (name sym)) ns$))
+    (when-not (find-var !a sym ns$)
       (-> (cond
             (simple-symbol? sym)
-            (or (some-> (find-ns ns$) (find-ns-var sym))
-              (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
-              (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
-              (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym)))
+            (let [a @!a]
+              (or (some-> (find-ns ns$) (find-ns-var sym))
+                (when-some [ref (-> a ::nses (get ns$) ::refers (get sym))]  (safe-requiring-resolve ref))
+                (when-some [ref (-> a ::nses (get ns$) ::refer-macros (get sym))]  (safe-requiring-resolve ref))
+                (when-not (get (-> a ::nses (get ns$) ::excludes) sym)  (find-ns-var (find-ns 'clojure.core) sym))))
 
             (#{"cljs.core" "clojure.core"} (namespace sym))
             (safe-requiring-resolve sym)
 
             :else
             (let [sym-ns$ (-> sym namespace symbol), sym-base$ (-> sym name symbol)]
-              (or (when-some [sym-ns$ (-> a ::nses (get ns$) ::requires (get sym-ns$))]
+              (or (when-some [sym-ns$ (-> @!a ::nses (get ns$) ::requires (get sym-ns$))]
                     (when (symbol? sym-ns$)
                       (safe-require sym-ns$)
                       (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
-                (when-some [sym-ns$ (-> a ::nses (get ns$) ::require-macros (get sym-ns$))]
+                (when-some [sym-ns$ (-> @!a ::nses (get ns$) ::require-macros (get sym-ns$))]
                   (when (symbol? sym-ns$)
                     (safe-require sym-ns$)
                     (some-> (find-ns sym-ns$) (find-ns-var sym-base$))))
