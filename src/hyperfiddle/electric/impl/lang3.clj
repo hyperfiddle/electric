@@ -1119,7 +1119,8 @@
                                       {::t ::var, ::sym form, ::meta (::meta ret)
                                        ::resolved (let [lang (::lang ret)]
                                                     (if (or (nil? lang) (= lang (->env-type env))
-                                                          (= 'clojure.core/satisfies? (::sym ret)))
+                                                          (= 'clojure.core/satisfies? (::sym ret))
+                                                          (= 'cljs.core/satisfies? (::sym ret)))
                                                       (::sym ret) `r/cannot-resolve))})
                             #_else (throw (ex-info (str "unknown symbol type " (::type ret)) (or ret {})))))
 
