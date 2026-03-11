@@ -7,14 +7,14 @@
 (def install #'build/install)
 (def deploy #'build/deploy)
 
-(defn build [opts] ; custom build task because of AOT
+(defn build [{:keys [aliases] :or {aliases [:release]} :as opts}] ; custom build task because of AOT
   (build/clean opts)
   (let [basis (partial build/create-basis :project "deps.edn", :extra "../electric-secret/deps.edn")
-        {:keys [class-dir src-dirs] :as opts} (build/defaults (basis :aliases [:release]) opts)]
+        {:keys [class-dir src-dirs] :as opts} (build/defaults (basis :aliases aliases) opts)]
     (tools.build/write-pom opts)
     (tools.build/copy-dir {:src-dirs src-dirs, :target-dir class-dir})
     (tools.build/copy-dir {:src-dirs ["../electric-secret/src"], :target-dir class-dir :include "**/clojure_tools_logging_aot_fix.clj"}) ; fix tools.logging LoggerFactory pinned by AOT. See comment in ns.
-    (tools.build/compile-clj {:basis (basis :aliases [:release :build-deps])
+    (tools.build/compile-clj {:basis (basis :aliases (conj aliases :build-deps))
                               :class-dir class-dir
                               :ns-compile '[hyperfiddle.electric.impl.entrypoint hyperfiddle.electric.impl.auth hyperfiddle.electric.impl.jwt hyperfiddle.electric.impl.auth0 hyperfiddle.electric.shadow-cljs.hooks3]
                               :filter-nses '[hyperfiddle.electric.impl.entrypoint hyperfiddle.electric.impl.auth hyperfiddle.electric.impl.jwt hyperfiddle.electric.impl.auth0 hyperfiddle.electric.shadow-cljs.hooks3]})
