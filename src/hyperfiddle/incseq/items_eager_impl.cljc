@@ -1,6 +1,6 @@
 (ns hyperfiddle.incseq.items-eager-impl
-  (:require [contrib.data :refer [->box]]
-            [contrib.debug :as dbg]
+  (:require [dustingetz.data :refer [->box]]
+            [dustingetz.debug :as dbg]
             [clojure.set :as set]
             [hyperfiddle.electric.impl.array-fields :as a]
             [hyperfiddle.incseq.stateful-diff-impl :as d]

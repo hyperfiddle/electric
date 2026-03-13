@@ -4,8 +4,8 @@
            #?(:cljs [goog.math Long])
            [missionary Cancelled])
   (:require [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
-            #?(:cljs [contrib.data :refer [->box]])
-            [contrib.debug :as dbg]
+            #?(:cljs [dustingetz.data :refer [->box]])
+            [dustingetz.debug :as dbg]
             [clojure.string :as str]))
 
 ;; DETErministic TESTing, so naturally, DETEST

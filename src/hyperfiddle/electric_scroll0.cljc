@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-scroll0
   (:require [clojure.math :as math]
-            [contrib.data :refer [clamp window]]
-            [contrib.missionary-contrib :as mx]
+            [dustingetz.data :refer [clamp window]]
+            [dustingetz.missionary-contrib :as mx]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric-dom3 :as dom]
             [hyperfiddle.rcf :as rcf :refer [tests with tap %]]

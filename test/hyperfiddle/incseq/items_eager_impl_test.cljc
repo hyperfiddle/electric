@@ -1,9 +1,9 @@
 (ns hyperfiddle.incseq.items-eager-impl-test
   (:require
    [clojure.test :as t]
-   [contrib.assert :as ca]
-   [contrib.debug :as dbg]
-   [contrib.data :refer [->box]]
+   [dustingetz.check :as ca]
+   [dustingetz.debug :as dbg]
+   [dustingetz.data :refer [->box]]
    [hyperfiddle.incseq.stateful-diff-impl :as d]
    [hyperfiddle.incseq.items-eager-impl :as items]
    [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]

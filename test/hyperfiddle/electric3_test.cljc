@@ -6,8 +6,8 @@
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.incseq :as i]
             [hyperfiddle.kvs :as kvs]
-            [contrib.cljs-target :refer [do-browser]]
-            [contrib.debug :as dbg]
+            [dustingetz.cljs-target :refer [do-browser]]
+            [dustingetz.debug :as dbg]
             #?(:cljs [hyperfiddle.goog-calls-test3])
             #?(:cljs [hyperfiddle.js-calls-test3])
             [clojure.string :as str]

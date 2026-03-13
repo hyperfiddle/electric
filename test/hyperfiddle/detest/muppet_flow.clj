@@ -1,6 +1,6 @@
 (ns hyperfiddle.detest.muppet-flow
-  (:require [contrib.data :refer [->box]]
-            [contrib.debug :as dbg]
+  (:require [dustingetz.data :refer [->box]]
+            [dustingetz.debug :as dbg]
             [hyperfiddle.electric.impl.missionary-util :as mu]
             [missionary.core :as m])
   (:import [clojure.lang IFn IDeref]))

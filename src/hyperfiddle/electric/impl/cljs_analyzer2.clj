@@ -10,9 +10,9 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.reader.reader-types :as rt]
-            [contrib.assert :as ca]
+            [dustingetz.check :as ca]
             [edamame.core :as ed]                 ; for cljs macroexpansion
-            [contrib.debug :as dbg]
+            [dustingetz.debug :as dbg]
             [clojure.walk :as walk]))
 
 (defn ns->basename [ns$] (-> ns$ name (.replace \- \_) (.replace \. \/)))

@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-forms5
   #?(:cljs (:require-macros hyperfiddle.electric-forms5))
-  (:require [contrib.data :refer [auto-props qualify]]
-            [contrib.css :refer [css-slugify]]
+  (:require [dustingetz.data :refer [auto-props qualify]]
+            [dustingetz.css :refer [css-slugify]]
             [dustingetz.str :refer [pprint-str]]
             [clojure.set :as set]
             [missionary.core :as m]

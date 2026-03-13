@@ -4,7 +4,7 @@
             [hyperfiddle.electric.impl.lang3 #?(:clj :as, :cljs :as-alias) l]
             #?(:clj [hyperfiddle.electric.impl.runtime3 :as r])
             #?(:clj [hyperfiddle.electric3 :as e])
-            #?(:clj [contrib.test-match :as tm])
+            #?(:clj [dustingetz.test-match :as tm])
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred]]
             #?(:clj [hyperfiddle.rcf :as rcf :refer [tests]]))
   #?(:cljs (:require-macros [hyperfiddle.electric.impl.expand-macro :as mac :refer [twice]])))
@@ -94,16 +94,16 @@
                           (baz [x] (->> x))
                           (->> [x] x)]
                     (-> (->> x) inc)))
-       '(let* [contrib.test-match/_
+       '(let* [dustingetz.test-match/_
                (::l/cc-letfn
                 [foo (fn* foo ([with-open] (with-open 1)))
                  bar (fn* bar ([x] (inc x)))
                  baz (fn* baz ([x] x))
                  ->> (fn* ->> ([x] x))])
-               foo (clojure.core/nth contrib.test-match/_ 0 nil)
-               bar (clojure.core/nth contrib.test-match/_ 1 nil)
-               baz (clojure.core/nth contrib.test-match/_ 2 nil)
-               ->> (clojure.core/nth contrib.test-match/_ 3 nil)]
+               foo (clojure.core/nth dustingetz.test-match/_ 0 nil)
+               bar (clojure.core/nth dustingetz.test-match/_ 1 nil)
+               baz (clojure.core/nth dustingetz.test-match/_ 2 nil)
+               ->> (clojure.core/nth dustingetz.test-match/_ 3 nil)]
           (inc (->> x))))
 
      (has-line-meta? (all '(letfn [(foo [with-open] (with-open 1))
@@ -167,7 +167,7 @@
                       ::l/current :server
                       ::l/ns {:name (ns-name *ns*)}
                       ::l/trace true}
-         `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
+         `(r/cannot-resolve (tm/pair (dustingetz.test-match/pair 0 (inc 1)) 2)))
        `(r/cannot-resolve (r/tracing tm/_ (tm/pair (r/tracing tm/_ (tm/pair 0 (r/tracing tm/_ (inc 1)))) 2))))
 
      (match
@@ -175,7 +175,7 @@
                       ::l/current :client
                       ::l/ns {:name (ns-name *ns*)}
                       ::l/trace true}
-         `(r/cannot-resolve (tm/pair (contrib.test-match/pair 0 (inc 1)) 2)))
+         `(r/cannot-resolve (tm/pair (dustingetz.test-match/pair 0 (inc 1)) 2)))
        `(r/cannot-resolve (tm/pair (tm/pair 0 (r/tracing tm/_ (inc 1))) 2)))
 
      "expansion is peer-aware"

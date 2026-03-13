@@ -1,9 +1,9 @@
 (ns hyperfiddle.electric3-network-test
   (:require [clojure.test :as t]
-            [contrib.data :refer [->box]]
-            [contrib.debug :as dbg]
-            [contrib.walk :as walk]
-            [contrib.triple-store :as ts]
+            [dustingetz.data :refer [->box]]
+            [dustingetz.debug :as dbg]
+            [dustingetz.walk :as walk]
+            [dustingetz.triple-store :as ts]
             [hyperfiddle.electric-local-def3 :as l]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]

@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric.impl.missionary-util
   #?(:clj (:import [clojure.lang IDeref IFn]))
-  (:require [contrib.debug :as dbg]
+  (:require [dustingetz.debug :as dbg]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [hyperfiddle.electric.impl.dynamic-local :as dl]))

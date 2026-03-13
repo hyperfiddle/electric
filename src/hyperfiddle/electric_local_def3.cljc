@@ -4,14 +4,14 @@
   (:import #?(:clj [clojure.lang IFn IDeref ExceptionInfo])
            [missionary Cancelled])
   (:require [clojure.core :as cc]
-            [contrib.assert :as ca]
-            [contrib.cljs-target]
+            [dustingetz.check :as ca]
+            [dustingetz.cljs-target]
             [hyperfiddle.electric3 :as e]
             [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
-            [contrib.debug :as dbg]
-            #?(:clj [contrib.triple-store :as ts])
+            [dustingetz.debug :as dbg]
+            #?(:clj [dustingetz.triple-store :as ts])
             #?(:clj [hyperfiddle.rcf.analyzer :as ana]) ; todo remove
             [missionary.core :as m]
             [hyperfiddle.detest :as dt]))

@@ -1,5 +1,5 @@
 (ns hyperfiddle.electric-client3
-  (:require [contrib.cljs-target :refer [do-browser]]
+  (:require [dustingetz.cljs-target :refer [do-browser]]
             [missionary.core :as m])
   (:import missionary.Cancelled))
 

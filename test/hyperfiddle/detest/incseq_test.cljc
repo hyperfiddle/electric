@@ -6,9 +6,9 @@
             [hyperfiddle.incseq.stateful-diff-impl :as d]
             [hyperfiddle.incseq.perm-impl :as p]
             [clojure.set :as set]
-            [contrib.assert :as ca]
-            [contrib.debug :as dbg]
-            [contrib.data :refer [->box]]
+            [dustingetz.check :as ca]
+            [dustingetz.debug :as dbg]
+            [dustingetz.data :refer [->box]]
             [clojure.test :as t]
             [missionary.core :as m]
             [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]))

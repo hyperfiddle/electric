@@ -18,7 +18,7 @@
   (:refer-clojure :exclude [comment time])
   (:require
    [clojure.core :as cc]
-   [contrib.missionary-contrib :as mx]
+   [dustingetz.missionary-contrib :as mx]
    [hyperfiddle.electric3 :as e :refer [$]]
    ;; [hyperfiddle.electric-dom3-events :as events]
    [hyperfiddle.electric-dom3-props :as props]

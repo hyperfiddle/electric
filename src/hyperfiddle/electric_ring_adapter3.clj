@@ -8,7 +8,7 @@
             [hyperfiddle.electric3 :as-alias e]
             [missionary.core :as m]
             [ring.websocket :as ws]
-            [contrib.assert :as ca])
+            [dustingetz.check :as ca])
   (:import missionary.Cancelled
            (java.util.concurrent.atomic AtomicInteger)))
 

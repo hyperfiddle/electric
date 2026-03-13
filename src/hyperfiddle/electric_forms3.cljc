@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric-forms3
   "Deprecated. Use hyperfiddle.electric-forms5 instead"
   #?(:cljs (:require-macros hyperfiddle.electric-forms3))
-  (:require [contrib.data :refer [index-by auto-props qualify]]
+  (:require [dustingetz.data :refer [index-by auto-props qualify]]
             [dustingetz.str :refer [pprint-str]]
             [missionary.core :as m]
             [hyperfiddle.electric3 :as e]
@@ -230,7 +230,7 @@ accept the previous token and retain the new one."
           :edit-monoid edit-monoid
           :Validate Validate
           props)
-        (dom/div (dom/props {:style {:height (str (contrib.data/clamp-left ; row count can exceed record count
+        (dom/div (dom/props {:style {:height (str (dustingetz.data/clamp-left ; row count can exceed record count
                                                     (* row-height (- record-count limit)) 0) "px")}}))))))
 
 ;;; Edit/action -> command mapping
@@ -433,7 +433,7 @@ accept the previous token and retain the new one."
 (defn debug-cleanup-form-edit [[_cmd & _args :as form-edit]]
   (when form-edit
     (update form-edit 0 (fn [cmd]
-                          (try (contrib.data/unqualify cmd)
+                          (try (dustingetz.data/unqualify cmd)
                                (catch #?(:clj Throwable, :cljs :default) _
                                  cmd))))))
 

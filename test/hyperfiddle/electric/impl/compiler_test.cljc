@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric.impl.compiler-test
   (:require [hyperfiddle.electric3 :as e]
             [hyperfiddle.incseq :as i]
-            #?(:clj [contrib.triple-store :as ts])
+            #?(:clj [dustingetz.triple-store :as ts])
             [hyperfiddle.electric.impl.lang3 :as lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.electric-local-def3 :as l]
@@ -9,7 +9,7 @@
                :cljs [hyperfiddle.electric.impl.compiler-test-cljs :refer [cannot-be-unsited]])
             [hyperfiddle.rcf :as rcf :refer [tests]]
             [hyperfiddle.electric.impl.expand-require-referred :as ref :refer [referred referred-fn]]
-            #?(:clj [contrib.test-match :as tm])
+            #?(:clj [dustingetz.test-match :as tm])
             #?(:cljs [goog.math :as gm])
             [missionary.core :as m]
             [hyperfiddle.electric.impl.cljs-analyzer2 :as cljs-ana]

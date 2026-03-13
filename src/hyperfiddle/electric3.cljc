@@ -10,15 +10,15 @@
             [hyperfiddle.electric.impl.mount-point :as mp]
             [clojure.core :as cc]
             [clojure.string :as str]
-            [contrib.data]
-            [contrib.measure :as cm]
+            [dustingetz.data]
+            [dustingetz.measure :as cm]
             [hyperfiddle.rcf :as rcf :refer [tests]]
-            #?(:clj [contrib.triple-store :as ts])
+            #?(:clj [dustingetz.triple-store :as ts])
             [missionary.core :as m]
-            [contrib.missionary-contrib :as mx]
+            [dustingetz.missionary-contrib :as mx]
             [clojure.math :as math]
-            [contrib.debug :as dbg]
-            [contrib.assert :as ca])
+            [dustingetz.debug :as dbg]
+            [dustingetz.check :as ca])
   (:import [missionary Cancelled])
   #?(:cljs (:require-macros hyperfiddle.electric3)))
 
@@ -414,8 +414,8 @@ v3 to expose the full differential diff lifecycle)"
         source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
     `(r/peer-sink (r/make-peer :client {} nil (r/->defs {::Main ~source}) ::Main nil))))
 
-;; (cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (complement #{r/pending})))))
-(cc/defn -snapshot [flow] (->> flow (m/eduction (contrib.data/take-upto (comp pos-int? :degree)))))
+;; (cc/defn -snapshot [flow] (->> flow (m/eduction (dustingetz.data/take-upto (complement #{r/pending})))))
+(cc/defn -snapshot [flow] (->> flow (m/eduction (dustingetz.data/take-upto (comp pos-int? :degree)))))
 
 (defmacro snapshot
   "Snapshots the first non-Pending value of reactive value `x` and freezes it,
