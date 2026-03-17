@@ -54,6 +54,8 @@
                            (:theme props) (cons (.theme EditorView (clj->js (:theme props))))
                            (:readonly props) (cons (.. EditorState -readOnly (of true)))
                            (not (:inline props)) (into (list (lineNumbers) (language/foldGutter)))
+                           ;; Caller-supplied extensions (e.g. linter, autocomplete)
+                           (:extensions props) (into (:extensions props))
                            true (cons (.. EditorView -updateListener (of (fn [^js view-update]
                                                                            (on-update view-update)
                                                                            true))))))})))
