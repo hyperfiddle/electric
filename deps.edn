@@ -48,6 +48,6 @@
            :build {:extra-paths ["src-build"]
                    :ns-default  build
                    :extra-deps  {com.hyperfiddle/build {:local/root "../build"}}}
-           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-98692515b"}}}
-           :latest {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-98692515b"}}}}
+           :release {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-e7e78c8a5"}}}
+           :latest {:override-deps {com.hyperfiddle/hyperfiddle-contrib {:mvn/version "v0-alpha-e7e78c8a5"}}}}
  }
