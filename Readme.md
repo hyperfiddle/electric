@@ -39,7 +39,7 @@ Our mission is to raise the abstraction ceiling in web development in the same w
 # Docs and getting started
 - [Mission statement, product overview, license, community](https://docs.google.com/document/d/1TgExchcIyWd4BH9qwb4vjp7uaBjWyBtPWEkGqSfvlTk/)
 - [Tutorial and reference](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/)
-- v3 starter app: [request early access here](https://www.hyperfiddle.net/early-access.html)
+- v3 starter app: https://github.com/hyperfiddle/electric3-starter-app
 
 # License
 
