@@ -2,15 +2,16 @@
 
 `com.hyperfiddle/electric {:mvn/version "v3-alpha-SNAPSHOT"}`
 
-> [!NOTE]
-> Electric v3 is now in private beta! Request beta access here: https://www.hyperfiddle.net/early-access.html
-
+- [Mission statement, product overview, license, community](https://docs.google.com/document/d/1TgExchcIyWd4BH9qwb4vjp7uaBjWyBtPWEkGqSfvlTk/)
+- [Tutorial and reference](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/)
+- [Starter app](https://github.com/hyperfiddle/electric3-starter-app)
+- for updates, follow us on twitter: https://x.com/dustingetz
 
 Electric is a new way to build rich, interactive web products that simply have too much interactivity, realtime streaming, and too rich network connections to be able to write all the frontend/backend network plumbing by hand. With Electric, you can compose your client and server expressions directly (i.e. in the same function), and the Electric compiler macros will **infer at compile time the implied frontend/backend boundary** and generate the corresponding full-stack app.
 
 ![](docs/electric3-explainer.png)
 
-*Figure: In Electric, client and server expressions compose directly, and the Electric compiler transparently solves the network boundary through a straightforward dataflow graph analysis.*
+*Figure: In Electric, client and server expressions compose directly, and the Electric compiler transparently choreographs the network boundary via a straightforward dataflow graph analysis.*
 
 **How it works:** Unlike request/response frameworks, frontend ORMs, and client-side databases that suffer from request waterfalls, over/under fetching, large payload deserialization and other performance issues that get worse as your codebase and database grows, Electric uses a **custom Clojure/Script compiler to perform deep graph analysis** of your unified frontend/backend program and automatically determine the implied network cut, and then compile your program into separate reactive client and server target programs that cooperate and anticipate each other's needs. See [UIs are streaming DAGs (Getz 2022)](https://hyperfiddle.notion.site/UIs-are-streaming-DAGs-e181461681a8452bb9c7a9f10f507991) for a quick 10 minute video explainer of how this works and why it **actually doesn't result in the request waterfalls you might expect,** even in the presence of deep nesting, loops and control flow.
 
@@ -28,18 +29,21 @@ Electric is a new way to build rich, interactive web products that simply have t
 Our mission is to raise the abstraction ceiling in web development in the same way that managed memory did in the 90s, paving the way for something new.
 
 
-# Lightning talk – 5 minutes
+# 5 min lightning talk
 
 <div align="center">
   <a href="https://share.descript.com/view/nJkFVXo15lM" target="_blank">
-    <img alt="lightning talk video" src="./docs/lightning_talk_cover.png" width="480"/>
+    <img alt="lightning talk video" src="./docs/video-cover-systems-distributed-2024.png" width="480"/>
   </a>
 </div>
 
-# Docs and getting started
-- [Mission statement, product overview, license, community](https://docs.google.com/document/d/1TgExchcIyWd4BH9qwb4vjp7uaBjWyBtPWEkGqSfvlTk/)
-- [Tutorial and reference](https://docs.google.com/document/d/1frkb5URGFZUdWyCDl9moGFcPcLuDtW-M-HnCJOHkuDA/)
-- v3 starter app: https://github.com/hyperfiddle/electric3-starter-app
+# 30 min explainer talk
+
+<div align="center">
+  <a href="https://www.youtube.com/watch?v=ML8cFrWkWeg" target="_blank">
+    <img alt="Youtube: Electric Clojure: Differential Dataflow for UI (reClojure 2025)" src="./docs/video-cover-reClojure-2025.png" width="480"/>
+  </a>
+</div>
 
 # License
 
