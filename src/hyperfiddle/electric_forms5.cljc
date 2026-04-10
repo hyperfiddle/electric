@@ -710,14 +710,19 @@ accept the previous token and retain the new one."
     [(remove form-command? edits)
      (filter form-command? edits)]))
 
-(e/defn MergeEdits [edits]
+(e/defn MergeEdits [edits unparsed-value]
+  ;; WHY unparsed-value param: the merge of initial (authoritative) value with
+  ;; per-field edits was previously done outside MergeEdits (line 845). Moving it
+  ;; here makes MergeEdits the single extension point for "how to combine edits
+  ;; with the authoritative value" — forms6 rebinds this for FreeT reconstruction.
   (let [t (e/Reconcile
             (when-some [all-tokens (seq (map first edits))] ; extract all tokens - only rebuild if new edits, not when current edits changes
               (e/->Token `merge-edits
                 (stop-err-propagation ; severs fan-out of err path, as we cannot report form failure at field level.
                   (apply e/->Token `merge-edits all-tokens) ; unify them into a single ack-all, fan-out token
-                  ))))]
-    [t (not-empty (into {} (map second) edits))])) ; merge all kvs.
+                  ))))
+        form-v (not-empty (into {} (map second) edits))]
+    [t (merge unparsed-value form-v)])) ; merge all kvs.
 
 (defn directive [[t [directive & args] :as command]] directive)
 (defn collect-commands [commands] (into {} (map (juxt directive identity)) commands))
@@ -760,13 +765,12 @@ accept the previous token and retain the new one."
             ::discard (InterpretDiscard! edit discard-t commit-t (e/as-vec ?commits) genesis tracked-token)
             ::commit (InterpretCommit! edit commit-t form-valid?)))))))
 
-(e/defn FormDebugHelper [debug & {:syms [dirty-count unparsed-value form-v merged-form-v-with-unparsed-v parsed-form-v validation-message]}]
+(e/defn FormDebugHelper [debug & {:syms [dirty-count unparsed-value merged-v parsed-form-v validation-message]}]
   (e/When debug
     (dom/span (dom/text " " dirty-count " dirty"))
     (dom/pre (dom/text (pprint-str (if (= :verbose debug)
                                      {:unparsed unparsed-value
-                                      :fields form-v,
-                                      :form merged-form-v-with-unparsed-v
+                                      :form merged-v
                                       :parsed-form parsed-form-v
                                       :validation validation-message}
                                      parsed-form-v)
@@ -836,16 +840,14 @@ accept the previous token and retain the new one."
                                  (e/amb (SubmitButton! :genesis genesis) (DiscardButton!))))))
 
            [edits commands] (split-edits-from-commands edits)
-           [form-t form-v] (MergeEdits edits) #_(merge-edits edits)
+           [form-t merged-v] (MergeEdits edits unparsed-value)
 
            keyed-commands (collect-commands commands)
            [commit-t _] (::commit keyed-commands)
            [discard-t _] (::discard keyed-commands) ; supposed instant
 
-           merged-form-v-with-unparsed-v (merge unparsed-value form-v)
-
            tempid (Genesis tracked-tempid form-t)
-           parsed-form-v (Parse merged-form-v-with-unparsed-v tempid)
+           parsed-form-v (Parse merged-v tempid)
 
            validation-message (not-empty (ex-message parsed-form-v))
            dirty-count (count edits)]
@@ -856,7 +858,7 @@ accept the previous token and retain the new one."
            (dom/p (dom/props {:data-role "errormessage"})
                   (dom/text validation-message err))
            cmd)
-         (FormDebugHelper debug (map-shorthand dirty-count unparsed-value form-v merged-form-v-with-unparsed-v parsed-form-v validation-message)))))))
+         (FormDebugHelper debug (map-shorthand dirty-count unparsed-value merged-v parsed-form-v validation-message)))))))
 
 (defmacro Form! [value Fields & {:as props}] ; note - the fields must be nested under this form - which is fragile and unobvious
   `(dom/form ; for form events. e.g. submit, reset, invalid, etc…
