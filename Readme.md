@@ -28,15 +28,6 @@ Electric is a new way to build rich, interactive web products that simply have t
 
 Our mission is to raise the abstraction ceiling in web development in the same way that managed memory did in the 90s, paving the way for something new.
 
-
-# 5 min lightning talk
-
-<div align="center">
-  <a href="https://share.descript.com/view/nJkFVXo15lM" target="_blank">
-    <img alt="lightning talk video" src="./docs/video-cover-systems-distributed-2024.png" width="480"/>
-  </a>
-</div>
-
 # 30 min explainer talk
 
 <div align="center">
