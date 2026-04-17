@@ -17,7 +17,9 @@ expander to re-expand a built-in to a set of other built-ins.
 Electric Clojurescript macroexpansion is different from stock expansion:
 - cljs allows (defn foo) and (defmacro foo) to live alongside, since macroexpansion happens in a separate stage.
 - cljs prefers the macro version wherever it can since it generates code GCC can better optimize.
-- electric prefers defns since it generate smaller code which should be faster.
+- electric prefers defns since
+  - it generate smaller code which should be faster
+  - cljs macros expand to `js*` which would break under electric
 
 For this reason we have our own analyzer. It's not a full analyzer, just enough to find macros and vars.
 
@@ -74,41 +76,85 @@ forms and produces the first triple store. There are some non-obvious node types
   in `e/letfn` if one defines `Foo` and `Bar` we can first introduce the 2
   locals through `::mklocal` and bind them with `::bindlocal` afterwards.
 - `::localref` - a reference to an electric local. E.g. the returning `x` in `(let [x 1] x)`.
-- `::lookup` - in electric all vars are dynamic and can be rebound. This node type
+- `::lookup` - electric vars are dynamic and can be rebound. This node type
   is a lookup into the dynamic binding of the vars. We allow binding through
-  non-symbolic keys, e.g. we use keywords for some private bindings and numbers
+  non-symbolic keys, e.g. we use keywords for some private bindings, and numbers
   for passing positional arguments.
   
 `analyze-electric` takes the output of `analyze` and performs deeper analysis
 and graph rewrites. The current passes are:
-- `compute-effect-order` - reachable nodes get an ::fx-order key with an
-  increasing integer value denoting their evaluation order. The ordering is
-  later used to generate side effecting code in correct order as required by the
-  runtime.
 - `mark-used-ctors` - marks and orders all used constructors (e/fns desugar to
-  ctors). Used means we perform DCE, e.g. in (let [x 1, y (e/ctor 1)] x) we
-  won't compile the ctor.
-- `mark-used-calls2` - inside the marked ctors, marks and order all calls. It's
-  safe to mark inside ctors since calls can't happen outside of a ctor.
+  ctors). We perform DCE, e.g. in (let [x 1, y (e/ctor 1)] x) we won't compile the ctor.
+- `rewrite` calls to mark which ctor they belong to
+- `index-calls` assigns an ordering index to each call
 - `reroute-local-aliases` - if a local just aliases another one, reroutes the
   references to the origin. E.g. a similar clojure pass would rewrite
   `(let [x 1, y x] [y y])` to `(let [x 1] [x x])`.
-- `optimize-locals` - walking the code, finding all localrefs, decides whether the
+- `locals` - walking the code, finding all localrefs, decides whether the
   locals need to become runtime nodes. The compiler aggressively inlines when
   possible. This pass also has to handle closed over references (free variables).
 - `inline-locals` - inlines locals 
-- `order-nodes` - orders nodes based on compute-effect-order ordering
-- `order-frees` - orders frees based on compute-effect-order ordering
-- `collapse-ap-with-only-pures` - `(r/ap (r/pure x) (r/pure y) (r/pure z))` can
-  optimize to 2 cases:
+- `inline-literals` - if a node has a literal value (keyword, string, number etc) we can
+  inline the node, potentially saving needless roundtrips
+- `rewrite ap-of-pures` - `(r/ap (r/pure x) (r/pure y) (r/pure z))` can optimize to 2 cases:
   - `(r/ap (r/pure (fn* [] (x y z))))` if `x` is an impure fn
   - `(r/pure (x y z))` if `x` is a pure fn
   This pass handles both cases. We list pure fns in a hash-map.
+  Additionally an `r/ap` can have *some* arguments as `r/pure`. If it's more than 1 we rewrite
+  it to an `init-fn` inlining the pures. `(r/ap (r/pure +) (r/pure 3) foo)` becomes roughly
+  `(let [init-fn (fn [x] (+ 3 x))] (r/ap (r/pure init-fn) foo))`
+- `inline-return-nodes` - sometimes we compile the return flow to a node and reference it.
+  If this is the only reference it's wasted abstraction, so we inline it.
+- `order-nodes` - orders nodes based on causal ordering
+- `order-frees` - orders frees based on causal ordering
+- `expand-cannot-resolve` - if a symbol like `foo` was unresolvable we resolved it to `r/cannot-resolve`.
+  Here we expand it to `(r/cannot-resolve-fn 'foo)` so the runtime exception is more informative.
+
+## Foreign code analysis
+
+Foreign clojure(script) code, e.g. `cc/fn` or `cc/letfn` may contain references
+to electric locals and vars. To find them and compile correct code we need to
+analyze these as well. These require different expansion, analysis and emission,
+so we have separate functions for them: `-expand-all-foreign`,
+`analyze-foreign`, `emit-foreign` and finally `wrap-foreign-for-electric` which
+the electric analyzer calls. These work largely the same but cater to interop
+needs. A major difference is the triple store now encodes ordering instead of
+relying on `:db/id` order in the store, which proved to be problematic for graph
+rewrites. The keys are shorter too, `::u` for unique id, `::p` for parent,
+`::pi` for parent index (the discussed ordering).
+
+With a bit of effort this analysis chain could be generalized and extracted into
+a separate clojure(script) library for clj(s). The triple store lends itself
+great for analysis and rewrites.
 
 ## Emitter
 
 This is the simplest part of the compiler. It takes the final triple store as
-input has a straightforward mapping from the graph to the final runtime code.
+input and has a straightforward mapping from the graph to the final runtime code.
 `emit` is the main var which is currently ~40 lines of simple code. `emit-ctor`
 is the glue which ties together `emit` and other parts of the emitter to
 generate code for a single ctor.
+
+## Compiler knobs
+
+The compiler understands several keyword metadata on `e/defn`s or in the opts map of `e/single` and `e/local`. One can use these to debug the compilation pipeline.
+
+### `::print-expansion`
+
+Pretty prints the macroexpansion. Good for checking how we expand and convert clojure source code to electric primitives. Note that some forms might re-expand in the analysis phase, i.e. this is fully macroexpanded code but might not be broken down to electric primitives only.
+
+### `::print-analysis`
+
+Pretty prints the triple store after the initial, bare analysis. At this point the store is big but there weren't tricky optimizations happening. This is a good place to check the state of the triple store if one was doing changes in the `analyze` phase.
+
+### `::print-db`
+
+Pretty prints the final triple store, after all passes. Due to the optimization passes this store should be smaller/simpler. Since the passes are the trickiest, they might contain the most bugs. This view has been helpful in checking the state of the triple store when modifying the passes.
+
+### `::print-clj-source` / `::print-cljs-source`
+
+Pretty prints the final source code, the electric runtime code.
+
+### `::trace` / `::e/trace`
+
+Wraps all interop (clj/cljs) invocations with a trace logger that prints to stdout the ns/line/column/form and the returned value. Has a hardcoded blacklist for runtime3, missionary and incseq.
