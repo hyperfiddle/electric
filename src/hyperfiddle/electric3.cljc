@@ -1,7 +1,7 @@
 (ns hyperfiddle.electric3
   (:refer-clojure :exclude [fn defn apply letfn for declare #?(:cljs Range)])
   (:require [hyperfiddle.electric.impl.missionary-util :as mu]
-            [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             #?(:clj [hyperfiddle.electric.impl.entrypoint]) ; TODO rename server-entrypoint
             #?@(:cljs [hyperfiddle.electric-client3], :node nil) ; auto-load electric-client in browser builds. Before users had to remember to require it for side effect at the app entrypoint.
@@ -108,9 +108,9 @@ Returns the successive states of items described by `incseq`.
 
 (defmacro defn [nm & fdecl]
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
-        env (merge (meta nm) (lang/normalize-env &env) web-config {::lang/def nm})
+        env (merge (meta nm) ((requiring-resolve `lang/normalize-env) &env) web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym) {::lang/node true})
-        source (lang/->source env (-> nm ns-qualify keyword)
+        source ((requiring-resolve `lang/->source) env (-> nm ns-qualify keyword)
                  (with-meta `(-fn ~nm2 ~@(cond-> fdecl (string? (first fdecl)) next))
                    (meta &form)))]
     (when-not (::lang/has-edef? (meta *ns*)) (alter-meta! *ns* assoc ::lang/has-edef? true))
@@ -399,8 +399,8 @@ v3 to expose the full differential diff lifecycle)"
 
 (defmacro boot-client [opts Main & args]
   (if (build-properly-configured? (deref cljs.env/*compiler*))
-    (let [env (merge (lang/normalize-env &env) web-config opts )
-          source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
+    (let [env (merge ((requiring-resolve `lang/normalize-env) &env) web-config opts )
+          source ((requiring-resolve `lang/->source) env ::Main `(fn [] ($ ~Main ~@args)))]
       `(with-default-shutdown-prints
          (cc/apply ~(if (::hot-swap opts) `r/boot-client-hot `r/boot-client-cold) (r/->defs {::Main ~source}) ::Main
            ~(select-keys opts [:cognitect.transit/read-handlers :cognitect.transit/write-handlers])
@@ -410,8 +410,8 @@ v3 to expose the full differential diff lifecycle)"
       `(cc/fn [] (println ~message)))))
 
 (defmacro boot-single [opts Main & args]
-  (let [env (merge (lang/normalize-env &env) web-config opts)
-        source (lang/->source env ::Main `(fn [] ($ ~Main ~@args)))]
+  (let [env (merge ((requiring-resolve `lang/normalize-env) &env) web-config opts)
+        source ((requiring-resolve `lang/->source) env ::Main `(fn [] ($ ~Main ~@args)))]
     `(r/peer-sink (r/make-peer :client {} nil (r/->defs {::Main ~source}) ::Main nil))))
 
 ;; (cc/defn -snapshot [flow] (->> flow (m/eduction (dustingetz.data/take-upto (complement #{r/pending})))))

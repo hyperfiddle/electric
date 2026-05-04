@@ -7,7 +7,7 @@
             [dustingetz.check :as ca]
             [dustingetz.cljs-target]
             [hyperfiddle.electric3 :as e]
-            [hyperfiddle.electric.impl.lang3 :as lang]
+            [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [hyperfiddle.electric.impl.runtime3 :as r]
             [hyperfiddle.incseq.flow-protocol-enforcer :as fpe]
             [dustingetz.debug :as dbg]
@@ -25,20 +25,20 @@
 
 #?(:clj (defn code->ts* [env conf form]
           (ca/check map? conf)
-          (let [env (merge (->local-config env) (lang/normalize-env env) conf)
-                expanded (lang/expand-all env `(::lang/ctor ~form))
-                ts (lang/analyze expanded '_ env (lang/->ts))
+          (let [env (merge (->local-config env) ((requiring-resolve `lang/normalize-env) env) conf)
+                expanded ((requiring-resolve `lang/expand-all) env `(::lang/ctor ~form))
+                ts ((requiring-resolve `lang/analyze) expanded '_ env ((requiring-resolve `lang/->ts)))
                 _  (when (::lang/print-analysis env) (run! prn (->> ts :eav vals (sort-by :db/id))))]
-            (lang/analyze-electric env ts))))
+            ((requiring-resolve `lang/analyze-electric) env ts))))
 
 #?(:clj (defmacro code->ts {:style/indent 1} [conf & body]
           `(code->ts* ~&env ~conf '(do ~@body))))
 
-#?(:clj (defn ->env [env conf] (merge (->local-config env) (lang/normalize-env env) conf)))
+#?(:clj (defn ->env [env conf] (merge (->local-config env) ((requiring-resolve `lang/normalize-env) env) conf)))
 
 (defmacro main {:style/indent 1} [conf & body]
   (ca/is conf map? "provide config map as first argument")
-  `(r/->defs {::Main ~(lang/->source (->env &env conf) ::Main (lang/?meta (first body) `(e/fn [] (do ~@body))))}))
+  `(r/->defs {::Main ~((requiring-resolve `lang/->source) (->env &env conf) ::Main ((requiring-resolve `lang/?meta) (first body) `(e/fn [] (do ~@body))))}))
 
 (defn fastest [& args]
   (m/absolve (apply m/race (map m/attempt args))))
