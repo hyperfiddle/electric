@@ -482,3 +482,134 @@ Mitigation candidates if revisited: post-build assertion that `target/classes/hy
 A build via `clj -X:build:latest build` produces a POM whose hyperfiddle dep has no exclusion; the consumer would inherit CLJS transitively.
 Decision: wont-fix. The canonical `clj -X:build build` path is what gets published; alternative-alias builds are dev-only and not the deliverable.
 Mitigation if revisited: replicate the `:exclusions` clause inside each override-deps coordinate, or post-process the generated POM unconditionally.
+
+# Follow-up — `clojure.tools.logging` removal
+
+## Outcome
+`clojure.tools.logging` removed from the agent's AOT-walk reach.
+`clojure.tools.logging` keep-list entry deleted from `hyperfiddle-agent/src-build/build.clj`; rebuilt jar contains zero `clojure/tools/logging/*.class` entries.
+`logback-classic` no longer in `hyperfiddle-agent/deps.edn` main deps; moved to `:dev` and `:build` aliases.
+Published POM declares neither `tools.logging` nor `logback-classic`.
+
+## Replacement — `hyperfiddle.log`
+`/electric/src/hyperfiddle/log.cljc` — thin facade over SLF4J on JVM and goog.log on CLJS.
+Six public fns: `get-logger`, `trace`, `debug`, `info`, `warn`, `error`.
+Per-level signature: `(level logger msg-or-fn)` and `(level logger msg-or-fn ex)`.
+`msg-or-fn` is a string or a zero-arg fn returning a string; the JVM impl single-checks level enablement before invoking the thunk; CLJS forwards directly to `goog.log/log` which handles laziness natively.
+`/electric/deps.edn` declares `org.slf4j/slf4j-api` directly (`2.0.16`) and no longer declares `tools.logging`.
+
+## Migration — module-grained, 22 source files in 5 modules
+- `/hyperfiddle-agent` (7): `navigator_agent.clj`, `cloud_proxy.clj`, `reverse_proxy.clj`, `agent_server_adapter.clj`, `src-prod/prod.cljc`, `src-dev/dev.cljc`, `src-build/build.clj`.
+- `/electric` (5): `electric/impl/runtime3.cljc`, `electric_ring_adapter3.clj`, `electric_jetty9_ring_adapter3.clj`, `electric_httpkit_adapter3.clj`, `dustingetz/electric_codemirror.cljc`.
+- `/electric-secret` (1 rewrite + 1 deletion): `shadow_cljs/hooks3.clj` rewritten; `shadow_cljs/clojure_tools_logging_aot_fix.clj` deleted (the AOT-fix shim is no longer needed). The `copy-dir` in `electric/src-build/build.clj:16` that shipped the shim into the AOT class-dir was also dropped.
+- `/hyperfiddle` (7): `navigator6.cljc`, `navigator6/sorting.cljc`, `navigator6/rendering.cljc`, `hfql2/interpreter.cljc`, `ct/function.cljc` (dead-comment cleanup only), `hfql0.clj`, `navigator4.cljc`.
+- `/hyperfiddle-contrib` (1): `geoffreygaillard/debug_tools.cljc`.
+
+Mechanical rewrite template:
+- `[clojure.tools.logging :as log]` → `[hyperfiddle.log :as log]`.
+- Top-of-file `(def logger (log/get-logger (str *ns*)))` (wrapped in the same reader-conditional as the require, when applicable).
+- `(log/<level> "string")` → `(log/<level> logger "string")`.
+- `(log/<level> v1 v2 …)` (multi-arg) → `(log/<level> logger #(print-str v1 v2 …))` (`print-str` matches the old space-joining behaviour and stays lazy under disabled levels).
+- `(log/<level> ^Throwable e msg-args*)` → `(log/<level> logger <string-or-thunk> e)` — exception moves from first to last positional, matching SLF4J / goog.log convention.
+
+## Out-of-scope app modules — `D8.c` patch
+Apps used to inherit `tools.logging` transitively from `/electric`. With that coord gone, each app that uses `tools.logging` directly in source got a one-line `org.clojure/tools.logging {:mvn/version "1.2.4"}` added to its main `:deps`: `electric-fiddle`, `starter-app`, `datomic-browser`, `hyperfiddle-starter-app2`, `hyperfiddle-starter-minimal`, `hyperfiddle-saas`, `scratch`. (`auth-app` already declared it directly.) No source rewrites in those modules — they continue to use `clojure.tools.logging` until a future phase migrates them to `hyperfiddle.log`.
+
+## Tests
+`electric/test/hyperfiddle/log_test.cljc` — 8 RCF `tests` blocks, 15 assertions:
+- `get-logger` returns an `org.slf4j.Logger`.
+- `info` with a plain string emits one `INFO` event with the expected message.
+- `info` with a thunk: thunk invoked exactly once when level enabled; not invoked at all when level disabled (level set to `OFF`, thunk asserts via side-effect counter).
+- `info` with a string + exception: throwable proxy carries the cause.
+- All 5 levels reach the appender at `TRACE` threshold; mapped to SLF4J `TRACE/DEBUG/INFO/WARN/ERROR`.
+- `WARN` threshold suppresses `TRACE/DEBUG/INFO`.
+- `error` with exception attaches the throwable.
+
+CLJS-side `hyperfiddle.log` was not exercised under shadow-cljs in this iteration; impl follows goog.log's documented `goog.log/log(logger, level, msgOrFn, opt_err)` shape and will be exercised when CLJS-side wiring is invoked.
+
+## Acceptance — measured
+Acceptance gates from this iteration's spec, all met:
+- Repo-tree grep for `clojure.tools.logging` across the 5 touched modules — zero matches.
+- Shim file `clojure_tools_logging_aot_fix.clj` deleted; no callers anywhere in the monorepo.
+- `electric/deps.edn` declares `org.slf4j/slf4j-api 2.0.16`; no `tools.logging` coord.
+- `hyperfiddle-agent/deps.edn` main `:deps` declares neither; logback in `:dev` and `:build` aliases.
+- `aot-keep-prefixes` in `hyperfiddle-agent/src-build/build.clj` no longer contains `clojure.tools.logging`.
+- Built jar: zero `clojure/tools/logging/*.class`, zero `lang3*`, zero `cljs_analyzer2*`, zero `cljs/`. Required `*__init.class` entries present (`electric3`, `runtime3`, `prod`, `hyperfiddle/log`).
+- Published POM excludes `org.clojure/clojurescript` on the hyperfiddle dep; declares no `tools.logging` and no `logback-classic`.
+- B1 probes pass under baseline / `:cljs-arcane` / `:cljs-current:guava-20`.
+- Bprod probes return HTTP 404 from Jetty under all three modes.
+
+## Items not done
+- CLJS-side empirical verification of `hyperfiddle.log` (no shadow-cljs node REPL run).
+- Application module full builds beyond `clj -P` resolution; `clj -P` succeeds for all except `electric-fiddle` which is pre-existing-broken on `hyperfiddle-spring` artifact resolution (unrelated).
+- Cross-platform expansion of `cljc` call sites currently `#?(:clj log/...)` — `:clj` branches migrated, `:cljs` branches unchanged (Frame Non-goal).
+
+## Known issues / deferred
+- Migrating `tools.logging` use in app source files (`/electric-fiddle`, `/starter-app`, `/auth-app`, `/datomic-browser`, `/hyperfiddle-starter-app2`, `/hyperfiddle-starter-minimal`, `/hyperfiddle-saas`, `/scratch`) to `hyperfiddle.log`. Out of scope for this iteration; each currently declares `tools.logging` directly post-D8.c.
+- Removing the four `logback.xml` files inside `/hyperfiddle-agent/`. Left in place; they are still consumed by `:dev` / `:build` runs which now bring logback as an alias-scoped dep. Consumer of the published thin jar still sees the `resources/logback.xml` on classpath but it has no effect without a binding.
+- `clojure.tools.logging` direct dep at `tools.logging 1.2.4` pinned in app modules under D8.c patch — same pinning concern the original AOT-fix shim avoided. App-side migration to `hyperfiddle.log` removes this pin permanently.
+
+# Follow-up — `hyperfiddle.log` API refinements + CLJS console
+
+## `get-logger` is now a defmacro
+Underlying defn renamed to `get-logger*`; macro at `hyperfiddle.log/get-logger` exposes 0- and 1-arity.
+0-arity captures the current ns name at compile time via `(str (or (some-> &env :ns :name) *ns*))`.
+1-arity passes its argument through unchanged, preserving the prior `(log/get-logger "explicit")` and `(log/get-logger (str *ns*))` shapes.
+All 20 source-migration call sites collapsed from `(log/get-logger (str *ns*))` to `(log/get-logger)`.
+Reason: `(str *ns*)` evaluates to `""` at CLJS runtime — `*ns*` is not bound the way it is on the JVM — so goog.log loggers were nameless and the browser console emitted an empty `[]` slot. Compile-time capture removes the runtime divergence.
+
+## `set-level` cross-platform
+Signature: `(set-level logger level)` with `level ∈ #{:trace :debug :info :warn :error :off :all}`.
+JVM: explicit `java.lang.reflect.Method.invoke` on `setLevel(ch.qos.logback.classic.Level)` with `^Class` / `^java.lang.reflect.Method` type hints — no Clojure reflection warnings and no compile-time logback dep on `/electric`.
+CLJS: forwards to `goog.log/setLevel` with the appropriate `goog.log.Level` enum constant.
+Validation: `(when-not (valid-levels level) (throw (ex-info "Unknown log level" {:level level :valid valid-levels})))` — explicit error data preferred over the default `case` `IllegalArgumentException`.
+
+## `install-console-handler!` — CLJS console wiring
+Mirrors `goog.debug.Console`:
+- Configures a `goog.debug.TextFormatter` with `showAbsoluteTime=false, showExceptionText=false, appendNewline=false` (same flag overrides goog.debug.Console applies).
+- Level → method mapping matches goog: `>= SEVERE → "error"`, `>= WARNING → "warn"`, `>= CONFIG → "log"`, else `"debug"`. CONFIG (700) threshold + `console.log` (not `console.info`) is deliberate — Firefox's devtools "Info" filter hides `console.info` by default, breaking visibility on a default install.
+- Idempotent via a `^:private defonce` atom + `compare-and-set!`; JVM no-op.
+- One deliberate divergence from `goog.debug.Console`: passes the exception as a 2nd `console.<fn>` arg *only when present*; goog.debug.Console always passes `exception === undefined ? '' : exception`, which surfaces as a trailing `<empty string>` token in browser devtools.
+
+## Auto-install at namespace load
+`#?(:cljs (install-console-handler!))` at the top level of `hyperfiddle.log.cljc`.
+Opinionated default: every CLJS consumer of `hyperfiddle.log` gets browser-console output without further wiring.
+After auto-install fires, the explicit `install-console-handler!` call is a no-op (idempotency atom).
+Consequence: suppressing or replacing the auto-installed handler isn't a public API — a consumer must `goog.log/removeHandler` and reach into the `^:private` atom.
+
+## Demo wiring — `electric-fiddle/src/electric_tutorial/system_properties.cljc`
+Reduced to two log lines: `(def logger (log/get-logger))` and `(log/info logger (str "rendering " k))` inside `e/for`.
+The earlier `(defonce console-handler (goog.debug.Console.))` and explicit `(log/install-console-handler!)` calls are gone; auto-install at `hyperfiddle.log` load handles wiring.
+
+## CLJS empirical verification — Chromium + Firefox
+Iteration-1 deferral "CLJS-side empirical verification ... not run" is now closed.
+Verified via `playwright-cli` against `http://localhost:8080/fiddle/electric-tutorial.system-properties$SystemProperties`:
+- Chromium: 50+ INFO entries land in console; format ` [<relative-s>s] [<logger-name>] <message>` (leading space from goog's `prefix_ + ' '`); no `<empty string>`, no `null`.
+- Firefox: same after switching the method mapping to `console.log` for CONFIG+; the original `console.info` mapping was hidden by Firefox devtools' default "Info" filter.
+
+## Decisions taken (this iteration)
+- **D-msg-dispatch** — JVM `(if (string? msg-or-fn) ...)` over `(if (fn? msg-or-fn) ...)`. The string check is a positive identification of the common case (user choice).
+- **D-cljs-Level** — access via `(.-X ^js glog/Level)` property lookup, not `goog.log.Level/X` namespace syntax. Modern `goog.log` is a goog.module exporting `Level` as a property; CLJS parses `goog.log.Level/X` as a 3-segment namespace and the analyzer fails to locate it. Convenience fns (`glog/info`, `glog/warning`, `glog/error`, `glog/fine`) used where they exist; generic `glog/log` only for FINEST.
+- **D-format** — `goog.debug.TextFormatter` (the default Console formatter), not custom string concat. User direction: "match whatever the default did."
+- **D-console-method** — `>= CONFIG → "log"` matching `goog.debug.Console`'s mapping. Caused by Firefox `console.info` hidden-by-default filter.
+- **D-ex-arg** — pass exception only when present; deliberate single-point divergence from `goog.debug.Console`.
+- **D-set-level-jvm** — explicit `java.lang.reflect.Method.invoke` with type hints; no compile-time logback dep, no Clojure reflection warnings.
+- **D-auto-install** — top-level `#?(:cljs (install-console-handler!))` at ns load; opinionated default, suppression isn't a supported API.
+
+## Rejections
+- Standalone `ns-name` macro — added briefly when fixing the empty-`[]` bug; removed once 0-arg `get-logger` subsumed it; the macro behaviour folded into `get-logger`.
+- INFO → `console.info` mapping — initial choice; rejected after Firefox visibility regression observed via playwright.
+- Custom string format `"[<name>] <msg>"` — initial; rejected in favour of `goog.debug.TextFormatter` to match Console's leading `[<relative-s>s]` time prefix.
+- Always-2-arg `console.<fn>` call mirroring `goog.debug.Console.logToConsole_` — rejected because the empty-string substitution surfaces as `<empty string>` in browser devtools.
+- `(.setLevel logger level-val)` direct interop in `set-level` — rejected for emitting Clojure reflection warnings under `*warn-on-reflection*`; replaced by explicit `Method.invoke`.
+
+## Carry-over deferrals
+- App-source migration to `hyperfiddle.log` (the 8 modules listed in iteration-1's "Known issues") — still deferred.
+- `logback.xml` files inside `/hyperfiddle-agent/` — still in place under `:dev` / `:build` aliases.
+- Public reset / replace mechanism for the auto-installed handler — not exposed; consumers wanting a different handler must read the source.
+- Iteration-1 review findings F1 (auto-install undocumented in fn docstring), F2 (suppression undocumented), F4 (per-call FINEST resolution in `trace`), F5 (5× `if-ex` duplication in level fns), F7 (private-atom coupling), F8 (`:fatal` absence comment) — all triaged as nitpicks/suggestions and deferred without instruction.
+
+## Inconsistencies flagged in iteration-1 record
+The iteration-1 "Replacement — `hyperfiddle.log`" subsection above is preserved as a historical record but contains two now-superseded specifics:
+- "Top-of-file `(def logger (log/get-logger (str *ns*)))`" — the migration template at the time; the current call sites all use `(log/get-logger)` (0-arg macro).
+- "CLJS-side `hyperfiddle.log` was not exercised under shadow-cljs in this iteration" — addressed in iteration 2 via playwright (see "CLJS empirical verification" above).

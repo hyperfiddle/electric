@@ -3,12 +3,14 @@
   managing an Electric Server. This is a variant of
   `hyperfiddle.electric-ring-adapter` made compatible with HTTPKit."
   (:require
-   [clojure.tools.logging :as log]
+   [hyperfiddle.log :as log]
    [hyperfiddle.electric-ring-adapter3 :as ering]
    [org.httpkit.server :as httpkit]
    [ring.websocket :as ws])
   (:import
    (org.httpkit.server AsyncChannel)))
+
+(def logger (log/get-logger))
 
 (defrecord HTTPKitSocket [^AsyncChannel channel]
   ering/Socket
@@ -62,15 +64,15 @@
 
 (defmethod ering/handle-close-status-code ::server
   [_ring-req _socket _status-code & [_reason]]
-  (log/debug "HTTPKit server closed the websocket connection"))
+  (log/debug logger "HTTPKit server closed the websocket connection"))
 
 (defmethod ering/handle-close-status-code ::client
   [_ring-req _socket _status-code & [_reason]]
-  (log/debug "Websocket client closed the connection for an unknown reason"))
+  (log/debug logger "Websocket client closed the connection for an unknown reason"))
 
 (defmethod ering/handle-close-status-code ::unknown
   [_ring-req _socket _status-code & [_reason]]
-  (log/debug "HTTPKit websocket connection closed for an unknown reason"))
+  (log/debug logger "HTTPKit websocket connection closed for an unknown reason"))
 
 (defn httpkit-ws-handler
   "Return a map of HTTPkit-compatible handlers, describing how to start and manage an Electric server process, hooked onto a websocket."

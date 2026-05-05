@@ -3,7 +3,7 @@
   (:require
     [clojure.edn :as edn]
     [clojure.pprint :as pprint]
-    #?(:clj clojure.tools.logging)
+    #?(:clj [hyperfiddle.log :as log])
     [hyperfiddle.electric3 :as e :refer [$]]
     [hyperfiddle.electric-dom3 :as dom]
     [missionary.core :as m]
@@ -93,10 +93,12 @@
       (doto (e/input (m/relieve {} (m/reductions #(readf %2) controlled-value >cm-v))) ; reduction rebuilt if cv changes, which is fine
         #_(as-> $ (println 'cm-v (hash $)))))))
 
+#?(:clj (def logger (log/get-logger)))
+
 (defn read-edn [edn-str]
   (try (edn/read-string edn-str)
        (catch #?(:clj Throwable :cljs :default) t
-         #?(:clj (clojure.tools.logging/error t)
+         #?(:clj (log/error logger (str t) t)
             :cljs (js/console.warn t)) nil)))
 
 (defn write-edn [edn] (with-out-str (pprint/pprint edn)))

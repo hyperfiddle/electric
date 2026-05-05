@@ -4,13 +4,15 @@
   ring-jetty out of the box, and can be extended to other servers. See
   `hyperfiddle.electric-httpkit-adapter` for an example of an extension."
   (:refer-clojure :exclude [send])
-  (:require [clojure.tools.logging :as log]
+  (:require [hyperfiddle.log :as log]
             [hyperfiddle.electric3 :as-alias e]
             [missionary.core :as m]
             [ring.websocket :as ws]
             [dustingetz.check :as ca])
   (:import missionary.Cancelled
            (java.util.concurrent.atomic AtomicInteger)))
+
+(def logger (log/get-logger))
 
 (def ELECTRIC-CONNECTION-TIMEOUT
   "Time after which the server will close the socket if it hasn't seen any websocket activity from the client."
@@ -60,7 +62,7 @@
   connection timeout or reactor crash will close the socket. "
   [socket ^Throwable e]
   (if (instance? Cancelled e)
-    (log/debug "Websocket handler completed gracefully.")
+    (log/debug logger "Websocket handler completed gracefully.")
     ;; Reactor shuts down asynchronously on socket close. User code can throw
     ;; during cancellation phase, so the reactor can fail while shutting down.
     ;; In which case socket will already be closed.
@@ -68,13 +70,13 @@
       (let [{::keys [type time-seconds] :as ex-data} (ex-data e)]
         (case (or type (::e/type ex-data))
           ::timeout
-          (do (log/info (format "Connection to client lost after %ss. Closing socket." time-seconds))
+          (do (log/info logger #(format "Connection to client lost after %ss. Closing socket." time-seconds))
               (close socket 1013 "Try again later"))
           ::e/misaligned-dag
-          (do (log/error (ex-message e))
+          (do (log/error logger (ex-message e))
               (close socket 1012 "Misaligned client"))
           (do
-            (log/error e "Websocket handler failure." ex-data)
+            (log/error logger #(print-str "Websocket handler failure." ex-data) e)
             (close socket 1011 "Server process crash")))))))
 
 (defn write-msg
@@ -136,17 +138,17 @@
 
 (defmethod handle-close-status-code 1000 ; normal closure
   [_ring-req _socket status-code & [reason]]
-  (log/debug "Client disconnected gracefully" {:status status-code, :reason reason}))
+  (log/debug logger #(print-str "Client disconnected gracefully" {:status status-code, :reason reason})))
 
 (defmethod handle-close-status-code 1001 ; remote (client) is going away
   ;; Graceful disconnect. Typical of a hard navigation or tab close.
   [_ring-req _socket status-code & [reason]]
-  (log/debug "Client navigated away" {:status status-code, :reason reason}))
+  (log/debug logger #(print-str "Client navigated away" {:status status-code, :reason reason})))
 
 (defmethod handle-close-status-code 1005 ; placeholder for no known status code
   ;; default code set by Chrome and FF unless specified.
   [_ring-req _socket status-code & [reason]]
-  (log/debug "Client disconnected for an unknown reason (browser default close code)" {:status status-code, :reason reason}))
+  (log/debug logger #(print-str "Client disconnected for an unknown reason (browser default close code)" {:status status-code, :reason reason})))
 
 (def GENERIC-WS-CLOSE-MESSAGES
   "https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1"
@@ -166,7 +168,7 @@
 
 (defmethod handle-close-status-code :default
   [_ring-req _socket status-code & [reason]]
-  (log/debug (GENERIC-WS-CLOSE-MESSAGES status-code "Client disconnected for an unexpected reason") {:status status-code :reason reason}))
+  (log/debug logger #(print-str (GENERIC-WS-CLOSE-MESSAGES status-code "Client disconnected for an unexpected reason") {:status status-code :reason reason})))
 
 (defn subject-at [^objects arr slot]
   (fn [!] (aset arr slot !) #(aset arr slot nil)))
@@ -181,7 +183,7 @@
          on-close-slot     (int 1)
          keepalive-mailbox (m/mbx)]
      {:on-open    (fn on-open [socket]
-                    (log/info "WS connect" ring-req)
+                    (log/info logger #(print-str "WS connect" ring-req))
                     (aset state on-close-slot
                       ((m/join (fn [& _])
                          (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
@@ -189,14 +191,14 @@
                          (send-hf-heartbeat ELECTRIC-HEARTBEAT-INTERVAL (write-msg socket "HEARTBEAT")))
                        {} (partial failure socket)))) ; Start Electric process
       :on-close   (fn on-close [_socket _status-code & [_reason]]
-                    (log/info "WS close")
+                    (log/info logger "WS close")
                     ((aget state on-close-slot)))
       :on-error   (fn on-error [_socket err]
                     (cond
                       (or (and (instance? java.nio.channels.ClosedChannelException err) (nil? (ex-message err)))
                         (instance? #_org.eclipse.jetty.io.EofException java.io.EOFException err)) ; broken pipe
-                      (log/info "Websocket was closed unexpectedly") ; common in dev
-                      () (log/error err "Websocket error")))
+                      (log/info logger "Websocket was closed unexpectedly") ; common in dev
+                      () (log/error logger "Websocket error" err)))
       :on-ping    (fn on-ping [socket data] ; keep connection alive
                     (keepalive-mailbox nil))
       :on-pong    (fn on-pong [_socket _bytebuffer] ; keep connection alive
@@ -208,11 +210,11 @@
                               "electric on-message handler is not available. The electric server process failed to properly shut down *before* receiving the current message. Please report this issue.")]
                       (if (instance? CharSequence text-or-buff)
                         (let [text text-or-buff]
-                          (log/trace "text received" text)
+                          (log/trace logger #(print-str "text received" text))
                           (when-not (= "HEARTBEAT" text)
                             (h text)))
                         (let [^java.nio.ByteBuffer buff text-or-buff]
-                          (log/trace "bytes received" (- (.limit buff) (.position buff)))
+                          (log/trace logger #(print-str "bytes received" (- (.limit buff) (.position buff))))
                           (h buff)))))})))
 
 (defn ring-ws-handler
@@ -279,9 +281,9 @@
   ```
   (wrap-reject-stale-client handler {:hyperfiddle.electric/user-version \"12345\"}
     (fn on-mismatch [ring-request client-version server-version]
-      (log/info 'wrap-reject-stale-client \": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets.\"
+      (log/info logger #(print-str 'wrap-reject-stale-client \": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets.\"
         {:client-version (pr-str client-version)
-         :server-version (pr-str server-version)})
+         :server-version (pr-str server-version)}))
       (httpkit/as-channel ring-request ; this is HTTPkit specific
         (electric-httpkit/reject-websocket-handler 1008 \"stale client\") ; Websocket close code 1008 instructs the Electric client of the version mismatch
       )))
@@ -289,9 +291,9 @@
   ([next-handler config]
    (wrap-reject-stale-client next-handler config
      (fn on-mismatch [_ring-request client-version server-version]
-       (log/info 'wrap-reject-stale-client ": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets."
-         {:client-version (pr-str client-version)
-          :server-version (pr-str server-version)})
+       (log/info logger #(print-str 'wrap-reject-stale-client ": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets."
+                          {:client-version (pr-str client-version)
+                           :server-version (pr-str server-version)}))
        {::ws/listener (reject-websocket-handler 1008 "stale client")}))) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
   ([next-handler {:keys [:hyperfiddle/electric-user-version]} on-mismatch]
    (fn [ring-request]

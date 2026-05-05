@@ -20,7 +20,7 @@
          missionary/missionary      {:mvn/version "b.46"}
          org.clojure/clojure        {:mvn/version "1.12.0-alpha11"}
          org.clojure/clojurescript  {:mvn/version "1.11.121"}
-         org.clojure/tools.logging  {:mvn/version "1.2.4"}
+         org.slf4j/slf4j-api        {:mvn/version "2.0.16"}
          borkdude/edamame           {:mvn/version "1.4.25"}
 
          ;; prevents building from source, use maven release

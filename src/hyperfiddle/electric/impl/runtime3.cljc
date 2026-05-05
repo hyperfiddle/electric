@@ -6,7 +6,7 @@
             [missionary.core :as m]
             #?(:cljs missionary.impl.Propagator)
             [clojure.pprint]
-            #?(:clj [clojure.tools.logging :as log])
+            #?(:clj [hyperfiddle.log :as log])
             [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [cognitect.transit :as t]
             [hyperfiddle.incseq.diff-impl :as d]
@@ -26,6 +26,8 @@
 
 ;; turned off until missionary.core/amb= gets an int type hint
 ;; #?(:clj (set! *warn-on-reflection* true))
+
+#?(:clj (def logger (log/get-logger)))
 
 (def reclaim
   "Returns a fresh object. When the object is reclaimed by GC, provided function is called with no argument."
@@ -336,7 +338,7 @@ T T T -> (EXPR T)
          #?(:clj (alter-var-root #'*e (constantly e))
             :cljs (set! *e e))
          (let [clean-ex (clean-ex mt (str/join "\nvia: " (ex-messages e)))]
-           #?(:clj (log/error e)
+           #?(:clj (log/error logger (str e) e)
               :cljs ; console.error would print an irrelevant stacktrace
               (.log js/console (str "[ERROR] " (ex-message clean-ex))))
            (throw clean-ex)))))
@@ -1506,7 +1508,7 @@ T T T -> (EXPR T)
                             (::unserializable (ex-data (ex-cause e))) (ex-data (ex-cause e)))]
            (let [[_ _ slots _ _] msg
                  msg (->unserializable-msg slots (:v ed))]
-             #?(:clj (log/debug msg))
+             #?(:clj (log/debug logger msg))
              (throw (ex-info msg ed)))
            (throw e)))))
 

@@ -18,3 +18,4 @@ tsconfig.tsbuildinfo
 /out/
 /.dir-locals.el
 
+/.playwright-cli/

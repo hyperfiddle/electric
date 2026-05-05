@@ -1,6 +1,6 @@
 (ns hyperfiddle.electric-jetty9-ring-adapter3
   "An electric jetty9 adapter suitable for use with the official ring adapter"
-  (:require [clojure.tools.logging :as log]
+  (:require [hyperfiddle.log :as log]
             [missionary.core :as m]
             [hyperfiddle.electric.impl.sunng87-ring-jetty9-ws-adapter :as ws-adapter]
             [hyperfiddle.electric.impl.runtime3 :as r])
@@ -11,6 +11,8 @@
            [org.eclipse.jetty.server.handler ContextHandler HandlerList]
            [org.eclipse.jetty.websocket.api Session WebSocketAdapter]))
 
+(def logger (log/get-logger))
+
 (def proxy-ws-handler ws-adapter/proxy-ws-handler)
 
 (def send! ws-adapter/send!)
@@ -18,14 +20,14 @@
 
 (defn failure [^WebSocketAdapter ws ^Throwable e]
   (if (instance? Cancelled e)
-    (log/debug "Websocket handler completed gracefully.")
+    (log/debug logger "Websocket handler completed gracefully.")
     ;; jetty/close! is missing arity 3 for jetty 9. Call close directly to get arity 3.
     (when-some [s (.getSession ws)]
       (let [{::keys [type time-seconds] :as data} (ex-data e)]
         (case type
-          ::timeout (do (log/info (format "Connection to client lost after %ss. Closing socket." time-seconds))
+          ::timeout (do (log/info logger #(format "Connection to client lost after %ss. Closing socket." time-seconds))
                         (.close s 1013 "Try again later"))
-          (do (log/error e "Websocket handler failure." data)
+          (do (log/error logger #(print-str "Websocket handler failure." data) e)
               (.close s 1011 "Server process crash")))))))
 
 (defn send-async! [this msg ack crash] (ws-adapter/send! this msg {:write-success ack, :write-failed crash}))
@@ -86,7 +88,7 @@
          on-close-slot     (int 1)
          keepalive-mailbox (m/mbx)]
      {:on-connect (fn on-connect [^WebSocketAdapter ws]
-                    (log/debug "WS connect" ring-req)
+                    (log/debug logger #(print-str "WS connect" ring-req))
                     (aset state on-close-slot
                       ((m/join (fn [& _])
                          (timeout keepalive-mailbox ELECTRIC-CONNECTION-TIMEOUT)
@@ -96,27 +98,27 @@
       :on-close   (fn on-close [ws status-code reason]
                     (let [status {:status status-code, :reason reason}]
                       (case (long status-code) ; https://www.rfc-editor.org/rfc/rfc6455.html#section-7.4.1
-                        1000 (log/debug "Client disconnected gracefully" status)
-                        1001 (log/debug "Client navigated away" status)
+                        1000 (log/debug logger #(print-str "Client disconnected gracefully" status))
+                        1001 (log/debug logger #(print-str "Client navigated away" status))
                         ;; 1005 is the default close code set by Chrome and FF unless specified.
-                        1005 (log/debug "Client disconnected for an unknown reason (browser default close code)" status)
-                        (log/debug "Client disconnected for an unexpected reason." status))
+                        1005 (log/debug logger #(print-str "Client disconnected for an unknown reason (browser default close code)" status))
+                        (log/debug logger #(print-str "Client disconnected for an unexpected reason." status)))
                       ((aget state on-close-slot))))
       :on-error   (fn on-error [ws err]
-                    (log/error err "Websocket error"))
+                    (log/error logger "Websocket error" err))
       :on-ping    (fn on-ping [^WebSocketAdapter ws bytebuffer] ; Send pong and keep connection alive.
                     (.sendPong (.getRemote (.getSession ws)) bytebuffer)
                     (keepalive-mailbox nil))
       :on-pong    (fn on-pong [ws bytebuffer] ; ignore pong, no use case
-                    (log/trace "pong"))
+                    (log/trace logger "pong"))
       :on-text    (fn on-text [^WebSocketAdapter ws text]
                     (keepalive-mailbox nil)
-                    (log/trace "text received" text)
+                    (log/trace logger #(print-str "text received" text))
                     (when-not (= "HEARTBEAT" text)
                       ((aget state on-message-slot) text)))
       :on-bytes   (fn [^WebSocketAdapter ws ^bytes bytes offset length]
                     (keepalive-mailbox nil)
-                    (log/trace "bytes received" {:length length})
+                    (log/trace logger #(print-str "bytes received" {:length length}))
                     ((aget state on-message-slot) (ByteBuffer/wrap bytes offset length)))})))
 
 (defn reject-websocket-handler
@@ -154,9 +156,9 @@
   ([next-handler config]
    (wrap-reject-stale-client next-handler config
      (fn on-mismatch [_ring-request client-version server-version]
-       (log/info 'wrap-reject-stale-client ": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets."
-         {:client-version (pr-str client-version)
-          :server-version (pr-str server-version)})
+       (log/info logger #(print-str 'wrap-reject-stale-client ": Electric client connection was rejected because client version doesn't match the server version. Client was instructed to perform a page reload so to get new javascript assets."
+                           {:client-version (pr-str client-version)
+                            :server-version (pr-str server-version)}))
        (reject-websocket-handler 1008 "stale client")))) ; https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
   ([next-handler {:keys [:hyperfiddle/electric-user-version]} on-mismatch]
    (fn [ring-request]
