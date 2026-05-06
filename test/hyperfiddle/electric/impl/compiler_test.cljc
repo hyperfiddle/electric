@@ -713,6 +713,7 @@
 (defn consuming [v*] (let [v* (atom v*)] (fn [_] (ffirst (swap-vals! v* next)))))
 
 (e/defn p [])
+(e/declare ^:dynamic *Dynamic*)
 
 (tests
   "foreign electrified"
@@ -770,6 +771,9 @@
 
   (foreign-electrified-jvm (consuming ['plus]) '(p e1 3))
   := `[(~'plus ~'e1 3) [~'plus ~'e1] [p ~'e1]]
+
+  (foreign-electrified-jvm '(alter-var-root #'*Dynamic* (constantly :foo)))
+  := '[(alter-var-root #'*Dynamic* (constantly :foo)) [] []]
 
   "js"
   (foreign-electrified-js (consuming ['plus]) '(p 2 3))

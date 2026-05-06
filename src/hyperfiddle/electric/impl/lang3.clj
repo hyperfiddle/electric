@@ -1075,7 +1075,7 @@
                                                           (fn [ts] (analyze-foreign ts (first nx) env)))))
                                               ts (eduction (partition-all 2) branch*))))))
 
-           (var) (under ts {::t ::builtin-var} (fn [ts] (analyze-foreign ts (second form) env)))
+           (var) (addf ts (->u) {::t ::builtin-var, ::var (second form)})
 
            (throw) (under ts {::t ::throw} (fn [ts] (analyze-foreign ts (second form) env)))
 
@@ -1179,7 +1179,7 @@
                  (::finally) (emit-n 'finally u)
                  (::throw) (emit-1 'throw u)
                  (::if) (emit-n 'if u)
-                 (::builtin-var) (emit-1 'var u)
+                 (::builtin-var) (list 'var (::var nd))
                  (::recur) (emit-n 'recur u)
                  (::js*) (emit-n 'js* u)
                  (::invoke) (map emit (find ::p u))
