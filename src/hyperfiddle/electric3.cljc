@@ -106,7 +106,19 @@ Returns the successive states of items described by `incseq`.
           (ns-qualify 'foo) := `foo
           (ns-qualify 'a/b) := 'a/b))
 
+;; (defn name doc-string? attr-map? [params*] prepost-map? body)
+;; (defn name doc-string? attr-map? ([params*] prepost-map? body) + attr-map?)
+(cc/defn- get-arities [x*]
+  (let [x* (cond-> x* (string? (first x*)) next)
+        x* (cond-> x* (map? (first x*)) next)]
+    (cond-> x* (vector? (first x*)) list)))
+(cc/defn- arity-has-pre-post-map? [arity-def]
+  (let [?prepost (second arity-def)] (or (:pre ?prepost) (:post ?prepost))))
+(cc/defn- has-prepost-map? [fdecl] (some arity-has-pre-post-map? (get-arities fdecl)))
+
 (defmacro defn [nm & fdecl]
+  (when (has-prepost-map? fdecl)
+    (throw (ex-info (str "[" nm "] :pre and :post conditions not supported") {})))
   (let [[_defn sym] (macroexpand `(cc/defn ~nm ~@fdecl))
         env (merge (meta nm) ((requiring-resolve `lang/normalize-env) &env) web-config {::lang/def nm})
         nm2 (vary-meta nm merge (meta sym) {::lang/node true})

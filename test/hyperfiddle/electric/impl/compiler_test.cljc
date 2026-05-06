@@ -43,6 +43,21 @@
 (l/test-compile ::Main (lang/->cljs-env) ref/referred-fn)
 (l/test-compile ::Main (lang/->cljs-env) hyperfiddle.electric.impl.expand-require-referred/referred-fn)
 
+#?(:clj (defn match-exception-message [regex f] (try (f) "" (catch Throwable e (or (re-find regex (ex-message e)) (ex-message e))))))
+#?(:clj
+   (tests
+     (match-exception-message #"conditions not supported"
+       (fn []
+         (l/test-compile ::Main
+           (e/defn Foo [x] {:pre [(number? x)]}))))
+     := "conditions not supported"
+
+     (match-exception-message #"conditions not supported"
+       (fn []
+         (l/test-compile ::Main
+           (e/defn Foo ([]) ([_] {:post [(number? %)]})))))
+     := "conditions not supported"))
+
 (tests "test-simplest"
   (match (l/test-compile ::Main 1)
     `[(r/cdef 0 [] [] nil
