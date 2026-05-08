@@ -174,38 +174,31 @@
                                   (when-not (find-violation ts2) (run1 ts2))))
                               1)]
         [(vector-keep ts vec-uid keep) ex]))))
-(defn shrink-node [ts ex node-id]
-  (or (when-some [node (ts/->node ts node-id)]
-        (case (:t node)
-          :server (try-shrink ts (fn [ts] (raise ts (child ts (:uid node)))))
-          :vector (let [vec-uid (:uid node)]
-                    (or (raise-vector-child ts vec-uid) (shrink-vector ts vec-uid)))
-          :case (let [case-uid (:uid node)]
-                  (or (try-shrink ts (fn [ts] (raise ts (case-test-id ts case-uid))))
-                      (try-shrink ts (fn [ts] (raise ts (case-branch0-id ts case-uid))))
-                      (try-shrink ts (fn [ts] (raise ts (case-branch1-id ts case-uid))))))
-          :v (let [first-sym (first (input-syms ts))]
-               (when-not (= first-sym (:v node))
-                 (try-shrink ts (fn [ts] (ts/asc ts node-id :v first-sym)))))))
-      [ts ex]))
-(defn shrink-dfs [ts ex node-id]
-  (if (ts/->node ts node-id)
-    (let [child-ids (children ts (id->uid ts node-id))
-          [ts1 ex1] (reduce (fn [[ts ex] cid] (shrink-dfs ts ex cid))
-                      [ts ex] child-ids)
-          [ts2 ex2] (shrink-node ts1 ex1 node-id)]
-      (if (not= (:eav ts1) (:eav ts2))
-        (shrink-dfs ts2 ex2 node-id)
-        [ts2 ex2]))
-    [ts ex]))
+(defn shrink-node [ts node-id]
+  (when-some [node (ts/->node ts node-id)]
+    (case (:t node)
+      :server (try-shrink ts (fn [ts] (raise ts (child ts (:uid node)))))
+      :vector (let [vec-uid (:uid node)]
+                (or (raise-vector-child ts vec-uid) (shrink-vector ts vec-uid)))
+      :case (let [case-uid (:uid node)]
+              (or (try-shrink ts (fn [ts] (raise ts (case-test-id ts case-uid))))
+                  (try-shrink ts (fn [ts] (raise ts (case-branch0-id ts case-uid))))
+                  (try-shrink ts (fn [ts] (raise ts (case-branch1-id ts case-uid))))))
+      :v (let [first-sym (first (input-syms ts))]
+           (when-not (= first-sym (:v node))
+             (try-shrink ts (fn [ts] (ts/asc ts node-id :v first-sym))))))))
+(defn shrink-dfs [ts node-id]
+  (when (ts/->node ts node-id)
+    (let [step      (fn [[ts :as acc] cid] (or (shrink-dfs ts cid) acc))
+          [ts1 ex1] (reduce step [ts nil] (children ts (id->uid ts node-id)))]
+      (or (shrink-node ts1 node-id) (when ex1 [ts1 ex1])))))
 (defn enter-shrink-mode [ts] (update-in ts [:o :run-opts] (fn [o] (assoc o :topo-test-count (:shrink-topo-test-count o 64)))))
 (defn shrink [ts ex]
   (let [ts (enter-shrink-mode ts)]
     (loop [ts ts, ex ex, n (:max-iterations (-> ts :o :run-opts) 3)]
-      (let [[ts2 ex2] (shrink-dfs ts ex (get-root-node-id ts))]
-        (if (or (zero? n) (= (:eav ts) (:eav ts2)))
-          [ts ex]
-          (recur ts2 ex2 (dec n)))))))
+      (if-some [[ts2 ex2] (when (pos? n) (shrink-dfs ts (get-root-node-id ts)))]
+        (recur ts2 ex2 (dec n))
+        [ts ex]))))
 ;; SAMPLE RUNNER
 (defn ex-message-stack [ex] (into [] (comp (take-while some?) (map ex-message)) (iterate ex-cause ex)))
 (defn ->fail-exception [ts ex]
