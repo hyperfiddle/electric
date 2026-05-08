@@ -706,7 +706,7 @@
         (::case_) (let [[_ test & brs] form
                         [default brs2] (if (odd? (count brs))
                                          [(last brs) (butlast brs)]
-                                         [`(r/case-default-required) brs])
+                                         [(?meta form `(r/case-default-required)) brs])
                         <br*> (->box []), track (fn [g] (-> (<br*>) (conj g) (<br*>)) g)
                         code (transduce (take-nth 2) (fn ([ac] (conj ac (track (gensym "default"))))
                                                        ([ac nx] (conj ac nx (track (gensym "branch"))))) [] brs2)]
@@ -714,7 +714,7 @@
                              `((fn* ([test# ~@(<br*>)] (~'case test# ~@code)))
                                ~test ~@(-> (into [] (comp (take-nth 2) (map #(list ::ctor %))) (next brs2))
                                          (conj `(::ctor ~default)))))  pe env ts))
-        (case) (recur (?meta form `(::call (::case_ ~@(next form)))) pe env ts)
+        (case) (recur (?meta form `(::call ~(?meta form `(::case_ ~@(next form))))) pe env ts)
         (quote) (let [e (->id)]
                   (-> ts (add ::pure e pe {::site (::current env)})
                     (add ::literal (->id) e {::v form, ::site (::current env)})))
