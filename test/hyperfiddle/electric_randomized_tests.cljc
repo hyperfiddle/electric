@@ -126,6 +126,28 @@
         code-fn (eval `(fn [] ~code))]
     (try (dotimes [_ (:topo-test-count (-> ts :o :run-opts) 16)] (code-fn)) nil
          (catch #?(:clj Throwable :cljs :default) ex ex))))
+;; DEBUG
+(defn node-label [node] (if (= :v (:t node)) (str ":v " (:v node)) (str (:t node))))
+(defn collect-reachable [ts eid]
+  (reduce (fn [acc cid] (into acc (collect-reachable ts cid)))
+    #{eid} (children ts (ts/? ts eid :uid))))
+(defn print-subtree [ts eid prefix child-prefix]
+  (println (str prefix (node-label (ts/->node ts eid))))
+  (let [cs (vec (children ts (ts/? ts eid :uid))), n (count cs)]
+    (dotimes [i n]
+      (let [last? (= i (dec n))
+            p  (str child-prefix (if last? "└── " "├── "))
+            cp (str child-prefix (if last? "    " "│   "))]
+        (print-subtree ts (nth cs i) p cp)))))
+(defn debug-print-ast [ts]
+  (let [root-eid (get-root-node-id ts)
+        all-eids (ts/key ts :uid)
+        reachable (collect-reachable ts root-eid)
+        unreachable (sort-by #(ts/? ts % :uid) (remove reachable all-eids))]
+    (print-subtree ts root-eid "" "")
+    (when (seq unreachable)
+      (println (str ";; unreachable: "
+                 (str/join " " (map #(node-label (ts/->node ts %)) unreachable)))))))
 ;; SHRINKING
 (defn case-test-id [ts case-node-uid] (-> (children ts case-node-uid) first))
 (defn case-branch0-id [ts case-node-uid] (-> (children ts case-node-uid) second))
