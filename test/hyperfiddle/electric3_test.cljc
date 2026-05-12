@@ -1075,6 +1075,48 @@
            (tap (e/server ((fn [{:keys [a] ::keys [b]}] [::server a b]) {:a 1 ::b 2})))) tap tap)
     (hash-set % %) := #{[::client 1 2] [::server 1 2]}))
 
+(tests "Sequential destructure sited via ^::e/server on pattern"
+  (with ((l/local {}
+           (e/client (let [^::e/server [a b] (e/server [#?(:clj (Object.) :cljs (js/Object.))
+                                                        #?(:clj (Object.) :cljs (js/Object.))])]
+                       (e/server (tap [(some? a) (some? b)]))))) tap tap)
+    % := [true true]))
+
+(tests "Sequential destructure sited via ^::e/client on pattern"
+  (with ((l/local {}
+           (e/server (let [^::e/client [a b] (e/client [#?(:clj (Object.) :cljs (js/Object.))
+                                                        #?(:clj (Object.) :cljs (js/Object.))])]
+                       (e/client (tap [(some? a) (some? b)]))))) tap tap)
+    % := [true true]))
+
+(tests "Associative destructure sited via ^::e/server on pattern"
+  (with ((l/local {}
+           (e/client (let [^::e/server {:keys [x y]} (e/server {:x #?(:clj (Object.) :cljs (js/Object.))
+                                                                :y #?(:clj (Object.) :cljs (js/Object.))})]
+                       (e/server (tap [(some? x) (some? y)]))))) tap tap)
+    % := [true true]))
+
+(tests "Nested pattern under ^::e/server inherits site"
+  (with ((l/local {}
+           (e/client (let [^::e/server [[a b] c] (e/server [[#?(:clj (Object.) :cljs (js/Object.))
+                                                              #?(:clj (Object.) :cljs (js/Object.))]
+                                                             #?(:clj (Object.) :cljs (js/Object.))])]
+                       (e/server (tap [(some? a) (some? b) (some? c)]))))) tap tap)
+    % := [true true true]))
+
+(tests "Unannotated destructure preserves call-site (regression guard)"
+  (with ((l/local {}
+           (e/client (let [[x y] (e/server [1 2])]
+                       (tap [x y])))) tap tap)
+    % := [1 2]))
+
+#?(:clj
+   (tests "^::e/server and ^::e/client both on same pattern is a compile error"
+     (try (eval '(hyperfiddle.electric-local-def3/local {}
+                   (let [^::e/server ^::e/client [a b] (e/server [1 2])] [a b])))
+          :no-error
+          (catch Throwable _ :error)) := :error))
+
 ;; TODO try/catch
 (skip
   (with

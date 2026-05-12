@@ -1,12 +1,26 @@
 (ns hyperfiddle.electric.impl.destructure
   "Cross-platform (clj/cljs) destructuring. Adapted from clojurescript codebase"
   (:require [cljs.core]
+            [hyperfiddle.electric.impl.lang3 :as-alias lang]
             [hyperfiddle.electric.impl.runtime3 :as r]))
+
+(defn- pattern-site [pat]
+  (let [m (meta pat)
+        s? (:hyperfiddle.electric3/server m)
+        c? (:hyperfiddle.electric3/client m)]
+    (cond (and s? c?) (throw #?(:clj (new Exception
+                                       (str "Destructure pattern carries both ^::e/server and ^::e/client metadata: " pat))
+                                :cljs (new js/Error
+                                       (str "Destructure pattern carries both ^::e/server and ^::e/client metadata: " pat))))
+          s? :server
+          c? :client
+          :else nil)))
 
 (defn destructure* [bindings]
   (let [bents (partition 2 bindings)
-        pb (fn pb [bvec b v]
-             (let [pvec
+        pb (fn pb [bvec b v site]
+             (let [wrap (fn [form] (if site (list ::lang/site site form) form))
+                   pvec
                    (fn [bvec b val]
                      (let [gvec (gensym "vec__")
                            gseq (gensym "seq__")
@@ -14,7 +28,7 @@
                            has-rest (some #{'&} b)]
                        (loop [ret (let [ret (conj bvec gvec val)]
                                     (if has-rest
-                                      (conj ret gseq (list `seq gvec))
+                                      (conj ret gseq (wrap (list `seq gvec)))
                                       ret))
                               n 0
                               bs b
@@ -22,23 +36,24 @@
                          (if (seq bs)
                            (let [firstb (first bs)]
                              (cond
-                               (= firstb '&) (recur (pb ret (second bs) gseq)
+                               (= firstb '&) (recur (pb ret (second bs) gseq site)
                                                n
                                                (nnext bs)
                                                true)
-                               (= firstb :as) (pb ret (second bs) gvec)
+                               (= firstb :as) (pb ret (second bs) gvec site)
                                :else (if seen-rest?
                                        (throw #?(:clj (new Exception "Unsupported binding form, only :as can follow & parameter")
                                                  :cljs (new js/Error "Unsupported binding form, only :as can follow & parameter")))
                                        (recur (pb (if has-rest
                                                     (conj ret
-                                                      gfirst `(first ~gseq)
-                                                      gseq `(next ~gseq))
+                                                      gfirst (wrap `(first ~gseq))
+                                                      gseq (wrap `(next ~gseq)))
                                                     ret)
                                                 firstb
                                                 (if has-rest
                                                   gfirst
-                                                  (list `nth gvec n nil)))
+                                                  (wrap (list `nth gvec n nil)))
+                                                site)
                                          (inc n)
                                          (next bs)
                                          seen-rest?))))
@@ -48,7 +63,7 @@
                      (let [gmap (gensym "map__")
                            defaults (:or b)]
                        (loop [ret (-> bvec (conj gmap) (conj v)
-                                    (conj gmap) (conj `(r/get-destructure-map ~gmap))
+                                    (conj gmap) (conj (wrap `(r/get-destructure-map ~gmap)))
                                     ((fn [ret]
                                        (if (:as b)
                                          (conj ret (:as b) gmap)
@@ -81,12 +96,12 @@
                                          (with-meta (symbol nil (name bb)) (meta bb))
                                          bb)
                                  bv (if (contains? defaults local)
-                                      (list 'get gmap bk (defaults local))
-                                      (list 'get gmap bk))]
+                                      (wrap (list 'get gmap bk (defaults local)))
+                                      (wrap (list 'get gmap bk)))]
                              (recur
                                (if (or (keyword? bb) (symbol? bb)) ;(ident? bb)
                                  (-> ret (conj local bv))
-                                 (pb ret bb bv))
+                                 (pb ret bb bv site))
                                (next bes)))
                            ret))))]
                (cond
@@ -97,7 +112,9 @@
                  :else (throw
                          #?(:clj (new Exception (str "Unsupported binding form: " b))
                             :cljs (new js/Error (str "Unsupported binding form: " b)))))))
-        process-entry (fn [bvec b] (pb bvec (first b) (second b)))]
+        process-entry (fn [bvec b]
+                        (let [pat (first b)]
+                          (pb bvec pat (second b) (pattern-site pat))))]
     (if (every? symbol? (map first bents))
       bindings
       (if-let [kwbs (seq (filter #(keyword? (first %)) bents))]
