@@ -225,7 +225,7 @@
 (defn ex-message-stack [ex] (into [] (comp (take-while some?) (map ex-message)) (iterate ex-cause ex)))
 (defn ->fail-exception [ts ex]
   (let [code (generate-source ts)]
-    (ex-info (str "test failed: " (str/join ": " (ex-message-stack ex)) "\n\n  " (with-out-str (lang/pprint-code code)))
+    (ex-info (str "test failed: " (str/join ": " (ex-message-stack ex)) "\n\n  " (with-out-str (#?(:clj lang/pprint-code :cljs prn) code)))
       {:code code} ex)))
 (defn run-test [opts]
   (let [ts (-> (init (assoc opts :inputs '[{:site% :client, :name$ c}]))
