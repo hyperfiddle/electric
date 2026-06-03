@@ -1144,10 +1144,6 @@
     (= (ex-info "a" {}) (ex-info "a" {})) := false
     (= (Failure. (ex-info "err" {})) (Failure. (ex-info "err" {}))) := false))
 
-;; HACK sequences cljs async tests. Symptomatic of an RCF issue.
-;; Ticket: https://www.notion.so/hyperfiddle/cljs-test-suite-can-produce-false-failures-0b3799f6d2104d698eb6a956b6c51e48
-;; #?(:cljs (t/use-fixtures :each {:after #(t/async done (js/setTimeout done 1))}))
-
 ;; TODO transfer try/catch
 (skip
   (let [!x (atom true)]
@@ -1517,19 +1513,17 @@
          (swap! !y inc)
          % := [9 (java.awt.Point. 1 9)]))))
 
-(defn bypass-rcf-bug [[href a]] [href (str/replace (.-href a) #".*/" "")])
 #?(:cljs
    (do-browser
      (let [!href (atom "href1")]
        (tests "set!"
-         ;; https://www.notion.so/hyperfiddle/RCF-implicit-do-rewrite-rule-does-not-account-for-let-bindings-61b1ad82771c407198c1f678683bf443
          (with ((l/single {} (let [a (.createElement js/document "a")
                                    href (e/watch !href)]
                                (set! (.-href a) href)
                                (tap [href a]))) tap tap)
-           (bypass-rcf-bug %) := ["href1" "href1"]
+           (let [[href a] %] [href (str/replace (.-href a) #".*/" "")]) := ["href1" "href1"]
            (reset! !href "href2")
-           (bypass-rcf-bug %) := ["href2" "href2"])))))
+           (let [[href a] %] [href (str/replace (.-href a) #".*/" "")]) := ["href2" "href2"])))))
 
 #?(:clj (tests "set! with electric value"
           (with ((l/single {} (tap (let [pt (java.awt.Point. 1 2)]
