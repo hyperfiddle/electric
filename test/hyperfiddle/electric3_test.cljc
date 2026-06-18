@@ -1586,6 +1586,7 @@
     (e/fn [x] ($ f (e/fn [y] ($ ($ x x) y))))))
 
 (tests "Y-Combinator"
+  (rcf/set-timeout! 5000) ; the deep n=20 recursion exceeds the 400ms cljs default
   (let [!n (atom 5)]
     (with ((l/single {} (tap ($ ($ Y Factorial-gen) (e/watch !n)))) tap tap)
       % := 120
