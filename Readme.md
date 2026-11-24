@@ -1,5 +1,7 @@
 # Electric Clojure – full-stack differential dataflow for UI
 
+> **Electric v3 is no longer maintained.** Electric v4 development is ongoing and is built on WebAssembly instead of Clojure, which menans, unfortunately, leaving this Clojure implementation behind. The v3 release stays available as-is under its current license, with no further fixes or releases. For project updates, follow Dustin on X: https://x.com/dustingetz
+
 `com.hyperfiddle/electric {:mvn/version "v3-alpha-SNAPSHOT"}`
 
 - [Mission statement, product overview, license, community](https://docs.google.com/document/d/1TgExchcIyWd4BH9qwb4vjp7uaBjWyBtPWEkGqSfvlTk/)
